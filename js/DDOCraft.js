@@ -64,32 +64,39 @@ for (let i = 0; i < itemOptions.length; i++) {
         (itemOptions[i].AugmentColor !== itemOptions[i+1].AugmentColor) ||
         (itemOptions[i].itemOptionSlot !== itemOptions[i+1].itemOptionSlot)
     )) {
-        addHTML = addHTML + "</div>";
+        addHTML = addHTML + "</div> <!-- Last of ench --> ";
     }
 
     // NOTE: Neither augments nor augment colors can have the last enchantments of an item or the whole thing.
 
     // If last enchantment of an augment color
-    if (i < itemOptions.length - 1 &&  itemOptions[i].AugmentColor !== itemOptions[i+1].AugmentColor) {
-        addHTML = addHTML + "</div>";
+    if (i < itemOptions.length - 1 &&  currentSlot.substring(0, 3) === "Aug" && itemOptions[i].AugmentColor !== itemOptions[i+1].AugmentColor) {
+        addHTML = addHTML + "</div> <!-- Last of color --> ";
     }
 
     // If last enchantment of an augment slot.
     // If so, current color will always be something. Next will not.
-    if (i < itemOptions.length - 1 &&  currentSlot.substring(0, 3) === "Aug" && itemOptions[i].itemOptionSlot !== itemOptions[i+1].itemOptionSlot) {
-        addHTML = addHTML + "</div>";
+    if (i < itemOptions.length - 1 &&  currentSlot.substring(0, 3) === "Aug" && itemOptions[i+1].itemOptionSlot.substring(0, 3) !== "Aug") {
+        addHTML = addHTML + "</div> <!-- Last of augment --> ";
     }
 
     // If last enchantment of an item slot (need even if last of augment also was true).
     // Last of slot will always be "Extra" and last of last will be from item type "Orb".
     if (i < itemOptions.length - 1 &&  itemOptions[i].itemOptionSlot !== itemOptions[i+1].itemOptionSlot) {
-        addHTML = addHTML + "</div>";
+        addHTML = addHTML + "</div> <!-- Last of slot: " + itemOptions[i].itemOptionSlot + " moving to " + itemOptions[i+1].itemOptionSlot + "--> ";
+    }
+
+    // If last of the whole item.
+    if (i < itemOptions.length - 1 &&  itemOptions[i].itemOptionItem !== itemOptions[i+1].itemOptionItem) {
+        addHTML = addHTML + "</div> <!-- Last of item: " + itemOptions[i].itemOptionItem + " moving to " + itemOptions[i+1].itemOptionItem + "--> ";
     }
 
     // If last item of entire set of options.
     if (i === itemOptions.length - 1)
     {
-        addHTML = addHTML + "</div>";
+        // TO DO: Handle 3 of the below closing div tags by improving the tests above so that they
+        //   have already been placed by the time we get here.
+        addHTML = addHTML + "</div></div></div></div> <!-- Last enchantment of the whole thing --> ";
     }
 
     // Add this row to the HTML we are about to output.
