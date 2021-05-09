@@ -1,127 +1,124 @@
-// Load DDO item options
-// WARNING: Requires JSON file ordered by item then slot.
-let itemOptionsRequest = new XMLHttpRequest();
-itemOptionsRequest.onreadystatechange = function () {
-    if (this.readyState === 4 && this.status === 200) {
-        itemOptions = JSON.parse(this.responseText);
-    }
-};
+let itemOptions;
+initialize();
 
-itemOptionsRequest.open("GET", "../data/equipDDO_vCompiledOptions.json", false);
-itemOptionsRequest.send();
-
-let currentItem;
-let currentSlot;
-let currentAugmentColor;
-let theHTML = "";
-let addHTML;
-let newSlot = false;
-
-for (let i = 0; i < itemOptions.length; i++) {
-    addHTML = "";
-
-    // If we're on a new type of item, label it and start a new paragraph.
-    if (itemOptions[i].itemOptionItem !== currentItem) {
-        currentItem = itemOptions[i].itemOptionItem;
-        currentSlot = "";
-        currentAugmentColor = "";
-        addHTML = addHTML + "<h6>" + currentItem + ":</h6> <div class='item'> ";
-    }
-
-    // If we're on a new slot in an item, label it.
-    if (itemOptions[i].itemOptionSlot !== currentSlot) {
-        currentSlot = itemOptions[i].itemOptionSlot;
-        newSlot = true;
-        currentAugmentColor = "";
-        addHTML = addHTML + "<div class='slot'> " + currentSlot + ": ";
-    } else {
-        newSlot = false;
-    }
-
-    // If the new slot is an augment slot, add structure to group the colors..
-    if (newSlot && currentSlot.substring(0, 3) === "Aug") {
-        addHTML = addHTML + "<div class='augment'> ";
-    }
-
-    // If we're dealing with a new augment slot color, label it.
-    if (currentSlot.substring(0, 3) === "Aug" && itemOptions[i].AugmentColor !== currentAugmentColor) {
-        currentAugmentColor = itemOptions[i].AugmentColor;
-        addHTML = addHTML + "<div class='color'> " + currentAugmentColor + ": ";
-    }
-
-    // If we're dealing with a new set of enchantments (in new color or slot), label it.
-    if (i === 0 ||  (
-        (itemOptions[i].AugmentColor !== itemOptions[i-1].AugmentColor) ||
-        (itemOptions[i].itemOptionSlot !== itemOptions[i-1].itemOptionSlot)
-    )) {        addHTML = addHTML + "<div class='ench'> ";
-    }
-
-    // Make a button for the current enchantment option.
-    addHTML = addHTML + "<button>" + itemOptions[i].enchName + "</button> ";
-
-    // If last enchantment of a set
-    if (i < itemOptions.length - 1 && (
-        (itemOptions[i].AugmentColor !== itemOptions[i+1].AugmentColor) ||
-        (itemOptions[i].itemOptionSlot !== itemOptions[i+1].itemOptionSlot)
-    )) {
-        addHTML = addHTML + "</div> ";
-    }
-
-    // NOTE: Neither augments nor augment colors can have the last enchantments of an item or the whole thing.
-
-    // If last enchantment of an augment color
-    if (i < itemOptions.length - 1 &&  currentSlot.substring(0, 3) === "Aug" && itemOptions[i].AugmentColor !== itemOptions[i+1].AugmentColor) {
-        addHTML = addHTML + "</div>  <!-- Last of augment color --> ";
-    }
-
-
-    // ***** NOT Detecting last of augment slot when the next is a second augment slot. *****
-    // ***** NOT Detecting last of augment slot when the next is a second augment slot. *****
-    // ***** NOT Detecting last of augment slot when the next is a second augment slot. *****
-    // ***** NOT Detecting last of augment slot when the next is a second augment slot. *****
-    // If last enchantment of an augment slot.
-    // If so, current color will always be something. Next will not.
-    if (i < itemOptions.length - 1 &&  currentSlot.substring(0, 3) === "Aug" && currentSlot !== itemOptions[i+1].itemOptionSlot) {
-        addHTML = addHTML + "</div> <!-- Last of augment slot --> ";
-    }
-
-    // If last enchantment of an item slot (need even if last of augment also was true).
-    // Last of slot will always be "Extra" and last of last will be from item type "Orb".
-    if (i < itemOptions.length - 1 &&  itemOptions[i].itemOptionSlot !== itemOptions[i+1].itemOptionSlot) {
-        addHTML = addHTML + "</div>  <!-- Last of item slot --> ";
-    }
-
-    // If last of the whole item.
-    if (i < itemOptions.length - 1 &&  itemOptions[i].itemOptionItem !== itemOptions[i+1].itemOptionItem) {
-        addHTML = addHTML + "</div> ";
-    }
-
-    // If last item of entire set of options.
-    if (i === itemOptions.length - 1)
-    {
-        // TO DO: Handle 3 of the below closing div tags by improving the tests above so that they
-        //   have already been placed by the time we get here.
-        addHTML = addHTML + "</div> </div> </div> ";
-    }
-
-
-    // Add this row to the HTML we are about to output.
-    theHTML = theHTML + addHTML;
+function initialize() {
+    loadEnchantmentOptions();
+    initEnchStates();
+    renderScreen();
 }
 
-console.log(theHTML);
-document.getElementById("theShiz").innerHTML = theHTML;
+function loadEnchantmentOptions() {
+    // WARNING: Requires JSON file ordered by item then slot.
+    let itemOptionsRequest                = new XMLHttpRequest();
+    itemOptionsRequest.onreadystatechange = function () {
+        if (this.readyState === 4 && this.status === 200) {
+            itemOptions = JSON.parse(this.responseText);
+        }
+    };
+
+    // TO DO: Consider convert to asynchronous? Is there something we can do while it loads?
+    itemOptionsRequest.open("GET", "../data/equipDDO_vCompiledOptions.json", false);
+    itemOptionsRequest.send();
+}
+
+function initEnchStates() {
+    let current, next;
+    let last = new ItemOption("", "", "", "", "", "");
+    for (let i = 0; i < itemOptions.length; i++) {
+        current = itemOptions[i];
+        if (i > 0) { last = itemOptions[i - 1]; }
+        if (i < itemOptions.length - 1) { next = itemOptions[i + 1]; }
+        else { next = new ItemOption("", "", "", "", "", ""); }
+
+        current.enchState                = new EnchState();
+        current.enchState.newItemType    = current.itemOptionItem !== last.itemOptionItem;
+        current.enchState.newSlot        = current.itemOptionSlot !== last.itemOptionSlot;
+        current.enchState.isAugmentSlot  = current.itemOptionSlot.substring(0, 3) === "Aug";
+        current.enchState.newAugSlot     = current.enchState.newSlot && current.enchState.isAugmentSlot;
+        current.enchState.newAugColor    = current.enchState.isAugmentSlot && current.AugmentColor !== last.AugmentColor;
+        current.enchState.newEnchSet     = current.enchState.newAugColor || current.enchState.newSlot;
+        current.enchState.lastOfSet      = current.AugmentColor !== next.AugmentColor || current.itemOptionSlot !== next.itemOptionSlot;
+        current.enchState.lastOfColor    = current.enchState.isAugmentSlot && current.AugmentColor !== next.AugmentColor;
+        current.enchState.lastOfAugSlot  = current.enchState.isAugmentSlot && current.itemOptionSlot !== next.itemOptionSlot;
+        current.enchState.lastOfSlot     = current.itemOptionSlot !== next.itemOptionSlot;
+        current.enchState.lastOfItemType = current.itemOptionItem !== next.itemOptionItem;
+        current.enchState.lastOfAll      = i === itemOptions.length -1;
+
+        // selected, offBecauseOf
+        // TBD
+    }
+}
+
+function renderScreen() {
+    let addHTML = "";
+    for (let i = 0; i < itemOptions.length; i++) {
+        if (itemOptions[i].enchState.newItemType) {
+            addHTML += "<h6>" + itemOptions[i].itemOptionItem + ":</h6> <div class='item'> "; }
+        if (itemOptions[i].enchState.newSlot) {
+            addHTML += "<div class='slot'> " + itemOptions[i].itemOptionSlot + ": "; }
+        if (itemOptions[i].enchState.newAugSlot) {
+            addHTML += "<div class='augment'> "; }
+        if (itemOptions[i].enchState.newAugColor) {
+            addHTML += "<div class='color'> " + itemOptions[i].AugmentColor + ": "; }
+        if (itemOptions[i].enchState.newEnchSet) {
+            addHTML += "<div class='ench'> "; }
+
+        addHTML += "<button>" + itemOptions[i].enchName + "</button> ";
+
+        if (itemOptions[i].enchState.lastOfSet) {
+            addHTML += "</div> "; }
+        if (itemOptions[i].enchState.lastOfColor) {
+            addHTML += "</div>  <!-- Last of augment color --> "; }
+        if (itemOptions[i].enchState.lastOfAugSlot) {
+            addHTML += "</div> <!-- Last of augment slot --> "; }
+        if (itemOptions[i].enchState.lastOfSlot) {
+            addHTML += "</div>  <!-- Last of item slot --> "; }
+        if (itemOptions[i].enchState.lastOfItemType) {
+            addHTML += "</div> "; }
+        if (itemOptions[i].enchState.lastOfAll) {
+            addHTML += "</div> "; }
+    }
+
+    document.getElementById("theShiz").innerHTML = addHTML;
+}
 
 
-    // itemOptionItem,
-    // itemOptionSlot,
-    // enchName,
-    // enchEffectType,
-    // enchDesc,
-    // AugmentColor,
-    // enchSupercededBy,
-    // itemOptionSortOrder,
-    // enchSortOrder
+function ItemOption(itemOptionItem, itemOptionSlot, enchName, enchEffectType, enchDesc, AugmentColor,
+                    enchSupercededBy, itemOptionSortOrder, enchSortOrder, enchState) {
+    this.itemOptionItem      = itemOptionItem;
+    this.itemOptionSlot      = itemOptionSlot;
+    this.enchName            = enchName;
+    this.enchEffectType      = enchEffectType;
+    this.enchDesc            = enchDesc;
+    this.AugmentColor        = AugmentColor;
+    this.enchSupercededBy    = enchSupercededBy;
+    this.itemOptionSortOrder = itemOptionSortOrder;
+    this.enchSortOrder       = enchSortOrder;
+    this.enchState           = enchState;
+}
+
+
+function EnchState(newItemType, newSlot, newAugSlot, newAugColor, newEnchSet, lastOfSet,
+                   lastOfColor, lastOfAugSlot, lastOfSlot, lastOfItemType, lastOfAll,
+                   selected, offBecauseOf, isAugmentSlot) {
+    this.newItemType = newItemType;
+    this.newSlot     = newSlot;
+    this.newAugSlot  = newAugSlot;
+    this.newAugColor = newAugColor;
+    this.newEnchSet  = newEnchSet;
+
+    this.lastOfSet      = lastOfSet;
+    this.lastOfColor    = lastOfColor;
+    this.lastOfAugSlot  = lastOfAugSlot;
+    this.lastOfSlot     = lastOfSlot;
+    this.lastOfItemType = lastOfItemType;
+    this.lastOfAll      = lastOfAll;
+
+    this.selected = selected;
+    this.offBy    = offBecauseOf;
+
+    this.isAugmentSlot = isAugmentSlot;
+}
 
 
 
