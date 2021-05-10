@@ -31,6 +31,9 @@ function initEnchStates() {
         else { next = new ItemOption("", "", "", "", "", ""); }
 
         current.enchState                = new EnchState();
+        current.enchNum                  = i;
+        current.enchState.selected       = false;
+        current.enchState.offBy          = -1;
         current.enchState.newItemType    = current.itemOptionItem !== last.itemOptionItem;
         current.enchState.newSlot        = current.itemOptionSlot !== last.itemOptionSlot;
         current.enchState.isAugmentSlot  = current.itemOptionSlot.substring(0, 3) === "Aug";
@@ -50,41 +53,81 @@ function initEnchStates() {
 }
 
 function renderScreen() {
-    let addHTML = "";
+    let html = "";
+    let btnState;
     for (let i = 0; i < itemOptions.length; i++) {
         if (itemOptions[i].enchState.newItemType) {
-            addHTML += "<h6>" + itemOptions[i].itemOptionItem + ":</h6> <div class='item'> "; }
+            html += "<h6>" + itemOptions[i].itemOptionItem + ":</h6> <div class='item'> "; }
         if (itemOptions[i].enchState.newSlot) {
-            addHTML += "<div class='slot'> " + itemOptions[i].itemOptionSlot + ": "; }
+            html += "<div class='slot'> " + itemOptions[i].itemOptionSlot + ": "; }
         if (itemOptions[i].enchState.newAugSlot) {
-            addHTML += "<div class='augment'> "; }
+            html += "<div class='augment'> "; }
         if (itemOptions[i].enchState.newAugColor) {
-            addHTML += "<div class='color'> " + itemOptions[i].AugmentColor + ": "; }
+            html += "<div class='color'> " + itemOptions[i].AugmentColor + ": "; }
         if (itemOptions[i].enchState.newEnchSet) {
-            addHTML += "<div class='ench'> "; }
+            html += "<div class='ench'> "; }
 
-        addHTML += "<button>" + itemOptions[i].enchName + "</button> ";
+        if(itemOptions[i].enchState.selected) {
+            btnState = "selected";
+        }
+
+        if(itemOptions[i].enchState.offBy > -1) {
+            btnState = "off";
+        }
+
+        html += "<button value='" + itemOptions[i].enchNum + "' " +
+            "class='" + btnState + "' " +
+            "onclick='enchClick(parseInt(this.value))'>" + itemOptions[i].enchName +
+            "</button> ";
 
         if (itemOptions[i].enchState.lastOfSet) {
-            addHTML += "</div> "; }
+            html += "</div> "; }
         if (itemOptions[i].enchState.lastOfColor) {
-            addHTML += "</div>  <!-- Last of augment color --> "; }
+            html += "</div>  <!-- Last of augment color --> "; }
         if (itemOptions[i].enchState.lastOfAugSlot) {
-            addHTML += "</div> <!-- Last of augment slot --> "; }
+            html += "</div> <!-- Last of augment slot --> "; }
         if (itemOptions[i].enchState.lastOfSlot) {
-            addHTML += "</div>  <!-- Last of item slot --> "; }
+            html += "</div>  <!-- Last of item slot --> "; }
         if (itemOptions[i].enchState.lastOfItemType) {
-            addHTML += "</div> "; }
+            html += "</div> "; }
         if (itemOptions[i].enchState.lastOfAll) {
-            addHTML += "</div> "; }
+            html += "</div> "; }
     }
 
-    document.getElementById("theShiz").innerHTML = addHTML;
+   // console.log(html);
+    document.getElementById("enchantmentOptions").innerHTML = html;
+}
+
+function enchClick(ench) {
+    itemOptions[ench].enchState.selected = !itemOptions[ench].enchState.selected;
+    for (let i = 0; i < itemOptions.length; i++) {
+        if(i !== ench) {
+            if (itemOptions[ench].enchState.selected) {
+
+                console.log("enchSelected: " + itemOptions[ench].enchState.selected);
+
+                if(itemOptions[i].enchEffectType === itemOptions[ench].enchEffectType) {
+
+                    console.log("effects equal: " + itemOptions[i].enchEffectType +
+                        " " + itemOptions[ench].enchEffectType);
+                    itemOptions[i].enchState.offBy = ench;
+                }
+            } else {
+
+                // console.log("enchClick offBy_i: " + i + " " + itemOptions[i].enchState.offBy);
+                // console.log("enchClick offBy_ench: " + ench + " " + itemOptions[ench].enchState.offBy);
+                if(itemOptions[i].enchState.offBy === ench) {
+                    itemOptions[i].enchState.offBy = -1;
+                }
+            }
+        }
+    }
+    renderScreen();
 }
 
 
 function ItemOption(itemOptionItem, itemOptionSlot, enchName, enchEffectType, enchDesc, AugmentColor,
-                    enchSupercededBy, itemOptionSortOrder, enchSortOrder, enchState) {
+                    enchSupercededBy, itemOptionSortOrder, enchSortOrder, enchState, enchNum) {
     this.itemOptionItem      = itemOptionItem;
     this.itemOptionSlot      = itemOptionSlot;
     this.enchName            = enchName;
@@ -95,6 +138,7 @@ function ItemOption(itemOptionItem, itemOptionSlot, enchName, enchEffectType, en
     this.itemOptionSortOrder = itemOptionSortOrder;
     this.enchSortOrder       = enchSortOrder;
     this.enchState           = enchState;
+    this.enchNum             = enchNum;
 }
 
 

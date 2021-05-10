@@ -41,3 +41,11 @@ h6 {
     color: darkblue;
     display: inline-block;
 }
+
+.selected {
+    background-color: aqua;
+}
+
+.off {
+    background-color: saddlebrown;
+}
