@@ -27,13 +27,13 @@ function initEnchStates() {
     for (let i = 0; i < itemOptions.length; i++) {
         current = itemOptions[i];
         if (i > 0) { last = itemOptions[i - 1]; }
-        if (i < itemOptions.length - 1) { next = itemOptions[i + 1]; }
-        else { next = new ItemOption("", "", "", "", "", ""); }
+        if (i < itemOptions.length - 1) { next = itemOptions[i + 1]; } else { next = new ItemOption("", "", "", "", "", ""); }
 
         current.enchState                = new EnchState();
         current.enchNum                  = i;
         current.enchState.selected       = false;
-        current.enchState.offBy          = -1;
+        current.enchState.handledBy      = -1;
+        current.enchState.blocked        = false;
         current.enchState.newItemType    = current.itemOptionItem !== last.itemOptionItem;
         current.enchState.newSlot        = current.itemOptionSlot !== last.itemOptionSlot;
         current.enchState.isAugmentSlot  = current.itemOptionSlot.substring(0, 3) === "Aug";
@@ -45,7 +45,7 @@ function initEnchStates() {
         current.enchState.lastOfAugSlot  = current.enchState.isAugmentSlot && current.itemOptionSlot !== next.itemOptionSlot;
         current.enchState.lastOfSlot     = current.itemOptionSlot !== next.itemOptionSlot;
         current.enchState.lastOfItemType = current.itemOptionItem !== next.itemOptionItem;
-        current.enchState.lastOfAll      = i === itemOptions.length -1;
+        current.enchState.lastOfAll      = i === itemOptions.length - 1;
 
         // selected, offBecauseOf
         // TBD
@@ -53,27 +53,32 @@ function initEnchStates() {
 }
 
 function renderScreen() {
-    let html = "";
-    let btnState;
+    let html     = "";
+    let btnState = "";
     for (let i = 0; i < itemOptions.length; i++) {
+        btnState = "";
         if (itemOptions[i].enchState.newItemType) {
-            html += "<h6>" + itemOptions[i].itemOptionItem + ":</h6> <div class='item'> "; }
+            html += "<h6>" + itemOptions[i].itemOptionItem + ":</h6> <div class='item'> ";
+        }
         if (itemOptions[i].enchState.newSlot) {
-            html += "<div class='slot'> " + itemOptions[i].itemOptionSlot + ": "; }
+            html += "<div class='slot'> " + itemOptions[i].itemOptionSlot + ": ";
+        }
         if (itemOptions[i].enchState.newAugSlot) {
-            html += "<div class='augment'> "; }
+            html += "<div class='augment'> ";
+        }
         if (itemOptions[i].enchState.newAugColor) {
-            html += "<div class='color'> " + itemOptions[i].AugmentColor + ": "; }
+            html += "<div class='color'> " + itemOptions[i].AugmentColor + ": ";
+        }
         if (itemOptions[i].enchState.newEnchSet) {
-            html += "<div class='ench'> "; }
-
-        if(itemOptions[i].enchState.selected) {
-            btnState = "selected";
+            html += "<div class='ench'> ";
         }
 
-        if(itemOptions[i].enchState.offBy > -1) {
-            btnState = "off";
-        }
+        if (itemOptions[i].enchState.selected) { btnState += "selected"; }
+        if (itemOptions[i].enchState.blocked) { btnState += " blocked"; }
+        if (itemOptions[i].enchState.handledBy > -1) { btnState += " handled"; }
+
+        // console.log("enchNum: " + itemOptions[i].enchNum + ": enchName: " + itemOptions[i].enchName +
+        //     ": selected: " + itemOptions[i].enchState.selected + ": offBy: " + itemOptions[i].enchState.offBy);
 
         html += "<button value='" + itemOptions[i].enchNum + "' " +
             "class='" + btnState + "' " +
@@ -81,44 +86,55 @@ function renderScreen() {
             "</button> ";
 
         if (itemOptions[i].enchState.lastOfSet) {
-            html += "</div> "; }
+            html += "</div> ";
+        }
         if (itemOptions[i].enchState.lastOfColor) {
-            html += "</div>  <!-- Last of augment color --> "; }
+            html += "</div>  <!-- Last of augment color --> ";
+        }
         if (itemOptions[i].enchState.lastOfAugSlot) {
-            html += "</div> <!-- Last of augment slot --> "; }
+            html += "</div> <!-- Last of augment slot --> ";
+        }
         if (itemOptions[i].enchState.lastOfSlot) {
-            html += "</div>  <!-- Last of item slot --> "; }
+            html += "</div>  <!-- Last of item slot --> ";
+        }
         if (itemOptions[i].enchState.lastOfItemType) {
-            html += "</div> "; }
+            html += "</div> ";
+        }
         if (itemOptions[i].enchState.lastOfAll) {
-            html += "</div> "; }
+            html += "</div> ";
+        }
     }
 
-   // console.log(html);
+    // console.log(html);
     document.getElementById("enchantmentOptions").innerHTML = html;
 }
 
 function enchClick(ench) {
     itemOptions[ench].enchState.selected = !itemOptions[ench].enchState.selected;
+
     for (let i = 0; i < itemOptions.length; i++) {
-        if(i !== ench) {
-            if (itemOptions[ench].enchState.selected) {
-
-                console.log("enchSelected: " + itemOptions[ench].enchState.selected);
-
-                if(itemOptions[i].enchEffectType === itemOptions[ench].enchEffectType) {
-
-                    console.log("effects equal: " + itemOptions[i].enchEffectType +
-                        " " + itemOptions[ench].enchEffectType);
-                    itemOptions[i].enchState.offBy = ench;
+        // console.log("enchNum: " + itemOptions[i].enchNum + ": enchName: " + itemOptions[i].enchName + ": effectType:
+        // " + itemOptions[i].enchEffectType + ": selected: " + itemOptions[i].enchState.selected + ": offBy: " +
+        // itemOptions[i].enchState.offBy);
+        if (i !== ench) {
+            if (itemOptions[ench].enchState.selected === true) {
+                if (itemOptions[i].enchEffectType === itemOptions[ench].enchEffectType) {
+                    itemOptions[i].enchState.handledBy = ench;
                 }
             } else {
 
                 // console.log("enchClick offBy_i: " + i + " " + itemOptions[i].enchState.offBy);
                 // console.log("enchClick offBy_ench: " + ench + " " + itemOptions[ench].enchState.offBy);
-                if(itemOptions[i].enchState.offBy === ench) {
-                    itemOptions[i].enchState.offBy = -1;
+                if (itemOptions[i].enchState.handledBy === ench) {
+                    itemOptions[i].enchState.handledBy = -1;
                 }
+            }
+
+            // Regardless of whether we are selecting or deselecting, the blocked state odf other
+            //   enchantments for this slot flips.
+            if ((itemOptions[i].itemOptionItem === itemOptions[ench].itemOptionItem) &&
+                (itemOptions[i].itemOptionSlot === itemOptions[ench].itemOptionSlot)) {
+                itemOptions[i].enchState.blocked = !itemOptions[i].enchState.blocked;
             }
         }
     }
@@ -142,9 +158,9 @@ function ItemOption(itemOptionItem, itemOptionSlot, enchName, enchEffectType, en
 }
 
 
-function EnchState(newItemType, newSlot, newAugSlot, newAugColor, newEnchSet, lastOfSet,
-                   lastOfColor, lastOfAugSlot, lastOfSlot, lastOfItemType, lastOfAll,
-                   selected, offBecauseOf, isAugmentSlot) {
+function EnchState(newItemType, newSlot, newAugSlot, newAugColor, newEnchSet,
+                   lastOfSet, lastOfColor, lastOfAugSlot, lastOfSlot, lastOfItemType, lastOfAll,
+                   selected, handledBy, blocked, important, isAugmentSlot) {
     this.newItemType = newItemType;
     this.newSlot     = newSlot;
     this.newAugSlot  = newAugSlot;
@@ -158,8 +174,10 @@ function EnchState(newItemType, newSlot, newAugSlot, newAugColor, newEnchSet, la
     this.lastOfItemType = lastOfItemType;
     this.lastOfAll      = lastOfAll;
 
-    this.selected = selected;
-    this.offBy    = offBecauseOf;
+    this.selected  = selected;          // In use.
+    this.handledBy = handledBy;         // Non-stacking enchant already handled.
+    this.blocked   = blocked;           // Slot already in use, so unavailable
+    this.important = important;
 
     this.isAugmentSlot = isAugmentSlot;
 }

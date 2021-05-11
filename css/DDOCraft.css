@@ -43,9 +43,14 @@ h6 {
 }
 
 .selected {
-    background-color: aqua;
+    background-color: yellow;
 }
 
-.off {
-    background-color: saddlebrown;
+.blocked {
+    background-color: rgb(96,96,96);
+}
+
+
+.handled {
+    background-color: lightgoldenrodyellow;
 }
