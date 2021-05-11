@@ -1,4 +1,5 @@
 let itemOptions;
+let reportOut = "";
 initialize();
 
 function initialize() {
@@ -53,10 +54,8 @@ function initEnchStates() {
 }
 
 function renderScreen() {
-    let html     = "";
-    let btnState = "";
+    let html = "";
     for (let i = 0; i < itemOptions.length; i++) {
-        btnState = "";
         if (itemOptions[i].enchState.newItemType) {
             html += "<h6>" + itemOptions[i].itemOptionItem + ":</h6> <div class='item'> ";
         }
@@ -73,17 +72,7 @@ function renderScreen() {
             html += "<div class='ench'> ";
         }
 
-        if (itemOptions[i].enchState.selected) { btnState += "selected"; }
-        if (itemOptions[i].enchState.blocked) { btnState += " blocked"; }
-        if (itemOptions[i].enchState.handledBy > -1) { btnState += " handled"; }
-
-        // console.log("enchNum: " + itemOptions[i].enchNum + ": enchName: " + itemOptions[i].enchName +
-        //     ": selected: " + itemOptions[i].enchState.selected + ": offBy: " + itemOptions[i].enchState.offBy);
-
-        html += "<button value='" + itemOptions[i].enchNum + "' " +
-            "class='" + btnState + "' " +
-            "onclick='enchClick(parseInt(this.value))'>" + itemOptions[i].enchName +
-            "</button> ";
+        html += getButton(i);
 
         if (itemOptions[i].enchState.lastOfSet) {
             html += "</div> ";
@@ -107,10 +96,30 @@ function renderScreen() {
 
     // console.log(html);
     document.getElementById("enchantmentOptions").innerHTML = html;
+    document.getElementById("result").innerHTML = reportOut;
 }
+
+function getButton(ench) {
+    let btn;
+    if (itemOptions[ench].enchState.selected) {
+        btn = "<button class='selected' ";
+    } else if (itemOptions[ench].enchState.handledBy > -1) {
+        btn = "<button disabled class='handled' ";
+    } else if (itemOptions[ench].enchState.blocked) {
+        btn = "<button disabled class='blocked' ";
+    } else {
+        btn = "<button ";
+    }
+
+    btn += "onclick='enchClick(" + ench + ")'>" + itemOptions[ench].enchName + "</button> ";
+
+    return btn;
+}
+
 
 function enchClick(ench) {
     itemOptions[ench].enchState.selected = !itemOptions[ench].enchState.selected;
+    reportOut = "<h3>Result</h3>";
 
     for (let i = 0; i < itemOptions.length; i++) {
         // console.log("enchNum: " + itemOptions[i].enchNum + ": enchName: " + itemOptions[i].enchName + ": effectType:
@@ -137,7 +146,18 @@ function enchClick(ench) {
                 itemOptions[i].enchState.blocked = !itemOptions[i].enchState.blocked;
             }
         }
+
+        if(itemOptions[i].enchState.selected) {
+            reportOut += "<strong>" + itemOptions[i].itemOptionItem + ": </strong><em>" +
+                itemOptions[i].itemOptionSlot + ": </em>";
+
+            if(itemOptions[i].enchState.isAugmentSlot) {
+                reportOut += itemOptions[i].AugmentColor + ": ";
+            }
+            reportOut += "<strong>" +itemOptions[i].enchName + "</strong> (" + itemOptions[i].enchEffectType + ")</br>";
+        }
     }
+
     renderScreen();
 }
 
