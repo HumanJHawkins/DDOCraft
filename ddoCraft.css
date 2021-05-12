@@ -1,22 +1,39 @@
 /*h1 {*/
 /*    margin-bottom: 0vh;*/
 /*}*/
+body {
+    font-family: sans-serif;
+}
+
 
 h3 {
     text-align: center;
 }
 
-h6 {
-    padding: 0;
-    margin: 0;
+.itemheader {
+    background-color: #777;
+    color: white;
+    cursor: pointer;
+    padding: 1vw;
+    width: 100%;
+    border: none;
+    text-align: left;
+    outline: none;
     font-size: large;
     font-weight: bold;
-    color: black;
+}
+
+
+.active, .itemheader:hover {
+    background-color: #555;
 }
 
 .item {
-    padding: 0;
-    margin: 0 1vh 1vh 1vh;
+    padding: 0 1vwpx;
+    /*margin: 0 1vh 1vh 1vh;*/
+    display: none;
+    overflow: hidden;
+    background-color: #f1f1f1;
 }
 
 .slot {
@@ -51,7 +68,8 @@ h6 {
 }
 
 .blocked {
-    background-color: rgb(96,96,96);
+    /*background-color: rgb(96,96,96);*/
+    font-size: xx-small;
 }
 
 

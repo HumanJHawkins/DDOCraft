@@ -1,11 +1,38 @@
 let itemOptions;
-let reportOut = "";
+let collapseState = {version: 1};
+let reportOut     = "";
 initialize();
 
 function initialize() {
     loadEnchantmentOptions();
     initEnchStates();
     renderScreen();
+    initCollapse();
+}
+
+
+function initCollapse() {
+    let items = document.getElementsByClassName("itemheader");
+    for (let i = 0; i < items.length; i++) {
+        if (typeof collapseState[items[i].innerHTML] === 'undefined') { collapseState[items[i].innerHTML] = true; }
+        items[i].addEventListener("click", function () {
+            collapseState[items[i].innerHTML] = !collapseState[items[i].innerHTML];
+            handleCollapseState(this);
+        });
+        handleCollapseState(items[i]);
+    }
+    console.log(collapseState);
+}
+
+function handleCollapseState(element) {
+    var content = element.nextElementSibling;
+    if (collapseState[element.innerHTML]) {
+        element.classList.remove("active");
+        content.style.display = "none";
+    } else {
+        element.classList.add("active");
+        content.style.display = "block";
+    }
 }
 
 function loadEnchantmentOptions() {
@@ -18,7 +45,7 @@ function loadEnchantmentOptions() {
     };
 
     // TO DO: Consider convert to asynchronous? Is there something we can do while it loads?
-    itemOptionsRequest.open("GET", "../data/equipDDO_vCompiledOptions.json", false);
+    itemOptionsRequest.open("GET", "ddoCraft.json", false);
     itemOptionsRequest.send();
 }
 
@@ -57,7 +84,7 @@ function renderScreen() {
     let html = "";
     for (let i = 0; i < itemOptions.length; i++) {
         if (itemOptions[i].enchState.newItemType) {
-            html += "<h6>" + itemOptions[i].itemOptionItem + ":</h6> <div class='item'> ";
+            html += "<h6 class='itemheader'>" + itemOptions[i].itemOptionItem + ":</h6> <div class='item'> ";
         }
         if (itemOptions[i].enchState.newSlot) {
             html += "<div class='slot'> " + itemOptions[i].itemOptionSlot + ": ";
@@ -96,7 +123,7 @@ function renderScreen() {
 
     // console.log(html);
     document.getElementById("enchantmentOptions").innerHTML = html;
-    document.getElementById("result").innerHTML = reportOut;
+    document.getElementById("result").innerHTML             = reportOut;
 }
 
 function getButton(ench) {
@@ -119,7 +146,7 @@ function getButton(ench) {
 
 function enchClick(ench) {
     itemOptions[ench].enchState.selected = !itemOptions[ench].enchState.selected;
-    reportOut = "<h3>Result</h3>";
+    reportOut                            = "<h3>Result</h3>";
 
     for (let i = 0; i < itemOptions.length; i++) {
         // console.log("enchNum: " + itemOptions[i].enchNum + ": enchName: " + itemOptions[i].enchName + ": effectType:
@@ -147,18 +174,19 @@ function enchClick(ench) {
             }
         }
 
-        if(itemOptions[i].enchState.selected) {
+        if (itemOptions[i].enchState.selected) {
             reportOut += "<strong>" + itemOptions[i].itemOptionItem + ": </strong><em>" +
                 itemOptions[i].itemOptionSlot + ": </em>";
 
-            if(itemOptions[i].enchState.isAugmentSlot) {
+            if (itemOptions[i].enchState.isAugmentSlot) {
                 reportOut += itemOptions[i].AugmentColor + ": ";
             }
-            reportOut += "<strong>" +itemOptions[i].enchName + "</strong> (" + itemOptions[i].enchEffectType + ")</br>";
+            reportOut += "<strong>" + itemOptions[i].enchName + "</strong> (" + itemOptions[i].enchEffectType + ")</br>";
         }
     }
 
     renderScreen();
+    initCollapse();
 }
 
 
