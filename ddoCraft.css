@@ -2,35 +2,34 @@
 /*    margin-bottom: 0vh;*/
 /*}*/
 body {
-    font-family: sans-serif;
+    font-family: verdana, sans-serif;
+    color: #f1f1f1;
+    background-color: black;
 }
 
 
 h3 {
     text-align: center;
+    margin-top: 0vw;
+    padding: .2vw;
 }
 
 .itemheader {
     background-color: #777;
     color: white;
     cursor: pointer;
-    padding: 1vw;
-    width: 100%;
-    border: none;
-    text-align: left;
-    outline: none;
     font-size: large;
-    font-weight: bold;
+    margin: .2vw 2vw;
+    padding: .2vw;
 }
-
 
 .active, .itemheader:hover {
     background-color: #555;
 }
 
 .item {
-    padding: 0 1vwpx;
-    /*margin: 0 1vh 1vh 1vh;*/
+    margin: .2vw 2vw;
+    padding: .2vw;
     display: none;
     overflow: hidden;
     background-color: #f1f1f1;
@@ -38,7 +37,7 @@ h3 {
 
 .slot {
     padding: 0;
-    margin: 1vh;
+    margin: .2vw;
     font-size: medium;
     color: black;
 }
@@ -78,6 +77,11 @@ h3 {
 }
 
 .result {
-    border: .5vw solid black;
-    margin: 1vh 10vw;
+    font-size: small;
+    border: .5vw solid #f1f1f1;
+    margin: 2vw 2vw;
+    padding-top: .2vw;
+    padding-bottom: 1vw;
+    padding-left: 2vw;
+    padding-right: 2vw;
 }
