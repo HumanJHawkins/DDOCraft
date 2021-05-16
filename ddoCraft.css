@@ -5,12 +5,13 @@ body {
     font-family: verdana, sans-serif;
     color: #f1f1f1;
     background-color: black;
+    margin: .2vw 2vw;
 }
 
 
 h3 {
     text-align: center;
-    margin-top: 0vw;
+    margin-top: 0;
     padding: .2vw;
 }
 
@@ -79,9 +80,29 @@ h3 {
 .result {
     font-size: small;
     border: .5vw solid #f1f1f1;
-    margin: 2vw 2vw;
+    margin: 2vw 2vw 0 2vw;
     padding-top: .2vw;
     padding-bottom: 1vw;
     padding-left: 2vw;
     padding-right: 2vw;
+}
+
+.loadSave {
+    margin: 0 0 2vw 0;
+    padding-top: .2vw;
+    padding-bottom: 1vw;
+    padding-left: 2vw;
+    padding-right: 2vw;
+}
+
+.loadSaveBtn {
+    /*display:block;*/
+    width:120px;
+    height:30px;
+}
+
+.charName {
+    /*display:block;*/
+    width:240px;
+    height:30px;
 }

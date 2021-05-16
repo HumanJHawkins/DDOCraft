@@ -10,6 +10,13 @@
 <h1>DDO Cannith Crafting Equipment Planner</h1>
 <div id="enchantmentOptions"></div>
 <div id="result" class="result"></div>
+<div id="loadSave" class="loadSave">
+    <input type="text" id="characterName" placeholder="Character Name" class="charName" >
+    <button id="save" onclick="handleSave()" class="loadSaveBtn"> Save... </button>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <button onclick="document.getElementById('loadFile').click()" class="loadSaveBtn"> Open... </button>
+    <input type='file' id="loadFile" style="display:none">
+</div>
 </body>
 </html>
 

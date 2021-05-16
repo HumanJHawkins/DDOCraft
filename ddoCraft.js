@@ -7,11 +7,10 @@ function initialize() {
     loadEnchantmentOptions();
     initEnchStates();
     renderScreen();
-    initCollapse();
 }
 
 
-function initCollapse() {
+function handleCollapse() {
     let items = document.getElementsByClassName("itemheader");
     for (let i = 0; i < items.length; i++) {
         if (typeof collapseState[items[i].innerHTML] === 'undefined') { collapseState[items[i].innerHTML] = true; }
@@ -124,6 +123,7 @@ function renderScreen() {
     // console.log(html);
     document.getElementById("enchantmentOptions").innerHTML = html;
     document.getElementById("result").innerHTML             = reportOut;
+    handleCollapse();
 }
 
 function getButton(ench) {
@@ -186,7 +186,6 @@ function enchClick(ench) {
     }
 
     renderScreen();
-    initCollapse();
 }
 
 
@@ -231,5 +230,30 @@ function EnchState(newItemType, newSlot, newAugSlot, newAugColor, newEnchSet,
 }
 
 
+function handleSave() {
+    let characterName = document.getElementById("characterName").value;
+    if(characterName.trim().length < 1) { characterName = "ddoCraft_build"; }
+    downloadJSON(JSON.stringify(itemOptions), characterName + ".json", 'text/plain')
+}
 
 
+function downloadJSON(content, fileName, contentType) {
+    var a = document.createElement("a");
+    var file = new Blob([content], {type: contentType});
+    a.href = URL.createObjectURL(file);
+    a.download = fileName;
+    a.click();
+}
+
+
+document.getElementById('loadFile').onchange = function() {
+    var files = document.getElementById('loadFile').files;
+    if (files.length <= 0) { return false; }
+
+    var fr = new FileReader();
+    fr.onload = function(e) {
+        itemOptions = JSON.parse(e.target.result);
+        renderScreen();
+    }
+    fr.readAsText(files.item(0));
+}
