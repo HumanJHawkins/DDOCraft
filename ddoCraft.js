@@ -1,6 +1,12 @@
-let itemOptions;
-let collapseState = {version: 1};
+let collapseState = {};
+let itemOptions = {};
+let enchFilter = {};
 let reportOut     = "";
+let charData = { version: 1.1, dirty: false };
+charData.collapseState = collapseState;
+charData.itemOptions = itemOptions;
+charData.enchFilter = enchFilter;
+
 initialize();
 
 function initialize() {
@@ -13,19 +19,19 @@ function initialize() {
 function handleCollapse() {
     let items = document.getElementsByClassName("itemheader");
     for (let i = 0; i < items.length; i++) {
-        if (typeof collapseState[items[i].innerHTML] === 'undefined') { collapseState[items[i].innerHTML] = true; }
+        if (typeof charData.collapseState[items[i].innerHTML] === 'undefined') { charData.collapseState[items[i].innerHTML] = true; }
         items[i].addEventListener("click", function () {
-            collapseState[items[i].innerHTML] = !collapseState[items[i].innerHTML];
+            charData.collapseState[items[i].innerHTML] = !charData.collapseState[items[i].innerHTML];
             handleCollapseState(this);
         });
         handleCollapseState(items[i]);
     }
-    console.log(collapseState);
+    console.log(charData.collapseState);
 }
 
 function handleCollapseState(element) {
     var content = element.nextElementSibling;
-    if (collapseState[element.innerHTML]) {
+    if (charData.collapseState[element.innerHTML]) {
         element.classList.remove("active");
         content.style.display = "none";
     } else {
@@ -39,7 +45,7 @@ function loadEnchantmentOptions() {
     let itemOptionsRequest                = new XMLHttpRequest();
     itemOptionsRequest.onreadystatechange = function () {
         if (this.readyState === 4 && this.status === 200) {
-            itemOptions = JSON.parse(this.responseText);
+            charData.itemOptions = JSON.parse(this.responseText);
         }
     };
 
@@ -51,10 +57,10 @@ function loadEnchantmentOptions() {
 function initEnchStates() {
     let current, next;
     let last = new ItemOption("", "", "", "", "", "");
-    for (let i = 0; i < itemOptions.length; i++) {
-        current = itemOptions[i];
-        if (i > 0) { last = itemOptions[i - 1]; }
-        if (i < itemOptions.length - 1) { next = itemOptions[i + 1]; } else { next = new ItemOption("", "", "", "", "", ""); }
+    for (let i = 0; i < charData.itemOptions.length; i++) {
+        current = charData.itemOptions[i];
+        if (i > 0) { last = charData.itemOptions[i - 1]; }
+        if (i < charData.itemOptions.length - 1) { next = charData.itemOptions[i + 1]; } else { next = new ItemOption("", "", "", "", "", ""); }
 
         current.enchState                = new EnchState();
         current.enchNum                  = i;
@@ -65,14 +71,14 @@ function initEnchStates() {
         current.enchState.newSlot        = current.itemOptionSlot !== last.itemOptionSlot;
         current.enchState.isAugmentSlot  = current.itemOptionSlot.substring(0, 3) === "Aug";
         current.enchState.newAugSlot     = current.enchState.newSlot && current.enchState.isAugmentSlot;
-        current.enchState.newAugColor    = current.enchState.isAugmentSlot && current.AugmentColor !== last.AugmentColor;
+        current.enchState.newAugColor    = current.enchState.isAugmentSlot && current.augmentColor !== last.augmentColor;
         current.enchState.newEnchSet     = current.enchState.newAugColor || current.enchState.newSlot;
-        current.enchState.lastOfSet      = current.AugmentColor !== next.AugmentColor || current.itemOptionSlot !== next.itemOptionSlot;
-        current.enchState.lastOfColor    = current.enchState.isAugmentSlot && current.AugmentColor !== next.AugmentColor;
+        current.enchState.lastOfSet      = current.augmentColor !== next.augmentColor || current.itemOptionSlot !== next.itemOptionSlot;
+        current.enchState.lastOfColor    = current.enchState.isAugmentSlot && current.augmentColor !== next.augmentColor;
         current.enchState.lastOfAugSlot  = current.enchState.isAugmentSlot && current.itemOptionSlot !== next.itemOptionSlot;
         current.enchState.lastOfSlot     = current.itemOptionSlot !== next.itemOptionSlot;
         current.enchState.lastOfItemType = current.itemOptionItem !== next.itemOptionItem;
-        current.enchState.lastOfAll      = i === itemOptions.length - 1;
+        current.enchState.lastOfAll      = i === charData.itemOptions.length - 1;
 
         // selected, offBecauseOf
         // TBD
@@ -81,41 +87,41 @@ function initEnchStates() {
 
 function renderScreen() {
     let html = "";
-    for (let i = 0; i < itemOptions.length; i++) {
-        if (itemOptions[i].enchState.newItemType) {
-            html += "<h6 class='itemheader'>" + itemOptions[i].itemOptionItem + ":</h6> <div class='item'> ";
+    for (let i = 0; i < charData.itemOptions.length; i++) {
+        if (charData.itemOptions[i].enchState.newItemType) {
+            html += "<h6 class='itemheader'>" + charData.itemOptions[i].itemOptionItem + ":</h6> <div class='item'> ";
         }
-        if (itemOptions[i].enchState.newSlot) {
-            html += "<div class='slot'> " + itemOptions[i].itemOptionSlot + ": ";
+        if (charData.itemOptions[i].enchState.newSlot) {
+            html += "<div class='slot'> " + charData.itemOptions[i].itemOptionSlot + ": ";
         }
-        if (itemOptions[i].enchState.newAugSlot) {
+        if (charData.itemOptions[i].enchState.newAugSlot) {
             html += "<div class='augment'> ";
         }
-        if (itemOptions[i].enchState.newAugColor) {
-            html += "<div class='color'> " + itemOptions[i].AugmentColor + ": ";
+        if (charData.itemOptions[i].enchState.newAugColor) {
+            html += "<div class='color'> " + charData.itemOptions[i].augmentColor + ": ";
         }
-        if (itemOptions[i].enchState.newEnchSet) {
+        if (charData.itemOptions[i].enchState.newEnchSet) {
             html += "<div class='ench'> ";
         }
 
         html += getButton(i);
 
-        if (itemOptions[i].enchState.lastOfSet) {
+        if (charData.itemOptions[i].enchState.lastOfSet) {
             html += "</div> ";
         }
-        if (itemOptions[i].enchState.lastOfColor) {
+        if (charData.itemOptions[i].enchState.lastOfColor) {
             html += "</div>  <!-- Last of augment color --> ";
         }
-        if (itemOptions[i].enchState.lastOfAugSlot) {
+        if (charData.itemOptions[i].enchState.lastOfAugSlot) {
             html += "</div> <!-- Last of augment slot --> ";
         }
-        if (itemOptions[i].enchState.lastOfSlot) {
+        if (charData.itemOptions[i].enchState.lastOfSlot) {
             html += "</div>  <!-- Last of item slot --> ";
         }
-        if (itemOptions[i].enchState.lastOfItemType) {
+        if (charData.itemOptions[i].enchState.lastOfItemType) {
             html += "</div> ";
         }
-        if (itemOptions[i].enchState.lastOfAll) {
+        if (charData.itemOptions[i].enchState.lastOfAll) {
             html += "</div> ";
         }
     }
@@ -128,60 +134,60 @@ function renderScreen() {
 
 function getButton(ench) {
     let btn;
-    if (itemOptions[ench].enchState.selected) {
+    if (charData.itemOptions[ench].enchState.selected) {
         btn = "<button class='selected' ";
-    } else if (itemOptions[ench].enchState.handledBy > -1) {
+    } else if (charData.itemOptions[ench].enchState.handledBy > -1) {
         btn = "<button disabled class='handled' ";
-    } else if (itemOptions[ench].enchState.blocked) {
+    } else if (charData.itemOptions[ench].enchState.blocked) {
         btn = "<button disabled class='blocked' ";
     } else {
         btn = "<button ";
     }
 
-    btn += "onclick='enchClick(" + ench + ")'>" + itemOptions[ench].enchName + "</button> ";
+    btn += "onclick='enchClick(" + ench + ")'>" + charData.itemOptions[ench].enchName + "</button> ";
 
     return btn;
 }
 
 
 function enchClick(ench) {
-    itemOptions[ench].enchState.selected = !itemOptions[ench].enchState.selected;
+    charData.itemOptions[ench].enchState.selected = !charData.itemOptions[ench].enchState.selected;
     reportOut                            = "<h3>Result</h3>";
 
-    for (let i = 0; i < itemOptions.length; i++) {
-        // console.log("enchNum: " + itemOptions[i].enchNum + ": enchName: " + itemOptions[i].enchName + ": effectType:
-        // " + itemOptions[i].enchEffectType + ": selected: " + itemOptions[i].enchState.selected + ": offBy: " +
-        // itemOptions[i].enchState.offBy);
+    for (let i = 0; i < charData.itemOptions.length; i++) {
+        // console.log("enchNum: " + charData.itemOptions[i].enchNum + ": enchName: " + charData.itemOptions[i].enchName + ": effectType:
+        // " + charData.itemOptions[i].enchEffectType + ": selected: " + charData.itemOptions[i].enchState.selected + ": offBy: " +
+        // charData.itemOptions[i].enchState.offBy);
         if (i !== ench) {
-            if (itemOptions[ench].enchState.selected === true) {
-                if (itemOptions[i].enchEffectType === itemOptions[ench].enchEffectType) {
-                    itemOptions[i].enchState.handledBy = ench;
+            if (charData.itemOptions[ench].enchState.selected === true) {
+                if (charData.itemOptions[i].enchEffectType === charData.itemOptions[ench].enchEffectType) {
+                    charData.itemOptions[i].enchState.handledBy = ench;
                 }
             } else {
 
-                // console.log("enchClick offBy_i: " + i + " " + itemOptions[i].enchState.offBy);
-                // console.log("enchClick offBy_ench: " + ench + " " + itemOptions[ench].enchState.offBy);
-                if (itemOptions[i].enchState.handledBy === ench) {
-                    itemOptions[i].enchState.handledBy = -1;
+                // console.log("enchClick offBy_i: " + i + " " + charData.itemOptions[i].enchState.offBy);
+                // console.log("enchClick offBy_ench: " + ench + " " + charData.itemOptions[ench].enchState.offBy);
+                if (charData.itemOptions[i].enchState.handledBy === ench) {
+                    charData.itemOptions[i].enchState.handledBy = -1;
                 }
             }
 
             // Regardless of whether we are selecting or deselecting, the blocked state odf other
             //   enchantments for this slot flips.
-            if ((itemOptions[i].itemOptionItem === itemOptions[ench].itemOptionItem) &&
-                (itemOptions[i].itemOptionSlot === itemOptions[ench].itemOptionSlot)) {
-                itemOptions[i].enchState.blocked = !itemOptions[i].enchState.blocked;
+            if ((charData.itemOptions[i].itemOptionItem === charData.itemOptions[ench].itemOptionItem) &&
+                (charData.itemOptions[i].itemOptionSlot === charData.itemOptions[ench].itemOptionSlot)) {
+                charData.itemOptions[i].enchState.blocked = !charData.itemOptions[i].enchState.blocked;
             }
         }
 
-        if (itemOptions[i].enchState.selected) {
-            reportOut += "<strong>" + itemOptions[i].itemOptionItem + ": </strong><em>" +
-                itemOptions[i].itemOptionSlot + ": </em>";
+        if (charData.itemOptions[i].enchState.selected) {
+            reportOut += "<strong>" + charData.itemOptions[i].itemOptionItem + ": </strong><em>" +
+                charData.itemOptions[i].itemOptionSlot + ": </em>";
 
-            if (itemOptions[i].enchState.isAugmentSlot) {
-                reportOut += itemOptions[i].AugmentColor + ": ";
+            if (charData.itemOptions[i].enchState.isAugmentSlot) {
+                reportOut += charData.itemOptions[i].augmentColor + ": ";
             }
-            reportOut += "<strong>" + itemOptions[i].enchName + "</strong> (" + itemOptions[i].enchEffectType + ")</br>";
+            reportOut += "<strong>" + charData.itemOptions[i].enchName + "</strong> (" + charData.itemOptions[i].enchEffectType + ")</br>";
         }
     }
 
@@ -189,15 +195,15 @@ function enchClick(ench) {
 }
 
 
-function ItemOption(itemOptionItem, itemOptionSlot, enchName, enchEffectType, enchDesc, AugmentColor,
+function ItemOption(itemOptionItem, itemOptionSlot, enchName, enchEffectType, enchDesc, augmentColor,
                     enchSupercededBy, itemOptionSortOrder, enchSortOrder, enchState, enchNum) {
     this.itemOptionItem      = itemOptionItem;
     this.itemOptionSlot      = itemOptionSlot;
     this.enchName            = enchName;
     this.enchEffectType      = enchEffectType;
-    this.enchDesc            = enchDesc;
-    this.AugmentColor        = AugmentColor;
-    this.enchSupercededBy    = enchSupercededBy;
+    this.enchDesc         = enchDesc;
+    this.augmentColor     = augmentColor;
+    this.enchSupercededBy = enchSupercededBy;
     this.itemOptionSortOrder = itemOptionSortOrder;
     this.enchSortOrder       = enchSortOrder;
     this.enchState           = enchState;
@@ -233,7 +239,7 @@ function EnchState(newItemType, newSlot, newAugSlot, newAugColor, newEnchSet,
 function handleSave() {
     let characterName = document.getElementById("characterName").value;
     if(characterName.trim().length < 1) { characterName = "ddoCraft_build"; }
-    downloadJSON(JSON.stringify(itemOptions), characterName + ".json", 'text/plain')
+    downloadJSON(JSON.stringify(charData), characterName + ".json", 'text/plain')
 }
 
 
@@ -252,7 +258,7 @@ document.getElementById('loadFile').onchange = function() {
 
     var fr = new FileReader();
     fr.onload = function(e) {
-        itemOptions = JSON.parse(e.target.result);
+        charData = JSON.parse(e.target.result);
         renderScreen();
     }
     fr.readAsText(files.item(0));
