@@ -1,11 +1,29 @@
-/*h1 {*/
-/*    margin-bottom: 0vh;*/
-/*}*/
+/*Author: J. Hawkins*/
+/*Copyright 2021. GNU General Public License v3.0*/
+/*Permissions of this strong copyleft license are conditioned on making available complete source code of*/
+/*licensed works and modifications, which include larger works using a licensed work, under the same license.*/
+/*Copyright and license notices must be preserved. Contributors provide an express grant of patent rights.*/
+
 body {
     font-family: verdana, sans-serif;
     color: #f1f1f1;
     background-color: black;
     margin: .2vw 2vw;
+}
+
+table, tr, td {
+    text-align: left;
+    vertical-align: top;
+    border: 1px solid #333333;
+    border-collapse: collapse;
+}
+
+table {
+    width: 100%;
+}
+
+caption {
+    text-align: left;
 }
 
 
@@ -20,18 +38,14 @@ h3 {
     color: white;
     cursor: pointer;
     font-size: large;
-    margin: .2vw 2vw;
+    margin: .2vw 0;
     padding: .2vw;
-}
-
-.active, .itemheader:hover {
-    background-color: #555;
 }
 
 .item {
-    margin: .2vw 2vw;
+    margin: .2vw 0;
     padding: .2vw;
-    display: none;
+    /*display: none;*/
     overflow: hidden;
     background-color: #f1f1f1;
 }
@@ -40,36 +54,50 @@ h3 {
     padding: 0;
     margin: .2vw;
     font-size: medium;
-    color: black;
+    color: navajowhite;
 }
 
 .augment {
     padding: 0;
     margin: 0;
+    display: inline;
 }
 
 .color {
     padding: 0;
     margin: 0;
     font-size: small;
-    color: darkgray;
+    color: lightblue;
+    display: inline;
 }
 
 .ench {
     padding: 0;
     margin: 1px;
     font-size: small;
-    color: darkblue;
-    display: inline-block;
+    display: inline;
 }
 
 .selected {
     background-color: yellow;
 }
 
-.blocked {
-    /*background-color: rgb(96,96,96);*/
-    /*font-size: xx-small;*/
+
+.itemheader:hover, .slot:hover, .color:hover {
+    background-color: #444;
+    cursor: pointer;
+}
+
+button:hover:enabled {
+    background-color: #555;
+    cursor: pointer;
+}
+
+
+
+button:disabled,
+button[disabled] {
+
 }
 
 
@@ -85,6 +113,7 @@ h3 {
     padding-bottom: 1vw;
     padding-left: 2vw;
     padding-right: 2vw;
+    color: lightgreen;
 }
 
 .loadSave {
