@@ -12,7 +12,128 @@
     <script src="ddoCraft.js" defer></script>
 </head>
 <body>
-<h1>DDO Cannith Crafting Equipment Planner</h1>
+<!-- Modal preferences dialog. Hidden while not in use. -->
+<div id="preferences" class="modal">
+    <div id="divPreferenceDialog" class="modal-content">
+        <div id="btnClosePreferences" class="modalClose" onClick="dialogPreferences.style.display='none'">&times;</div>
+        <h3 class="modalText modalHeading">Preferences: </h3>
+        <p>This is all just placeholder stuff for now... Filter / class selector coming soon.</p>
+        <p class="indent">
+            <span class="modalText">
+                <!-- Select control for low and high character length of potential words -->
+                <span class="modalText modalLabel"><label for="wordLength">Word&nbsp;Length:&nbsp;</label>
+                    <select id="wordLength" onChange="updateWordPoolFiltered()">
+                        <option value="{&quot;low&quot;: 4, &quot;high&quot;: 10}">Normal&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</option>
+                        <option value="{&quot;low&quot;: 2, &quot;high&quot;: 3}">Short</option>
+                        <option value="{&quot;low&quot;: 4, &quot;high&quot;: 6}">Medium</option>
+                        <option value="{&quot;low&quot;: 7, &quot;high&quot;: 12}">Long</option>
+                    </select>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                </span>
+                <!-- Select control for low and high grade level of potential words -->
+                <span class="modalText modalLabel"><label for="wordLevel">Word&nbsp;Level:&nbsp;&nbsp;</label>
+                    <select id="wordLevel" onChange="updateWordPoolFiltered()">
+                        <option value="{&quot;low&quot;: 2, &quot;high&quot;: 12}">Normal</option>
+                        <option value="{&quot;low&quot;: -1, &quot;high&quot;: 1}">Beginning Readers</option>
+                        <option value="{&quot;low&quot;: 2, &quot;high&quot;: 5}">Elementary</option>
+                        <option value="{&quot;low&quot;: 6, &quot;high&quot;: 8}">Middle School</option>
+                        <option value="{&quot;low&quot;: 9, &quot;high&quot;: 12}">High School</option>
+                    </select>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                </span>
+                <!-- Select control for number of incorrect guesses before loss.  -->
+                <span class="modalText modalLabel"><label for="gameDifficulty">Difficulty:&nbsp;&nbsp;</label>
+                    <select id="gameDifficulty" onChange="updateMaxMisses()">
+                        <option value="10">Normal&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</option>
+                        <option value="7">Hard</option>
+                        <option value="5">Epic</option>
+                        <option value="3">Stupid</option>
+                    </select>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                </span>
+            </span>
+        </p>
+        <p>&nbsp;</p>
+        <div id="divWordCount" class="modalText indent"></div>
+    </div>
+</div>
+
+<!-- Modal help dialog. Hidden while not in use. -->
+<div id="help" class="modal">
+    <div id="divHelpDialog" class="modal-content">
+        <div id="btnCloseHelp" class="modalClose" onClick="dialogHelp.style.display='none'">&times;</div>
+        <h3 class="modalText modalHeading">Help! </h3>
+        <p class="indent helpText">
+            Labels including augment colors, can be clicked to toggle collapsing them. For example if you are not
+            interested in orbs or yellow augment slots, click to hide them.
+            </p>
+        <p class="indent helpText">
+            Some enchantments, like 'Potency' or
+            'Spell Lore (Universal)' only fit in one or two spots. So always select and place your most important
+            enchantments first.
+        </p>
+        <p class="indent helpText">Use the filter (under the gear icon) to highlight difficult to place and/or important
+            enchantments for your class(es). Use the save / open buttons at the bottom to preserve your work.
+        </p>
+    </div>
+</div>
+
+<!-- Modal about dialog. Hidden while not in use. -->
+<div id="about" class="modal">
+    <div id="divAboutDialog" class="modal-content">
+        <div id="btnCloseAbout" class="modalClose" onClick="dialogAbout.style.display='none'">&times;</div>
+        <h3 class="modalText modalHeading">About DDO Cannith Crafting Planner</h3>
+        <p class="indent helpText">
+            A tool to assist planning the perfect build of Canneth crafted items. This should help maximize your build
+            by highlighting rare or difficult to place enchantments, and by disabling selection of any enchantments you
+            have already covered in a different slot. Although it feels like this is destined to always be a mess of
+            "Too Much Info", I'm hoping it will become something that is much better than tackling that info without it.
+        </p>
+        <p class="indent helpText">
+            This app (and especially the data behind it) is at a beta level of completion. It is based primarily on the
+            DDO Wiki, which is out of date. In any event, there will be bugs. Please double-check results
+            in-game before actually using your valuable crafting materials. Your licence to use this software is
+            governed by the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html"
+                               target="_blank">GPL 3.0 License</a> and in short, I
+            am not liable for the loss of your ingredients (or any other thing) related to your use of this software.</p>
+        <p class="indent helpText helpEnd">
+            <strong>Interested in making this better?</strong> One of the hardest parts is getting the data right. I know for example
+            that there are augment slot color options on some items that I have not captured here. I just haven't had
+            time to confirm them. If you believe something is in error (present when it shouldn't be, or missing when it
+            should be there) please let me know. If you are up for a more extensive task, this could be much improved by
+            adding minimum level data or by writing short names for the enchantments. Please contact me if you would
+            like to participate in this.
+        </p>
+        <p class="indent helpText helpEnd">
+            Send bug reports or suggestions via Github at
+            <a href="https://github.com/HumanJHawkins/DDOCraft/issues"
+               target="_blank">https://github.com/HumanJHawkins/DDOCraft/issues</a>,
+            or PM HumanJHawkins at <a href="https://www.ddo.com/en/forums/forum.php"
+                                      target="_blank">https://www.ddo.com/en/forums/forum.php</a>.
+            On the off chance you want to buy me a coffee (hey... it happened once!), my Venmo is @humanjhawkins.
+        </p>
+        <p class="indent helpText">
+            Full source code is available at
+            <a href="https://github.com/HumanJHawkins/DDOCraft"
+               target="_blank">https://github.com/HumanJHawkins/DDOCraft</a>
+        </p>
+        <p class="indent helpText helpEnd">
+            Dungeons and Dragons Online and some options referenced here are &copy; copyright of Standing Stone Games,
+            Daybreak Game company and other copyright holders. All original code and help text is copyright &copy; 2021
+            Jeff Hawkins and licensed under GPL 3.0.
+        </p>
+    </div>
+</div>
+
+
+<h1>DDO Cannith Crafting Planner<img src="image/blank.png" alt="" class="iconButtonSpacer"/><img src="image/blank.png"
+                                                                                                 alt=""
+                                                                                                 class="iconButtonSpacer"/>
+    <img src="image/blank.png" alt="" class="iconButtonSpacer"/>
+    <img src="image/preferences.png" alt="Preferences" onClick="showPreferences()" class="iconButtonImage"/>
+    <img src="image/help.png" alt="Help" onClick="showHelp()" class="iconButtonImage"/>
+    <img src="image/about.png" alt="About" onClick="showAbout()" class="iconButtonImage"/>
+    <img src="image/blank.png" alt="" class="iconButtonSpacer"/>
+    <!--    <img src="image/newGame.png" alt="New Game" onClick="resetGame()" class="iconButtonImage"/>-->
+</h1>
+
 <div id="enchantmentOptions"></div>
 <div id="result" class="result"></div>
 <div id="loadSave" class="loadSave">

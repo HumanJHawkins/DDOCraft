@@ -4,12 +4,62 @@
 // licensed works and modifications, which include larger works using a licensed work, under the same license.
 // Copyright and license notices must be preserved. Contributors provide an express grant of patent rights.
 
+let dialogPreferences;
+let buttonPreferences;
+let buttonClosePreferences;
+let dialogHelp;
+let buttonHelp;
+let buttonCloseHelp;
+let dialogAbout;
+let buttonAbout;
+let buttonCloseAbout;
+
+function showPreferences() {
+    dialogPreferences.style.display = 'block';
+}
+
+function showHelp() {
+    dialogHelp.style.display = 'block';
+}
+
+function showAbout() {
+    dialogAbout.style.display = 'block';
+}
+
+window.onclick = function (event) {
+    // When the user clicks anywhere outside of the dialogPreferences, close it
+    if (event.target === dialogPreferences) {
+        dialogPreferences.style.display = "none";
+    }
+    // Or help window
+    if (event.target === dialogHelp) {
+        dialogHelp.style.display = "none";
+    }
+    // Or about window
+    if (event.target === dialogAbout) {
+        dialogAbout.style.display = "none";
+    }
+};
+
+
+
 let charData = {version: 1.1, dirty: false, collapseState: {}, itemOptions: {}, enchFilter: {}, reportOut: ""};
 initialize();
 
 function initialize() {
     loadEnchantmentOptions();
     initEnchStates();
+
+    dialogPreferences = document.getElementById('preferences');
+    buttonPreferences = document.getElementById("btnPreferences");
+    buttonClosePreferences = document.getElementById("btnClosePreferences");
+    dialogHelp = document.getElementById('help');
+    buttonHelp = document.getElementById("btnHelp");
+    buttonCloseHelp = document.getElementById("btnCloseHelp");
+    dialogAbout = document.getElementById('about');
+    buttonAbout = document.getElementById("btnAbout");
+    buttonCloseAbout = document.getElementById("btnCloseAbout");
+
     renderScreen();
 }
 
@@ -129,7 +179,7 @@ function renderScreen() {
 
     // html += "</table><!-- Last of everything -->";
 
-    console.log(html);
+//    console.log(html);
     document.getElementById("enchantmentOptions").innerHTML = html;
     document.getElementById("result").innerHTML             = charData.reportOut;
 // handleCollapse();

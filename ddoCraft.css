@@ -4,22 +4,45 @@
 /*licensed works and modifications, which include larger works using a licensed work, under the same license.*/
 /*Copyright and license notices must be preserved. Contributors provide an express grant of patent rights.*/
 
+/* Dimensions consolidate as: top right bottom left. */
 body {
+    text-align: left;
     font-family: verdana, sans-serif;
+    font-size: calc(4px + .5vw); /* Results in .5vw with minimum of 4px */
+    margin: 2vw;
+    /*background-image: url("../image/PubDomain_FadedRock.jpg");*/
     color: #f1f1f1;
     background-color: black;
-    margin: .2vw 2vw;
 }
 
-table, tr, td {
+h1 {
+    /*font-family: "Courier New", "Courier", monospaced, serif;*/
+    font-size: calc(6px + 2vw);
+    margin: -1vw 0 1vw 0;
+}
+
+h3 {
+    /*font-family: "Courier New", "Courier", monospaced, serif;*/
+    font-size: calc(6px + 1vw);
+    margin: 0;
+    text-align: center;
+    /*padding: .2vw;*/
+}
+
+table {
+    table-layout: fixed;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+td {
     text-align: left;
     vertical-align: top;
     border: 1px solid #333333;
     border-collapse: collapse;
-}
-
-table {
-    width: 100%;
+    /*width: 1%;*/
+    padding: 0;
 }
 
 caption {
@@ -27,17 +50,152 @@ caption {
 }
 
 
-h3 {
-    text-align: center;
-    margin-top: 0;
-    padding: .2vw;
+
+
+
+
+.hidden {
+    visibility: hidden;
 }
 
+select {
+    text-align: left;
+    font-family: "Courier New", "Courier", monospaced, serif;
+    font-size: calc(4px + .5vw);
+    margin: 1vw auto auto auto;
+}
+
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1;
+    padding-top: 10vw;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: #ddd; /* Color for browsers not supporting opacity */
+    background-color: rgba(32, 32, 32, 0.4);
+    color: #222;
+}
+
+.modal-content {
+    text-align: left;
+    background-color: #fefefe;
+    margin: auto auto 20vh;
+    padding: 1vw;
+    border: 1px solid #888;
+    width: 80vw;
+}
+
+.modalClose {
+    color: #aaaaaa;
+    float: right;
+    font-size: calc(12px + 5vw);
+    font-weight: bold;
+    position: relative;
+    top: -1.7vw;
+    left: .5vw;
+}
+
+.modalClose:hover,
+.modalClose:focus {
+    color: #000;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.modalText {
+    text-align: left;
+    font-family: "Courier New", "Courier", monospaced, serif;
+    font-size: calc(6px + .75vw);
+    margin: 1vw auto auto auto;
+}
+
+.modalHeading {
+    font-weight: bold;
+    font-size: calc(6px + 1vw);
+}
+
+.modalLabel {
+    white-space: nowrap;
+    overflow: scroll;
+}
+
+.helpText {
+    text-align: left;
+    font-family: sans-serif;
+    font-size: calc(6px + .75vw);
+    margin: 1vw auto auto auto;
+}
+
+.helpEnd {
+    margin-bottom: 2.5vh;
+}
+
+
+.indent {
+    margin-left: 2vw;
+}
+
+.iconButtonImage {
+    background-color: #ddd;
+    color: #222;
+    width: 3vw;
+    min-width: 8px;
+    min-height: 8px;
+    padding: 0;
+    border: thin solid transparent; /* Transparent non-hover border prevents shifting icons on hover.  */
+    vertical-align: -.09em;
+}
+
+.iconButtonImage:hover {
+    background-color: #fff;
+}
+
+.iconButtonSpacer {
+    width: 1.5vw;
+    min-width: 4px;
+    min-height: 4px;
+    padding: 0;
+}
+
+img {
+    margin: auto;
+}
+
+
+.left {
+    border-right: 1vw solid black;
+}
+
+.right {
+    border-left: 1vw solid black;
+}
+
+.top {
+    border-bottom: 1vw solid black;
+}
+
+.bottom {
+    border-top: 1vw solid black;
+}
+
+
+
+
+
+
+
+
+
 .itemheader {
-    background-color: #777;
+    background-color: #333;
     color: white;
     cursor: pointer;
-    font-size: large;
+    font-size: calc(5px + .75vw);
     margin: .2vw 0;
     padding: .2vw;
 }
@@ -45,7 +203,7 @@ h3 {
 .item {
     margin: .2vw 0;
     padding: .2vw;
-    /*display: none;*/
+    font-size: calc(4px + .5vw);
     overflow: hidden;
     background-color: #f1f1f1;
 }
@@ -53,33 +211,32 @@ h3 {
 .slot {
     padding: 0;
     margin: .2vw;
-    font-size: medium;
-    color: navajowhite;
+    font-size: calc(5px + .625vw);
+    color: #bbb;
+    width: 7vw;
 }
 
 .augment {
+    font-size: calc(4px + .5vw);
     padding: 0;
     margin: 0;
     display: inline;
 }
 
 .color {
+    font-size: calc(4px + .5vw);
     padding: 0;
     margin: 0;
-    font-size: small;
-    color: lightblue;
+    color: #bbb;
     display: inline;
 }
 
 .ench {
+    font-size: calc(4px + .5vw);
     padding: 0;
     margin: 1px;
-    font-size: small;
+    /*font-size: small;*/
     display: inline;
-}
-
-.selected {
-    background-color: yellow;
 }
 
 
@@ -88,11 +245,34 @@ h3 {
     cursor: pointer;
 }
 
+.selected {
+    background-color: #ddd;
+    color: #222;
+}
+
+.handled {
+    color: #555;
+    background-color: #222;
+    font-style: italic;
+    font-weight: lighter;
+}
+
+button {
+    color: #bbb;
+    background-color: #444;
+    font-size: calc(4px + .5vw);
+
+}
+
 button:hover:enabled {
-    background-color: #555;
+    background-color: #666;
     cursor: pointer;
 }
 
+.selected:hover:enabled {
+    background-color: #fff;
+    color: #000;
+}
 
 
 button:disabled,
@@ -101,19 +281,15 @@ button[disabled] {
 }
 
 
-.handled {
-    background-color: lightgoldenrodyellow;
-}
-
 .result {
-    font-size: small;
-    border: .5vw solid #f1f1f1;
+    color: #bbb;
+    border: .25vw solid #bbb;
+    background-color: #444;
     margin: 2vw 2vw 0 2vw;
     padding-top: .2vw;
     padding-bottom: 1vw;
     padding-left: 2vw;
     padding-right: 2vw;
-    color: lightgreen;
 }
 
 .loadSave {
