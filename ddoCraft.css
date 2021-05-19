@@ -277,7 +277,8 @@ button:hover:enabled {
 
 button:disabled,
 button[disabled] {
-
+    background-color: #222;
+    color: #000;
 }
 
 
