@@ -14,41 +14,13 @@ let dialogAbout;
 let buttonAbout;
 let buttonCloseAbout;
 
-function showPreferences() {
-    dialogPreferences.style.display = 'block';
-}
-
-function showHelp() {
-    dialogHelp.style.display = 'block';
-}
-
-function showAbout() {
-    dialogAbout.style.display = 'block';
-}
-
-window.onclick = function (event) {
-    // When the user clicks anywhere outside of the dialogPreferences, close it
-    if (event.target === dialogPreferences) {
-        dialogPreferences.style.display = "none";
-    }
-    // Or help window
-    if (event.target === dialogHelp) {
-        dialogHelp.style.display = "none";
-    }
-    // Or about window
-    if (event.target === dialogAbout) {
-        dialogAbout.style.display = "none";
-    }
-};
-
-
-
-let charData = {version: 1.1, dirty: false, collapseState: {}, itemOptions: {}, enchFilter: {}, reportOut: ""};
+let charData = {version: 1.1, dirty: false, itemOptions: {}, enchFilter: { allEnch: true }, reportOut: ""};
 initialize();
 
 function initialize() {
     loadEnchantmentOptions();
     initEnchStates();
+    initFilter();
 
     dialogPreferences = document.getElementById('preferences');
     buttonPreferences = document.getElementById("btnPreferences");
@@ -61,6 +33,7 @@ function initialize() {
     buttonCloseAbout = document.getElementById("btnCloseAbout");
 
     renderScreen();
+    showPreferences();
 }
 
 function loadEnchantmentOptions() {
@@ -105,6 +78,33 @@ function initEnchStates() {
         current.enchState.lastOfAll      = i === charData.itemOptions.length - 1;
     }
 }
+
+function initFilter() {
+    charData.enchFilter['allEnch'] = document.getElementById('allEnch').checked;
+    charData.enchFilter['basic'] = document.getElementById('basic').checked;
+    charData.enchFilter['nonscaling'] = document.getElementById('nonscaling').checked;
+    charData.enchFilter['forMeleeDmg'] = document.getElementById('forMeleeDmg').checked;
+    charData.enchFilter['forRangedDmg'] = document.getElementById('forRangedDmg').checked;
+    charData.enchFilter['forACDefence'] = document.getElementById('forACDefence').checked;
+    charData.enchFilter['forResistDefence'] = document.getElementById('forResistDefence').checked;
+    charData.enchFilter['forHitPoints'] = document.getElementById('forHitPoints').checked;
+    charData.enchFilter['forBarbarian'] = document.getElementById('forBarbarian').checked;
+    charData.enchFilter['forFighter'] = document.getElementById('forFighter').checked;
+    charData.enchFilter['forPaladin'] = document.getElementById('forPaladin').checked;
+    charData.enchFilter['forRanger'] = document.getElementById('forRanger').checked;
+    charData.enchFilter['forAlchemist'] = document.getElementById('forAlchemist').checked;
+    charData.enchFilter['forArtificer'] = document.getElementById('forArtificer').checked;
+    charData.enchFilter['forBard'] = document.getElementById('forBard').checked;
+    charData.enchFilter['forRogue'] = document.getElementById('forRogue').checked;
+    charData.enchFilter['forMonk'] = document.getElementById('forMonk').checked;
+    charData.enchFilter['forCleric'] = document.getElementById('forCleric').checked;
+    charData.enchFilter['forDruid'] = document.getElementById('forDruid').checked;
+    charData.enchFilter['forFavoredSoul'] = document.getElementById('forFavoredSoul').checked;
+    charData.enchFilter['forSorcerer'] = document.getElementById('forSorcerer').checked;
+    charData.enchFilter['forWarlock'] = document.getElementById('forWarlock').checked;
+    charData.enchFilter['forWizard'] = document.getElementById('forWizard').checked;
+}
+
 
 function renderScreen() {
     let html = "";
@@ -183,23 +183,88 @@ function renderScreen() {
     document.getElementById("enchantmentOptions").innerHTML = html;
     document.getElementById("result").innerHTML             = charData.reportOut;
 // handleCollapse();
+
+    console.log(charData.enchFilter);
 }
 
 function getButton(ench) {
+    let enchValue = getEnchFilterValue(ench);
     let btn;
+
     if (charData.itemOptions[ench].enchState.selected) {
         btn = "<button class='selected' ";
+        enchValue = 1;  // Display all selected enchantments
     } else if (charData.itemOptions[ench].enchState.handledBy > -1) {
         btn = "<button disabled class='handled' ";
     } else if (charData.itemOptions[ench].enchState.blocked) {
         btn = "<button disabled class='blocked' ";
+    } else if (enchValue > 1) {
+        btn = "<button style='background-color: " + getHighlight(enchValue) + "; color: black;' ";
     } else {
         btn = "<button ";
     }
 
     btn += "onclick='enchClick(" + ench + ")'>" + charData.itemOptions[ench].enchName + "</button> ";
 
-    return btn;
+    if(enchValue < 1) { return ""; }
+    else { return btn; }
+}
+
+function getHighlight(num) {
+    // Set intensity of highlight color based on incoming value relative to max range of 20.
+    // Base color is #444 (68, 68, 68).
+    let rAndG = (num * 9.35) + 68;
+    let b = 68 - (num * 3.4);
+    if(rAndG > 255) { rAndG = 255; }
+    if(b < 0) { b = 0; }
+    return rgb(rAndG, rAndG, b);
+}
+
+function rgb(r, g, b){
+    return "rgb("+r+","+g+","+b+")";
+}
+
+// function getRGB(r,g,b) {
+//     var red = rgbToHex(r);
+//     var green = rgbToHex(g);
+//     var blue = rgbToHex(b);
+//     return "#" + red+green+blue;
+// }
+
+function getEnchFilterValue(ench) {
+    let enchValue = 0;
+    if(charData.enchFilter.allEnch) { enchValue += 1; }
+    if(charData.enchFilter.basic) { enchValue += charData.itemOptions[ench].basic; }
+    if(charData.enchFilter.nonscaling) { enchValue += charData.itemOptions[ench].nonscaling; }
+    if(charData.enchFilter.forMeleeDmg) { enchValue += charData.itemOptions[ench].forMeleeDmg; }
+    if(charData.enchFilter.forRangedDmg) { enchValue += charData.itemOptions[ench].forRangedDmg; }
+    if(charData.enchFilter.forACDefence) { enchValue += charData.itemOptions[ench].forACDefence; }
+    if(charData.enchFilter.forResistDefence) { enchValue += charData.itemOptions[ench].forResistDefence; }
+    if(charData.enchFilter.forHitPoints) { enchValue += charData.itemOptions[ench].forHitPoints; }
+    if(charData.enchFilter.forAlchemist) { enchValue += charData.itemOptions[ench].forAlchemist; }
+    if(charData.enchFilter.forArtificer) { enchValue += charData.itemOptions[ench].forArtificer; }
+    if(charData.enchFilter.forBarbarian) { enchValue += charData.itemOptions[ench].forBarbarian; }
+    if(charData.enchFilter.forBard) { enchValue += charData.itemOptions[ench].forBard; }
+    if(charData.enchFilter.forCleric) { enchValue += charData.itemOptions[ench].forCleric; }
+    if(charData.enchFilter.forDruid) { enchValue += charData.itemOptions[ench].forDruid; }
+    if(charData.enchFilter.forFavoredSoul) { enchValue += charData.itemOptions[ench].forFavoredSoul; }
+    if(charData.enchFilter.forFighter) { enchValue += charData.itemOptions[ench].forFighter; }
+    if(charData.enchFilter.forMonk) { enchValue += charData.itemOptions[ench].forMonk; }
+    if(charData.enchFilter.forPaladin) { enchValue += charData.itemOptions[ench].forPaladin; }
+    if(charData.enchFilter.forRanger) { enchValue += charData.itemOptions[ench].forRanger; }
+    if(charData.enchFilter.forRogue) { enchValue += charData.itemOptions[ench].forRogue; }
+    if(charData.enchFilter.forSorcerer) { enchValue += charData.itemOptions[ench].forSorcerer; }
+    if(charData.enchFilter.forWarlock) { enchValue += charData.itemOptions[ench].forWarlock; }
+    if(charData.enchFilter.forWizard) { enchValue += charData.itemOptions[ench].forWizard; }
+
+    // if(charData.itemOptions[ench].enchName == "Ability (Charisma)"
+    //     || charData.itemOptions[ench].enchName == "Ability (Intelligence)"
+    //     || charData.itemOptions[ench].enchName == "Ability (Constitution)") {
+    //     console.log(charData.itemOptions[ench]);
+    //     console.log(enchValue);
+    // }
+
+    return enchValue;
 }
 
 
@@ -361,3 +426,38 @@ document.getElementById('loadFile').onchange = function () {
     }
     fr.readAsText(files.item(0));
 }
+
+function showPreferences() {
+    dialogPreferences.style.display = 'block';
+}
+
+function showHelp() {
+    dialogHelp.style.display = 'block';
+}
+
+function showAbout() {
+    dialogAbout.style.display = 'block';
+}
+
+function handleFilterCheckbox(checkbox) {
+    charData.enchFilter[checkbox.name] = checkbox.checked;
+    renderScreen();
+
+}
+
+window.onclick = function (event) {
+    // When the user clicks anywhere outside of the dialogPreferences, close it
+    if (event.target === dialogPreferences) {
+        dialogPreferences.style.display = "none";
+    }
+    // Or help window
+    if (event.target === dialogHelp) {
+        dialogHelp.style.display = "none";
+    }
+    // Or about window
+    if (event.target === dialogAbout) {
+        dialogAbout.style.display = "none";
+    }
+};
+
+

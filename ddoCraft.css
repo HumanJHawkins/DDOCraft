@@ -31,7 +31,7 @@ h3 {
 
 table {
     table-layout: fixed;
-    margin: 0;
+    margin: .5vw;
     padding: 0;
     width: 100%;
 }
@@ -119,10 +119,43 @@ select {
     font-size: calc(6px + 1vw);
 }
 
-.modalLabel {
+.checklabel {
     white-space: nowrap;
     overflow: scroll;
+    vertical-align: middle;
 }
+
+.modal-checklist {
+    border: 0;
+    padding: 1vw;
+    /*width: 100%;*/
+}
+
+input[type='checkbox'] {
+    margin: 0.4vw;
+    width: 1vw;
+    height: 1vw;
+    vertical-align: center;
+    /*width: calc(10px + 1vw);*/
+}
+
+.modal-table {
+    float: left;
+    table-layout: auto;
+    /*border: 1px solid black;*/
+    padding: 1vw;
+    margin-left: 1vw;
+    margin-right: 1vw;
+    margin-bottom: 1vw;
+    width: auto;
+}
+
+.modal-table td {
+    margin: .25vw;
+    padding: 0.25vw;
+    border: 0;
+}
+
 
 .helpText {
     text-align: left;
@@ -250,11 +283,11 @@ img {
     color: #222;
 }
 
-.handled {
+.handled, .blocked {
     color: #555;
     background-color: #222;
     font-style: italic;
-    font-weight: lighter;
+    /*font-weight: lighter;*/
 }
 
 button {

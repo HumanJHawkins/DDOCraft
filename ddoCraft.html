@@ -16,42 +16,163 @@
 <div id="preferences" class="modal">
     <div id="divPreferenceDialog" class="modal-content">
         <div id="btnClosePreferences" class="modalClose" onClick="dialogPreferences.style.display='none'">&times;</div>
-        <h3 class="modalText modalHeading">Preferences: </h3>
-        <p>This is all just placeholder stuff for now... Filter / class selector coming soon.</p>
+        <h3 class="modalText modalHeading">Filter / Head Start: </h3>
+        <p class="helpText">Experimental filter / highlighter. Select one or more checkboxes below to show only the
+            categories selected.
+            And, some higher priority enchantments (based on community feedback) will highlight in different shades
+            depending on how important they are in the categories selected.</p>
         <p class="indent">
-            <span class="modalText">
-                <!-- Select control for low and high character length of potential words -->
-                <span class="modalText modalLabel"><label for="wordLength">Word&nbsp;Length:&nbsp;</label>
-                    <select id="wordLength" onChange="updateWordPoolFiltered()">
-                        <option value="{&quot;low&quot;: 4, &quot;high&quot;: 10}">Normal&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</option>
-                        <option value="{&quot;low&quot;: 2, &quot;high&quot;: 3}">Short</option>
-                        <option value="{&quot;low&quot;: 4, &quot;high&quot;: 6}">Medium</option>
-                        <option value="{&quot;low&quot;: 7, &quot;high&quot;: 12}">Long</option>
-                    </select>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                </span>
-                <!-- Select control for low and high grade level of potential words -->
-                <span class="modalText modalLabel"><label for="wordLevel">Word&nbsp;Level:&nbsp;&nbsp;</label>
-                    <select id="wordLevel" onChange="updateWordPoolFiltered()">
-                        <option value="{&quot;low&quot;: 2, &quot;high&quot;: 12}">Normal</option>
-                        <option value="{&quot;low&quot;: -1, &quot;high&quot;: 1}">Beginning Readers</option>
-                        <option value="{&quot;low&quot;: 2, &quot;high&quot;: 5}">Elementary</option>
-                        <option value="{&quot;low&quot;: 6, &quot;high&quot;: 8}">Middle School</option>
-                        <option value="{&quot;low&quot;: 9, &quot;high&quot;: 12}">High School</option>
-                    </select>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                </span>
-                <!-- Select control for number of incorrect guesses before loss.  -->
-                <span class="modalText modalLabel"><label for="gameDifficulty">Difficulty:&nbsp;&nbsp;</label>
-                    <select id="gameDifficulty" onChange="updateMaxMisses()">
-                        <option value="10">Normal&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</option>
-                        <option value="7">Hard</option>
-                        <option value="5">Epic</option>
-                        <option value="3">Stupid</option>
-                    </select>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                </span>
-            </span>
-        </p>
-        <p>&nbsp;</p>
-        <div id="divWordCount" class="modalText indent"></div>
+        <div class="helpText modal-checklist">
+            <table class="modal-table">
+                <tr>
+                    <td><label class='checklabel' for='allEnch'>
+                        <input type='checkbox' id='allEnch' name='allEnch' value='allEnch'
+                               onchange="handleFilterCheckbox(this)"/>All</label></td>
+                </tr>
+                <tr>
+                <tr>
+                    <td><label class='checklabel' for='basic'>
+                        <input type='checkbox' id='basic' name='basic' value='basic'
+                               onchange="handleFilterCheckbox(this)"/>Basics</label>
+                    </td>
+                </tr>
+                <tr>
+                <td><label class='checklabel' for='nonscaling'>
+                    <input type='checkbox' id='nonscaling' name='nonscaling' value='nonscaling'
+                           onchange="handleFilterCheckbox(this)"/>Non-scaling</label>
+                </td>
+                </tr>
+            </table>
+            <table class="modal-table">
+                <tr>
+                    <td><label class='checklabel' for='forMeleeDmg'>
+                        <input type='checkbox' id='forMeleeDmg' name='forMeleeDmg' value='forMeleeDmg'
+                               onchange="handleFilterCheckbox(this)"/>Melee Damage</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label class='checklabel' for='forRangedDmg'>
+                        <input type='checkbox' id='forRangedDmg' name='forRangedDmg' value='forRangedDmg'
+                               onchange="handleFilterCheckbox(this)"/>Ranged Damage</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label class='checklabel' for='forACDefence'>
+                        <input type='checkbox' id='forACDefence' name='forACDefence' value='forACDefence'
+                               onchange="handleFilterCheckbox(this)"/>AC Build</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label class='checklabel' for='forResistDefence'>
+                        <input type='checkbox' id='forResistDefence' name='forResistDefence' value='forResistDefence'
+                               onchange="handleFilterCheckbox(this)"/>Resistance</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label class='checklabel' for='forHitPoints'>
+                        <input type='checkbox' id='forHitPoints' name='forHitPoints' value='forHitPoints'
+                               onchange="handleFilterCheckbox(this)"/>Hit Points</label>
+                    </td>
+                </tr>
+            </table>
+            <table class="modal-table">
+                <tr>
+                    <td><label class='checklabel' for='forBarbarian'>
+                        <input disabled type='checkbox' id='forBarbarian' name='forBarbarian' value='forBarbarian'
+                               onchange="handleFilterCheckbox(this)"/>Barbarian</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label class='checklabel' for='forFighter'>
+                        <input disabled type='checkbox' id='forFighter' name='forFighter' value='forFighter'
+                               onchange="handleFilterCheckbox(this)"/>Fighter</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label class='checklabel' for='forPaladin'>
+                        <input type='checkbox' id='forPaladin' name='forPaladin' value='forPaladin'
+                               onchange="handleFilterCheckbox(this)"/>Paladin</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label class='checklabel' for='forRanger'>
+                        <input disabled type='checkbox' id='forRanger' name='forRanger' value='forRanger'
+                               onchange="handleFilterCheckbox(this)"/>Ranger</label>
+                    </td>
+                </tr>
+
+            </table>
+            <table class="modal-table">
+                <tr>
+                    <td><label class='checklabel' for='forAlchemist'>
+                        <input disabled type='checkbox' id='forAlchemist' name='forAlchemist' value='forAlchemist'
+                               onchange="handleFilterCheckbox(this)"/>Alchemist</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label class='checklabel' for='forArtificer'>
+                        <input type='checkbox' id='forArtificer' name='forArtificer' value='forArtificer'
+                               onchange="handleFilterCheckbox(this)"/>Artificer</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label class='checklabel' for='forBard'>
+                        <input disabled type='checkbox' id='forBard' name='forBard' value='forBard'
+                               onchange="handleFilterCheckbox(this)"/>Bard</label></td>
+                </tr>
+                <tr>
+                    <td><label class='checklabel' for='forRogue'>
+                        <input disabled type='checkbox' id='forRogue' name='forRogue' value='forRogue'
+                               onchange="handleFilterCheckbox(this)"/>Rogue</label></td>
+                </tr>
+                <tr>
+                    <td><label class='checklabel' for='forMonk'>
+                        <input disabled type='checkbox' id='forMonk' name='forMonk' value='forMonk'
+                               onchange="handleFilterCheckbox(this)"/>Monk</label></td>
+                </tr>
+            </table>
+            <table class="modal-table">
+                <tr>
+                    <td><label class='checklabel' for='forCleric'>
+                        <input type='checkbox' id='forCleric' name='forCleric' value='forCleric'
+                               onchange="handleFilterCheckbox(this)"/>Cleric</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label class='checklabel' for='forDruid'>
+                        <input disabled type='checkbox' id='forDruid' name='forDruid' value='forDruid'
+                               onchange="handleFilterCheckbox(this)"/>Druid</label></td>
+                </tr>
+                <tr>
+                    <td><label class='checklabel' for='forFavoredSoul'>
+                        <input disabled type='checkbox' id='forFavoredSoul' name='forFavoredSoul' value='forFavoredSoul'
+                               onchange="handleFilterCheckbox(this)"/>FavoredSoul</label>
+                    </td>
+                </tr>
+            </table>
+
+            <table class="modal-table">
+                <tr>
+                    <td><label class='checklabel' for='forSorcerer'>
+                        <input type='checkbox' id='forSorcerer' name='forSorcerer' value='forSorcerer'
+                               onchange="handleFilterCheckbox(this)"/>Sorcerer</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label class='checklabel' for='forWarlock'>
+                        <input disabled type='checkbox' id='forWarlock' name='forWarlock' value='forWarlock'
+                               onchange="handleFilterCheckbox(this)"/>Warlock</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td><label class='checklabel' for='forWizard'>
+                        <input type='checkbox' id='forWizard' name='forWizard' value='forWizard'
+                               onchange="handleFilterCheckbox(this)"/>Wizard</label>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <p style="clear: both"></p>
     </div>
 </div>
 
@@ -63,7 +184,7 @@
         <p class="indent helpText">
             Labels including augment colors, can be clicked to toggle collapsing them. For example if you are not
             interested in orbs or yellow augment slots, click to hide them.
-            </p>
+        </p>
         <p class="indent helpText">
             Some enchantments, like 'Potency' or
             'Spell Lore (Universal)' only fit in one or two spots. So always select and place your most important
@@ -86,9 +207,11 @@
             in-game before actually using your valuable crafting materials. Your licence to use this software is
             governed by the <a href="https://www.gnu.org/licenses/gpl-3.0.en.html"
                                target="_blank">GPL 3.0 License</a> and in short, I
-            am not liable for the loss of your ingredients (or any other thing) related to your use of this software.</p>
+            am not liable for the loss of your ingredients (or any other thing) related to your use of this software.
+        </p>
         <p class="indent helpText helpEnd">
-            <strong>Interested in making this better?</strong> One of the hardest parts is getting the data right. I know for example
+            <strong>Interested in making this better?</strong> One of the hardest parts is getting the data right. I
+            know for example
             that there are augment slot color options on some items that I have not captured here. I just haven't had
             time to confirm them. If you believe something is in error (present when it shouldn't be, or missing when it
             should be there) please let me know. If you are up for a more extensive task, this could be much improved by
@@ -117,20 +240,22 @@
 </div>
 
 
-<h1 style="float:left">DDO Cannith Crafting Planner</h1> <h1 style="float:right"><img src="image/blank.png" alt="" class="iconButtonSpacer"/><img src="image/blank.png"
-                                                                                                 alt=""
-                                                                                                 class="iconButtonSpacer"/>
+<h1 style="float:left">DDO Cannith Crafting Planner</h1>
+<h1 style="float:right"><img src="image/blank.png" alt="" class="iconButtonSpacer"/><img src="image/blank.png"
+                                                                                         alt=""
+                                                                                         class="iconButtonSpacer"/>
     <img src="image/blank.png" alt="" class="iconButtonSpacer"/>
     <img src="image/preferences.png" alt="Preferences" onClick="showPreferences()" class="iconButtonImage"/>
     <img src="image/help.png" alt="Help" onClick="showHelp()" class="iconButtonImage"/>
     <img src="image/about.png" alt="About" onClick="showAbout()" class="iconButtonImage"/>
-<!--    <img src="image/blank.png" alt="" class="iconButtonSpacer"/>-->
+    <!--    <img src="image/blank.png" alt="" class="iconButtonSpacer"/>-->
     <!--    <img src="image/newGame.png" alt="New Game" onClick="resetGame()" class="iconButtonImage"/>-->
 </h1>
 
 <div id="enchantmentOptions"></div>
 <div id="result" class="result"></div>
 <div id="loadSave" class="loadSave">
+    <label for='characterName'></label>
     <input type="text" id="characterName" placeholder="Character Name" class="charName">&nbsp;
     <button id="save" onclick="handleSave()" class="loadSaveBtn"> Save...</button>
     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
