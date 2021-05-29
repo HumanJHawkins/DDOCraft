@@ -46,7 +46,7 @@ function loadEnchantmentOptions() {
     };
 
     // TO DO: Consider convert to asynchronous? Is there something we can do while it loads?
-    itemOptionsRequest.open("GET", "ddoCraft.json", false);
+    itemOptionsRequest.open("GET", "ddocraft.json", false);
     itemOptionsRequest.send();
 }
 
