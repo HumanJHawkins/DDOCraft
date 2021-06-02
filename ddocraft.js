@@ -213,8 +213,13 @@ function getButton(ench) {
 function getHighlight(num) {
     // Set intensity of highlight color based on incoming value relative to max range of 20.
     // Base color is #444 (68, 68, 68).
-    let rAndG = (num * 9.35) + 68;
-    let b = 68 - (num * 3.4);
+    let midValue = 68;
+    let maxVal = 32;
+    let rAndGFactor = (255 - midValue) / maxVal;
+    let bFactor = midValue / maxVal;
+
+    let rAndG = (num * rAndGFactor) + midValue;
+    let b = midValue - (num * bFactor);
     if(rAndG > 255) { rAndG = 255; }
     if(b < 0) { b = 0; }
     return rgb(rAndG, rAndG, b);
