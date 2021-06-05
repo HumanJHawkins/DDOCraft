@@ -316,6 +316,7 @@ button[disabled] {
 
 
 .result {
+    font-family: "Courier New", "Courier", monospaced, serif;
     color: #bbb;
     border: .25vw solid #bbb;
     background-color: #444;
@@ -325,6 +326,30 @@ button[disabled] {
     padding-left: 2vw;
     padding-right: 2vw;
 }
+
+.result table {
+    table-layout: auto;
+    margin: .5vw;
+    padding: 0;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.result th, .result td {
+    text-align: left;
+    vertical-align: top;
+    border: 1px solid black;
+    border-collapse: collapse;
+    /*width: 1%;*/
+    padding: 0;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.result tr:nth-child(odd), .result th {
+    background-color: #333333;
+}
+
 
 .loadSave {
     margin: 0 0 2vw 0;
