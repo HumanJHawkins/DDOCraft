@@ -229,12 +229,6 @@ function rgb(r, g, b){
     return "rgb("+r+","+g+","+b+")";
 }
 
-// function getRGB(r,g,b) {
-//     var red = rgbToHex(r);
-//     var green = rgbToHex(g);
-//     var blue = rgbToHex(b);
-//     return "#" + red+green+blue;
-// }
 
 function getEnchFilterValue(ench) {
     let enchValue = 0;
@@ -408,6 +402,16 @@ function handleSave() {
     downloadJSON(JSON.stringify(charData), characterName + ".json", 'text/plain')
 }
 
+function zeroPad(num, digits){
+    return String(num).padStart(digits, '0');
+}
+
+function getTimestamp() {
+    let time = new Date();
+    return time.getFullYear() + time.getMonth() + time.getDay() + '_' +
+        time.getHours() + time.getMinutes() + time.getSeconds();
+}
+
 
 function downloadJSON(content, fileName, contentType) {
     let a      = document.createElement("a");
@@ -421,6 +425,8 @@ function downloadJSON(content, fileName, contentType) {
 document.getElementById('loadFile').onchange = function () {
     let files = document.getElementById('loadFile').files;
     if (files.length <= 0) { return false; }
+
+    document.getElementById('characterName').value = String(files[0].name).slice(0, -5);
 
     let fr    = new FileReader();
     fr.onload = function (e) {

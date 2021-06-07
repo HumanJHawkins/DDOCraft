@@ -72,19 +72,22 @@ updateCounter();
 <div id="preferences" class="modal">
     <div id="divPreferenceDialog" class="modal-content">
         <div id="btnClosePreferences" class="modalClose" onClick="dialogPreferences.style.display='none'">&times;</div>
-        <h3 class="modalText modalHeading">Filter / Highlighter: </h3>
+        <h3 class="modalText modalHeading">Settings</h3>
         <div class="helpText">
-            <p>This filter shows or hides crafting options based on class or category.
-                It <span style="font-style: italic;">does not</span> remove any already
-                selected enchantments.</p>
-            <p><strong style="font-size: smaller;">NOTE:</strong> Only enhancements that are strongly associated with
-                a class are included under the class. The non-class categories are intended to complete the set of
-                options. A high AC Paladin for example, would want to look through "Paladin", "High AC", and many of
-                the first two columns. They are broken out like this because it can be much easier to sort through
-                them, checking one or two at a time.</p>
+            <p>Check enchantment groups to show them. Uncheck to hide them. This does not select or deselect
+                enchantments for your build, but it helps with clutter onscreen and highlights enchantments commonly
+                prioritized for the groups checked.</p>
+<!--            <p>Name and level are used in the save file name. Level is only partly implemented in the filter, hiding-->
+<!--                the extra slot and insightful enchantments below level 10. As more data is added related to min levels,-->
+<!--                this may improve.  </p>-->
         </div>
         <p class="indent">
         <div class="helpText modal-checklist">
+<!--            <label for='prefsCharName'>Name: </label>-->
+<!--            <input type="text" id="prefsCharName" placeholder="Character Name" class="charName" />&nbsp;<br />-->
+<!--            <label for='prefsCharLevel'></label>-->
+<!--            <input type="number" id="prefsCharLevel" placeholder="20" class="charLevel" min="1" max="30" />&nbsp;&nbsp;<br />-->
+
             <table class="modal-table">
                 <tr>
                     <td><label class='checklabel' for='allEnch'>
