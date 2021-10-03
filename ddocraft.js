@@ -68,7 +68,12 @@ function initEnchStates() {
         current.enchState.newSlot        = current.itemOptionSlot !== last.itemOptionSlot;
         current.enchState.isAugmentSlot  = current.itemOptionSlot.substring(0, 3) === "Aug";
         current.enchState.newAugSlot     = current.enchState.newSlot && current.enchState.isAugmentSlot;
-        current.enchState.newAugColor    = current.enchState.isAugmentSlot && current.augmentColor !== last.augmentColor;
+
+        // For newAugColor, it is a new color (instance) if the color is in a new augment slot, even if the
+        //   actual color is the same.
+        current.enchState.newAugColor    = current.enchState.isAugmentSlot && current.augmentColor !== last.augmentColor
+                                            || current.enchState.isAugmentSlot && current.enchState.newAugSlot;
+
         current.enchState.newEnchSet     = current.enchState.newAugColor || current.enchState.newSlot;
         current.enchState.lastOfSet      = current.augmentColor !== next.augmentColor || current.itemOptionSlot !== next.itemOptionSlot;
         current.enchState.lastOfColor    = current.enchState.isAugmentSlot && current.augmentColor !== next.augmentColor;
@@ -131,9 +136,10 @@ function renderScreen() {
             }
         }
 
-        // if (charData.itemOptions[i].enchState.newAugSlot) {
-        //     html += "<div class='augment'> ";       // <--- Get rid of this?
-        // }
+//TEMP!!!  Before 20211003, this was commented out and everything worked.
+        if (charData.itemOptions[i].enchState.newAugSlot) {
+            html += "<div class='augment'> ";       // <--- Get rid of this?
+        }
 
         if (charData.itemOptions[i].enchState.newAugColor) {
             if (charData.itemOptions[i].enchState.collapsed === 1) {
@@ -159,13 +165,16 @@ function renderScreen() {
         if (charData.itemOptions[i].enchState.lastOfSet) {
             html += "</div><!-- Last of section -->";
         }
-        if (charData.itemOptions[i].enchState.lastOfColor) {
-            // html += "</div><!-- Last of augment color -->";
-        }
 
-        // if (charData.itemOptions[i].enchState.lastOfAugSlot) {
-        //     html += "</div><!-- Last of augment slot -->";
-        // }
+
+        if (charData.itemOptions[i].enchState.lastOfColor) {
+// Before 20211003, this was commented out and everything worked.
+            html += "</div><!-- Last of augment color -->";
+        }
+// TEMP!!!  Before 20211003, this was commented out and everything worked.
+        if (charData.itemOptions[i].enchState.lastOfAugSlot) {
+            html += "</div><!-- Last of augment slot -->";
+        }
 
         if (charData.itemOptions[i].enchState.lastOfSlot) {
             html += "</td></tr><!-- Last of item slot -->";
@@ -179,7 +188,7 @@ function renderScreen() {
 
     // html += "</table><!-- Last of everything -->";
 
-//    console.log(html);
+    console.log(html);
     document.getElementById("enchantmentOptions").innerHTML = html;
     document.getElementById("result").innerHTML             = charData.reportOut;
 // handleCollapse();
