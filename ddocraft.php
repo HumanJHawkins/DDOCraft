@@ -92,7 +92,7 @@ updateCounter();
                 <tr>
                     <td><label class='checklabel' for='allEnch'>
                             <input type='checkbox' id='allEnch' name='allEnch' value='allEnch'
-                                   onchange="handleFilterCheckbox(this)"/>All</label></td>
+                                   onchange="handleFilterCheckbox(this)" checked />All</label></td>
                 </tr>
                 <tr>
                 <tr>
