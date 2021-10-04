@@ -85,6 +85,7 @@ function initEnchStates() {
 }
 
 function initFilter() {
+    charData.enchFilter['characterLevel'] = document.getElementById('characterLevel').value;
     charData.enchFilter['allEnch'] = document.getElementById('allEnch').checked;
     charData.enchFilter['basic'] = document.getElementById('basic').checked;
     charData.enchFilter['nonscaling'] = document.getElementById('nonscaling').checked;
@@ -109,6 +110,10 @@ function initFilter() {
     charData.enchFilter['forWarlock'] = document.getElementById('forWarlock').checked;
     charData.enchFilter['forWizard'] = document.getElementById('forWizard').checked;
 }
+
+
+// || charData.itemOptions[ench].enchCannithMinLevel < charData.enchFilter.characterLevel
+// || charData.itemOptions[ench].enchAugmentMinLevel < charData.enchFilter.characterLevel
 
 
 function renderScreen() {
@@ -159,7 +164,10 @@ function renderScreen() {
         if (charData.itemOptions[i].enchState.collapsed) {
             continue;
         } else {
-            html += getButton(i);
+            if((!charData.itemOptions[i].enchState.isAugmentSlot && charData.enchFilter.characterLevel >= charData.itemOptions[i].enchCannithMinLevel)
+                || charData.itemOptions[i].enchState.isAugmentSlot && charData.enchFilter.characterLevel >= charData.itemOptions[i].enchAugmentMinLevel) {
+                html += getButton(i);
+            }
         }
 
         if (charData.itemOptions[i].enchState.lastOfSet) {
@@ -188,7 +196,7 @@ function renderScreen() {
 
     // html += "</table><!-- Last of everything -->";
 
-    console.log(html);
+    // console.log(html);
     document.getElementById("enchantmentOptions").innerHTML = html;
     document.getElementById("result").innerHTML             = charData.reportOut;
 // handleCollapse();
@@ -216,7 +224,8 @@ function getButton(ench) {
 
     btn += "onclick='enchClick(" + ench + ")'>" + charData.itemOptions[ench].enchName + "</button> ";
 
-    if(enchValue < 1) { return ""; }
+    if(enchValue < 1)
+    { return ""; }
     else { return btn; }
 }
 
@@ -370,13 +379,16 @@ function getLastOfColor(ench) {
 }
 
 
-function ItemOption(itemOptionItem, itemOptionSlot, enchName, enchEffectType, enchDesc, augmentColor,
-                    enchSupercededBy, itemOptionSortOrder, enchSortOrder, enchState, enchNum) {
+function ItemOption(itemOptionItem, itemOptionSlot, enchName, enchEffectType, enchDesc, enchCannithMinLevel,
+                    enchAugmentMinLevel, augmentColor, enchSupercededBy, itemOptionSortOrder, enchSortOrder,
+                    enchState, enchNum) {
     this.itemOptionItem      = itemOptionItem;
     this.itemOptionSlot      = itemOptionSlot;
     this.enchName            = enchName;
     this.enchEffectType      = enchEffectType;
     this.enchDesc            = enchDesc;
+    this.enchCannithMinLevel = enchCannithMinLevel;
+    this.enchAugmentMinLevel = enchAugmentMinLevel;
     this.augmentColor        = augmentColor;
     this.enchSupercededBy    = enchSupercededBy;
     this.itemOptionSortOrder = itemOptionSortOrder;
@@ -466,7 +478,11 @@ function showAbout() {
 function handleFilterCheckbox(checkbox) {
     charData.enchFilter[checkbox.name] = checkbox.checked;
     renderScreen();
+}
 
+function handleFilterLevel() {
+    charData.enchFilter.characterLevel = document.getElementById("characterLevel").value;
+    renderScreen();
 }
 
 window.onclick = function (event) {

@@ -81,7 +81,14 @@ updateCounter();
 <!--                the extra slot and insightful enchantments below level 10. As more data is added related to min levels,-->
 <!--                this may improve.  </p>-->
         </div>
-        <p class="indent">
+<!--        <p class="indent">-->
+        <div class="helpText">
+            <label for="characterLevel">Character Level:</label>
+            <input type="number" id="characterLevel" name="characterLevel" value="20"
+                   onchange="handleFilterLevel()" min="0" max="50" />
+        </div>
+
+
         <div class="helpText modal-checklist">
 <!--            <label for='prefsCharName'>Name: </label>-->
 <!--            <input type="text" id="prefsCharName" placeholder="Character Name" class="charName" />&nbsp;<br />-->
@@ -239,6 +246,7 @@ updateCounter();
                 </tr>
             </table>
         </div>
+
         <p style="clear: both"></p>
     </div>
 </div>
