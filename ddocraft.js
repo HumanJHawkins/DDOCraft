@@ -201,7 +201,7 @@ function getButton(ench) {
     let btn;
 
     if (charData.itemOptions[ench].enchState.selected) {
-        btn = "<button class='selected' ";
+        btn = "<button class='selected' title='" + charData.itemOptions[ench].enchDesc + "' ";
         enchValue = 1;  // Display all selected enchantments
     } else if (charData.itemOptions[ench].enchState.handledBy > -1) {
         btn = "<button disabled class='handled' ";
@@ -209,14 +209,20 @@ function getButton(ench) {
         btn = "<button disabled class='blocked' ";
     } else if (enchValue > 1) {
         btn = "<button style='background-color: " + getHighlight(enchValue) + "; color: black;' ";
+        btn += "title='" + charData.itemOptions[ench].enchDesc + "' ";
     } else {
-        btn = "<button ";
+        btn = "<button title='" + charData.itemOptions[ench].enchDesc + "' ";
     }
 
     btn += "onclick='enchClick(" + ench + ")'>" + charData.itemOptions[ench].enchName + "</button> ";
 
     if(enchValue < 1) { return ""; }
     else { return btn; }
+}
+
+function addTooltip(btn) {
+    btn += "title='" + charData.itemOptions[ench].enchDesc + "' ";
+    return btn;
 }
 
 function getHighlight(num) {
