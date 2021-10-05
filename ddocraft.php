@@ -85,7 +85,7 @@ updateCounter();
         <div class="helpText">
             <label for="characterLevel">Character Level:</label>
             <input type="number" id="characterLevel" name="characterLevel" value="20"
-                   onchange="handleFilterLevel()" min="0" max="50" />
+                   onchange="handleFilterLevel()" min="0" max="50" />&nbsp;&nbsp;&nbsp;<strong>&#8592;</strong>&nbsp;&nbsp;&nbsp;Set this at least!!!
         </div>
 
 
@@ -312,7 +312,8 @@ updateCounter();
 
 <h3 style="background-color:white;color: black;">COMPATABILITY WARNING: Newly updated and not compatable with
     older save files. To open older save files, please go to:
-    <a href="https://dev.codehawkins.com/dev2/ddocraft.php">https://dev.codehawkins.com/dev2/ddocraft.php</a></h3>
+    <a href="https://dev.codehawkins.com/dev2/ddocraft.php">https://dev.codehawkins.com/dev2/ddocraft.php</a><br/>
+    <span style="color: darkblue">Migrate here though for better data, min level support and tooltips.</span></h3>
 <br/>
 <br/>
 
