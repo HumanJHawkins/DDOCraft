@@ -14,7 +14,9 @@ let dialogAbout;
 let buttonAbout;
 let buttonCloseAbout;
 
-let charData = {version: 1.1, dirty: false, itemOptions: {}, enchFilter: { allEnch: true }, reportOut: ""};
+let extraSlotMinLevel = 10;
+
+let charData = {version: 1.1, dirty: false, itemOptions: {}, enchFilter: {allEnch: true}, reportOut: ""};
 initialize();
 
 function initialize() {
@@ -22,17 +24,18 @@ function initialize() {
     initEnchStates();
     initFilter();
 
-    dialogPreferences = document.getElementById('preferences');
-    buttonPreferences = document.getElementById("btnPreferences");
+    dialogPreferences      = document.getElementById('preferences');
+    buttonPreferences      = document.getElementById("btnPreferences");
     buttonClosePreferences = document.getElementById("btnClosePreferences");
-    dialogHelp = document.getElementById('help');
-    buttonHelp = document.getElementById("btnHelp");
-    buttonCloseHelp = document.getElementById("btnCloseHelp");
-    dialogAbout = document.getElementById('about');
-    buttonAbout = document.getElementById("btnAbout");
-    buttonCloseAbout = document.getElementById("btnCloseAbout");
+    dialogHelp             = document.getElementById('help');
+    buttonHelp             = document.getElementById("btnHelp");
+    buttonCloseHelp        = document.getElementById("btnCloseHelp");
+    dialogAbout            = document.getElementById('about');
+    buttonAbout            = document.getElementById("btnAbout");
+    buttonCloseAbout       = document.getElementById("btnCloseAbout");
 
-    renderScreen();
+    renderEnchantmentOptions();
+    renderResult();
     showPreferences();
 }
 
@@ -58,25 +61,23 @@ function initEnchStates() {
         if (i > 0) { last = charData.itemOptions[i - 1]; }
         if (i < charData.itemOptions.length - 1) { next = charData.itemOptions[i + 1]; } else { next = new ItemOption("", "", "", "", "", ""); }
 
-        current.enchState                = new EnchState();
-        current.enchNum                  = i;
-        current.enchState.collapsed      = 0;   //  0 == Not. 1 == Color. 2 == slot. 3 == Item
-        current.enchState.selected       = false;
-        current.enchState.blocked        = false;
-        current.enchState.handledBy      = -1;
-        current.enchState.newItemType    = current.itemOptionItem !== last.itemOptionItem;
-        current.enchState.newSlot        = current.itemOptionSlot !== last.itemOptionSlot;
-        current.enchState.isAugmentSlot  = current.itemOptionSlot.substring(0, 3) === "Aug";
-        current.enchState.newAugSlot     = current.enchState.newSlot && current.enchState.isAugmentSlot;
+        current.enchState               = new EnchState();
+        current.enchNum                 = i;
+        current.enchState.collapsed     = 0;   //  0 == Not. 1 == Color. 2 == slot. 3 == Item
+        current.enchState.selected      = false;
+        current.enchState.blocked       = false;
+        current.enchState.handledBy     = -1;
+        current.enchState.newItemType   = current.itemOptionItem !== last.itemOptionItem;
+        current.enchState.newSlot       = current.itemOptionSlot !== last.itemOptionSlot;
+        current.enchState.isAugmentSlot = current.itemOptionSlot.substring(0, 3) === "Aug";
+        current.enchState.newAugSlot    = current.enchState.newSlot && current.enchState.isAugmentSlot;
 
         // For newAugColor, it is a new color (instance) if the color is in a new augment slot, even if the
         //   actual color is the same.
-        current.enchState.newAugColor    = current.enchState.isAugmentSlot && current.augmentColor !== last.augmentColor
-                                            || current.enchState.isAugmentSlot && current.enchState.newAugSlot;
+        current.enchState.newAugColor = current.enchState.isAugmentSlot && current.augmentColor !== last.augmentColor
+            || current.enchState.isAugmentSlot && current.enchState.newAugSlot;
 
-
-        current.enchState.isExtraSlot  = current.itemOptionSlot.substring(0, 3) === "Ext";
-        console.log(current.enchState.isExtraSlot + ": " +current.itemOptionSlot);
+        current.enchState.isExtraSlot = current.itemOptionSlot.substring(0, 3) === "Ext";
 
         current.enchState.newEnchSet     = current.enchState.newAugColor || current.enchState.newSlot;
         current.enchState.lastOfSet      = current.augmentColor !== next.augmentColor || current.itemOptionSlot !== next.itemOptionSlot;
@@ -89,34 +90,34 @@ function initEnchStates() {
 }
 
 function initFilter() {
-    charData.enchFilter['characterLevel'] = document.getElementById('characterLevel').value;
-    charData.enchFilter['allEnch'] = document.getElementById('allEnch').checked;
-    charData.enchFilter['basic'] = document.getElementById('basic').checked;
-    charData.enchFilter['nonscaling'] = document.getElementById('nonscaling').checked;
-    charData.enchFilter['forMeleeDmg'] = document.getElementById('forMeleeDmg').checked;
-    charData.enchFilter['forRangedDmg'] = document.getElementById('forRangedDmg').checked;
-    charData.enchFilter['forACDefence'] = document.getElementById('forACDefence').checked;
+    charData.enchFilter['characterLevel']   = document.getElementById('characterLevel').value;
+    charData.enchFilter['allEnch']          = document.getElementById('allEnch').checked;
+    charData.enchFilter['basic']            = document.getElementById('basic').checked;
+    charData.enchFilter['nonscaling']       = document.getElementById('nonscaling').checked;
+    charData.enchFilter['forMeleeDmg']      = document.getElementById('forMeleeDmg').checked;
+    charData.enchFilter['forRangedDmg']     = document.getElementById('forRangedDmg').checked;
+    charData.enchFilter['forACDefence']     = document.getElementById('forACDefence').checked;
     charData.enchFilter['forResistDefence'] = document.getElementById('forResistDefence').checked;
-    charData.enchFilter['forHitPoints'] = document.getElementById('forHitPoints').checked;
-    charData.enchFilter['forBarbarian'] = document.getElementById('forBarbarian').checked;
-    charData.enchFilter['forFighter'] = document.getElementById('forFighter').checked;
-    charData.enchFilter['forPaladin'] = document.getElementById('forPaladin').checked;
-    charData.enchFilter['forRanger'] = document.getElementById('forRanger').checked;
-    charData.enchFilter['forAlchemist'] = document.getElementById('forAlchemist').checked;
-    charData.enchFilter['forArtificer'] = document.getElementById('forArtificer').checked;
-    charData.enchFilter['forBard'] = document.getElementById('forBard').checked;
-    charData.enchFilter['forRogue'] = document.getElementById('forRogue').checked;
-    charData.enchFilter['forMonk'] = document.getElementById('forMonk').checked;
-    charData.enchFilter['forCleric'] = document.getElementById('forCleric').checked;
-    charData.enchFilter['forDruid'] = document.getElementById('forDruid').checked;
-    charData.enchFilter['forFavoredSoul'] = document.getElementById('forFavoredSoul').checked;
-    charData.enchFilter['forSorcerer'] = document.getElementById('forSorcerer').checked;
-    charData.enchFilter['forWarlock'] = document.getElementById('forWarlock').checked;
-    charData.enchFilter['forWizard'] = document.getElementById('forWizard').checked;
+    charData.enchFilter['forHitPoints']     = document.getElementById('forHitPoints').checked;
+    charData.enchFilter['forBarbarian']     = document.getElementById('forBarbarian').checked;
+    charData.enchFilter['forFighter']       = document.getElementById('forFighter').checked;
+    charData.enchFilter['forPaladin']       = document.getElementById('forPaladin').checked;
+    charData.enchFilter['forRanger']        = document.getElementById('forRanger').checked;
+    charData.enchFilter['forAlchemist']     = document.getElementById('forAlchemist').checked;
+    charData.enchFilter['forArtificer']     = document.getElementById('forArtificer').checked;
+    charData.enchFilter['forBard']          = document.getElementById('forBard').checked;
+    charData.enchFilter['forRogue']         = document.getElementById('forRogue').checked;
+    charData.enchFilter['forMonk']          = document.getElementById('forMonk').checked;
+    charData.enchFilter['forCleric']        = document.getElementById('forCleric').checked;
+    charData.enchFilter['forDruid']         = document.getElementById('forDruid').checked;
+    charData.enchFilter['forFavoredSoul']   = document.getElementById('forFavoredSoul').checked;
+    charData.enchFilter['forSorcerer']      = document.getElementById('forSorcerer').checked;
+    charData.enchFilter['forWarlock']       = document.getElementById('forWarlock').checked;
+    charData.enchFilter['forWizard']        = document.getElementById('forWizard').checked;
 }
 
 
-function renderScreen() {
+function renderEnchantmentOptions() {
     let html = "";
     for (let i = 0; i < charData.itemOptions.length; i++) {
         if (charData.itemOptions[i].enchState.newItemType) {
@@ -164,7 +165,7 @@ function renderScreen() {
         if (charData.itemOptions[i].enchState.collapsed) {
             continue;
         } else {
-            if((!charData.itemOptions[i].enchState.isAugmentSlot && charData.enchFilter.characterLevel >= charData.itemOptions[i].enchCannithMinLevel)
+            if ((!charData.itemOptions[i].enchState.isAugmentSlot && charData.enchFilter.characterLevel >= charData.itemOptions[i].enchCannithMinLevel)
                 || charData.itemOptions[i].enchState.isAugmentSlot && charData.enchFilter.characterLevel >= charData.itemOptions[i].enchAugmentMinLevel) {
                 html += getButton(i);
             }
@@ -187,14 +188,12 @@ function renderScreen() {
             html += "</td></tr><!-- Last of item slot -->";
 
             // Skip "Extra" slot when it is over-level.
-            if(i+1 < charData.itemOptions.length && charData.itemOptions[i+1].enchState.isExtraSlot && charData.enchFilter.characterLevel < 10) {
+            if (i + 1 < charData.itemOptions.length && charData.itemOptions[i + 1].enchState.isExtraSlot && charData.enchFilter.characterLevel < extraSlotMinLevel) {
                 html += "</table><!-- Last of item type -->";   // Because the Extra slot is always last.
 
                 do {
                     i++;
-                    // console.log(i + ": characterLevel: " + charData.enchFilter.characterLevel + ": IsExtra: " +
-                    //     charData.itemOptions[i].enchState.isExtraSlot + ": " + charData.itemOptions[i].enchName);
-                } while(i+1 < charData.itemOptions.length && charData.itemOptions[i+1].enchState.isExtraSlot);
+                } while (i + 1 < charData.itemOptions.length && charData.itemOptions[i + 1].enchState.isExtraSlot);
                 continue;
             }
         }
@@ -207,7 +206,6 @@ function renderScreen() {
 
     // console.log(html);
     document.getElementById("enchantmentOptions").innerHTML = html;
-    document.getElementById("result").innerHTML             = charData.reportOut;
 
     // console.log(charData.enchFilter);
 }
@@ -217,7 +215,7 @@ function getButton(ench) {
     let btn;
 
     if (charData.itemOptions[ench].enchState.selected) {
-        btn = "<button class='selected' title='" + charData.itemOptions[ench].enchDesc + "' ";
+        btn       = "<button class='selected' title='" + charData.itemOptions[ench].enchDesc + "' ";
         enchValue = 1;  // Display all selected enchantments
     } else if (charData.itemOptions[ench].enchState.handledBy > -1) {
         btn = "<button disabled class='handled' ";
@@ -232,58 +230,56 @@ function getButton(ench) {
 
     btn += "onclick='enchClick(" + ench + ")'>" + charData.itemOptions[ench].enchName + "</button> ";
 
-    if(enchValue < 1)
-    { return ""; }
-    else { return btn; }
+    if (enchValue < 1) { return ""; } else { return btn; }
 }
 
 
 function getHighlight(num) {
     // Set intensity of highlight color based on incoming value relative to max range of 20.
     // Base color is #444 (68, 68, 68).
-    let midValue = 68;
-    let maxVal = 32;
+    let midValue    = 68;
+    let maxVal      = 32;
     let rAndGFactor = (255 - midValue) / maxVal;
-    let bFactor = midValue / maxVal;
+    let bFactor     = midValue / maxVal;
 
     let rAndG = (num * rAndGFactor) + midValue;
-    let b = midValue - (num * bFactor);
-    if(rAndG > 255) { rAndG = 255; }
-    if(b < 0) { b = 0; }
+    let b     = midValue - (num * bFactor);
+    if (rAndG > 255) { rAndG = 255; }
+    if (b < 0) { b = 0; }
     return rgb(rAndG, rAndG, b);
 }
 
 
-function rgb(r, g, b){
-    return "rgb("+r+","+g+","+b+")";
+function rgb(r, g, b) {
+    return "rgb(" + r + "," + g + "," + b + ")";
 }
 
 
 function getEnchFilterValue(ench) {
     let enchValue = 0;
-    if(charData.enchFilter.allEnch) { enchValue += 1; }
-    if(charData.enchFilter.basic) { enchValue += charData.itemOptions[ench].basic; }
-    if(charData.enchFilter.nonscaling) { enchValue += charData.itemOptions[ench].nonscaling; }
-    if(charData.enchFilter.forMeleeDmg) { enchValue += charData.itemOptions[ench].forMeleeDmg; }
-    if(charData.enchFilter.forRangedDmg) { enchValue += charData.itemOptions[ench].forRangedDmg; }
-    if(charData.enchFilter.forACDefence) { enchValue += charData.itemOptions[ench].forACDefence; }
-    if(charData.enchFilter.forResistDefence) { enchValue += charData.itemOptions[ench].forResistDefence; }
-    if(charData.enchFilter.forHitPoints) { enchValue += charData.itemOptions[ench].forHitPoints; }
-    if(charData.enchFilter.forAlchemist) { enchValue += charData.itemOptions[ench].forAlchemist; }
-    if(charData.enchFilter.forArtificer) { enchValue += charData.itemOptions[ench].forArtificer; }
-    if(charData.enchFilter.forBarbarian) { enchValue += charData.itemOptions[ench].forBarbarian; }
-    if(charData.enchFilter.forBard) { enchValue += charData.itemOptions[ench].forBard; }
-    if(charData.enchFilter.forCleric) { enchValue += charData.itemOptions[ench].forCleric; }
-    if(charData.enchFilter.forDruid) { enchValue += charData.itemOptions[ench].forDruid; }
-    if(charData.enchFilter.forFavoredSoul) { enchValue += charData.itemOptions[ench].forFavoredSoul; }
-    if(charData.enchFilter.forFighter) { enchValue += charData.itemOptions[ench].forFighter; }
-    if(charData.enchFilter.forMonk) { enchValue += charData.itemOptions[ench].forMonk; }
-    if(charData.enchFilter.forPaladin) { enchValue += charData.itemOptions[ench].forPaladin; }
-    if(charData.enchFilter.forRanger) { enchValue += charData.itemOptions[ench].forRanger; }
-    if(charData.enchFilter.forRogue) { enchValue += charData.itemOptions[ench].forRogue; }
-    if(charData.enchFilter.forSorcerer) { enchValue += charData.itemOptions[ench].forSorcerer; }
-    if(charData.enchFilter.forWarlock) { enchValue += charData.itemOptions[ench].forWarlock; }
-    if(charData.enchFilter.forWizard) { enchValue += charData.itemOptions[ench].forWizard; }
+    if (charData.enchFilter.allEnch) { enchValue += 1; }
+    if (charData.enchFilter.basic) { enchValue += charData.itemOptions[ench].basic; }
+    if (charData.enchFilter.nonscaling) { enchValue += charData.itemOptions[ench].nonscaling; }
+    if (charData.enchFilter.forMeleeDmg) { enchValue += charData.itemOptions[ench].forMeleeDmg; }
+    if (charData.enchFilter.forRangedDmg) { enchValue += charData.itemOptions[ench].forRangedDmg; }
+    if (charData.enchFilter.forACDefence) { enchValue += charData.itemOptions[ench].forACDefence; }
+    if (charData.enchFilter.forResistDefence) { enchValue += charData.itemOptions[ench].forResistDefence; }
+    if (charData.enchFilter.forHitPoints) { enchValue += charData.itemOptions[ench].forHitPoints; }
+    if (charData.enchFilter.forAlchemist) { enchValue += charData.itemOptions[ench].forAlchemist; }
+    if (charData.enchFilter.forArtificer) { enchValue += charData.itemOptions[ench].forArtificer; }
+    if (charData.enchFilter.forBarbarian) { enchValue += charData.itemOptions[ench].forBarbarian; }
+    if (charData.enchFilter.forBard) { enchValue += charData.itemOptions[ench].forBard; }
+    if (charData.enchFilter.forCleric) { enchValue += charData.itemOptions[ench].forCleric; }
+    if (charData.enchFilter.forDruid) { enchValue += charData.itemOptions[ench].forDruid; }
+    if (charData.enchFilter.forFavoredSoul) { enchValue += charData.itemOptions[ench].forFavoredSoul; }
+    if (charData.enchFilter.forFighter) { enchValue += charData.itemOptions[ench].forFighter; }
+    if (charData.enchFilter.forMonk) { enchValue += charData.itemOptions[ench].forMonk; }
+    if (charData.enchFilter.forPaladin) { enchValue += charData.itemOptions[ench].forPaladin; }
+    if (charData.enchFilter.forRanger) { enchValue += charData.itemOptions[ench].forRanger; }
+    if (charData.enchFilter.forRogue) { enchValue += charData.itemOptions[ench].forRogue; }
+    if (charData.enchFilter.forSorcerer) { enchValue += charData.itemOptions[ench].forSorcerer; }
+    if (charData.enchFilter.forWarlock) { enchValue += charData.itemOptions[ench].forWarlock; }
+    if (charData.enchFilter.forWizard) { enchValue += charData.itemOptions[ench].forWizard; }
 
     // if(charData.itemOptions[ench].enchName == "Ability (Charisma)"
     //     || charData.itemOptions[ench].enchName == "Ability (Intelligence)"
@@ -296,14 +292,12 @@ function getEnchFilterValue(ench) {
 }
 
 
-function enchClick(ench) {
+function enchClick(ench, render = true) {
     charData.itemOptions[ench].enchState.selected = !charData.itemOptions[ench].enchState.selected;
-    charData.reportOut   = "<h3>Result</h3><table>";
-    charData.reportOut  += "<table><tr><th>Item</th><th>Slot</th><th>Color</th><th>Enchantment</th><th>Effect</th></tr>";
 
     for (let i = 0; i < charData.itemOptions.length; i++) {
         if (i !== ench) {
-            if (charData.itemOptions[ench].enchState.selected === true) {
+            if (charData.itemOptions[ench].enchState.selected) {
                 if (charData.itemOptions[i].enchEffectType === charData.itemOptions[ench].enchEffectType) {
                     charData.itemOptions[i].enchState.handledBy = ench;
                 }
@@ -320,6 +314,18 @@ function enchClick(ench) {
                 charData.itemOptions[i].enchState.blocked = !charData.itemOptions[i].enchState.blocked;
             }
         }
+    }
+
+    if(render) {
+        renderEnchantmentOptions();
+        renderResult();
+    }
+}
+
+function renderResult() {
+    charData.reportOut = "<h3>Result</h3><table>";
+    charData.reportOut += "<table><tr><th>Item</th><th>Slot</th><th>Color</th><th>Enchantment</th><th>Effect</th></tr>";
+    for (let i = 0; i < charData.itemOptions.length; i++) {
 
         if (charData.itemOptions[i].enchState.selected) {
             charData.reportOut += "<tr><td>" + charData.itemOptions[i].itemOptionItem + "</td><td>" +
@@ -334,9 +340,18 @@ function enchClick(ench) {
         }
     }
 
-    charData.reportOut  += "</table>";
-    renderScreen();
+    charData.reportOut += "</table>";
+    document.getElementById("result").innerHTML = charData.reportOut;
 }
+
+function minLevelAllowed(ench) {
+    return (charData.itemOptions[ench].enchState.selected
+        && !(!charData.itemOptions[ench].enchState.isAugmentSlot && (charData.itemOptions[ench].enchCannithMinLevel > charData.enchFilter.characterLevel))
+        && !(charData.itemOptions[ench].enchState.isAugmentSlot && (charData.itemOptions[ench].enchAugmentMinLevel > charData.enchFilter.characterLevel))
+        && !(charData.itemOptions[ench].enchState.isExtraSlot && (extraSlotMinLevel > charData.enchFilter.characterLevel))
+    );
+}
+
 
 function toggleCollapsed(enchNum, level) {
     // Toggle everything at the same heirarchy level and lower.
@@ -359,7 +374,7 @@ function toggleCollapsed(enchNum, level) {
         charData.itemOptions[enchNum].enchState.collapsed = 0;
     }
 
-    renderScreen();
+    renderEnchantmentOptions();
 }
 
 function getLastOfItem(ench) {
@@ -424,7 +439,7 @@ function EnchState(newItemType, newSlot, newAugSlot, newAugColor, newEnchSet,
     this.blocked   = blocked;           // Slot already in use, so unavailable
 
     this.isAugmentSlot = isAugmentSlot;
-    this.isExtraSlot = isExtraSlot;
+    this.isExtraSlot   = isExtraSlot;
 }
 
 
@@ -434,7 +449,7 @@ function handleSave() {
     downloadJSON(JSON.stringify(charData), characterName + ".json", 'text/plain')
 }
 
-function zeroPad(num, digits){
+function zeroPad(num, digits) {
     return String(num).padStart(digits, '0');
 }
 
@@ -463,7 +478,8 @@ document.getElementById('loadFile').onchange = function () {
     let fr    = new FileReader();
     fr.onload = function (e) {
         charData = JSON.parse(e.target.result);
-        renderScreen();
+        renderEnchantmentOptions();
+        renderResult();
     }
     fr.readAsText(files.item(0));
 }
@@ -482,12 +498,41 @@ function showAbout() {
 
 function handleFilterCheckbox(checkbox) {
     charData.enchFilter[checkbox.name] = checkbox.checked;
-    renderScreen();
+    renderEnchantmentOptions();
 }
 
 function handleFilterLevel() {
+    let previousLevel                  = charData.enchFilter.characterLevel;
     charData.enchFilter.characterLevel = document.getElementById("characterLevel").value;
-    renderScreen();
+
+    let lostEnchantments = "";
+    for (let i = 0; i < charData.itemOptions.length; i++) {
+        if (charData.itemOptions[i].enchState.selected) {
+            if (!minLevelAllowed(i)) {
+                if (lostEnchantments === "") {
+                    lostEnchantments += charData.itemOptions[i].enchName;
+                } else {
+                    lostEnchantments += ", " + charData.itemOptions[i].enchName
+                }
+            }
+        }
+    }
+
+    if (lostEnchantments !== "") {
+        if (confirm("This will deselect the following enchantments. Click OK to proceed.\n\n" + lostEnchantments)) {
+            for (let i = 0; i < charData.itemOptions.length; i++) {
+                if(charData.itemOptions[i].enchState.selected && !minLevelAllowed(i)) {
+                    enchClick(i, false);
+                }
+            }
+            renderEnchantmentOptions();
+            renderResult();
+        } else {
+            document.getElementById("characterLevel").value = previousLevel;
+        }
+    } else {
+        renderEnchantmentOptions(); // Going up in level, so show new enhancement options
+    }
 }
 
 window.onclick = function (event) {
