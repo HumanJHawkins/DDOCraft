@@ -264,13 +264,12 @@ updateCounter();
             being available.
         </p>
         <p class="indent helpText">Be aware that you can click to collapse or expand items, slots or augment colors. If
-            you have an item with a particular co9lor augment slot, you can collapse the other colors to get them out
+            you have an item with a particular color augment slot, you can collapse the other colors to get them out
             of the way.
         </p>
-        <p class="indent helpText">Use the save / open buttons at the bottom to preserve your work. Though this is
-            beta and the file structure could change, it is designed so that it is very likely future versions will be
-            able to read files saved today. For a rock solid backup of your plan, copy the text out of the description.
-            That way you can always reconstruct it.````````
+        <p class="indent helpText">Use the save / open buttons at the bottom to preserve your work. This is
+            beta and the file structure may change. For a rock solid backup of your plan, copy the text out of the description.
+            That way you can always reconstruct it.
         </p>
     </div>
 </div>
@@ -311,8 +310,13 @@ updateCounter();
     </div>
 </div>
 
+<h3 style="background-color:white;color: black;">COMPATABILITY WARNING: Newly updated and not compatable with
+    older save files. To open older save files, please go to:
+    <a href="https://dev.codehawkins.com/dev2/ddocraft.php">https://dev.codehawkins.com/dev2/ddocraft.php</a></h3>
+<br/>
+<br/>
 
-<h1 style="float:left">DDO Cannith Crafting Planner</h1>
+<h1 style="float:left">DDO Cannith Crafting Planner b0.9</h1>
 <h1 style="float:right"><img src="image/blank.png" alt="" class="iconButtonSpacer"/><img src="image/blank.png"
                                                                                          alt=""
                                                                                          class="iconButtonSpacer"/>
