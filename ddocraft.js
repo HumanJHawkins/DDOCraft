@@ -74,6 +74,10 @@ function initEnchStates() {
         current.enchState.newAugColor    = current.enchState.isAugmentSlot && current.augmentColor !== last.augmentColor
                                             || current.enchState.isAugmentSlot && current.enchState.newAugSlot;
 
+
+        current.enchState.isExtraSlot  = current.itemOptionSlot.substring(0, 3) === "Ext";
+        console.log(current.enchState.isExtraSlot + ": " +current.itemOptionSlot);
+
         current.enchState.newEnchSet     = current.enchState.newAugColor || current.enchState.newSlot;
         current.enchState.lastOfSet      = current.augmentColor !== next.augmentColor || current.itemOptionSlot !== next.itemOptionSlot;
         current.enchState.lastOfColor    = current.enchState.isAugmentSlot && current.augmentColor !== next.augmentColor;
@@ -112,10 +116,6 @@ function initFilter() {
 }
 
 
-// || charData.itemOptions[ench].enchCannithMinLevel < charData.enchFilter.characterLevel
-// || charData.itemOptions[ench].enchAugmentMinLevel < charData.enchFilter.characterLevel
-
-
 function renderScreen() {
     let html = "";
     for (let i = 0; i < charData.itemOptions.length; i++) {
@@ -141,10 +141,9 @@ function renderScreen() {
             }
         }
 
-//TEMP!!!  Before 20211003, this was commented out and everything worked.
-        if (charData.itemOptions[i].enchState.newAugSlot) {
-            html += "<div class='augment'> ";       // <--- Get rid of this?
-        }
+        // if (charData.itemOptions[i].enchState.newAugSlot) {
+        //     html += "<div class='augment'> ";                   // Not currently used
+        // }
 
         if (charData.itemOptions[i].enchState.newAugColor) {
             if (charData.itemOptions[i].enchState.collapsed === 1) {
@@ -161,6 +160,7 @@ function renderScreen() {
             html += "<div class='ench'> ";
         }
 
+        // Skip enchantments that are over-level.
         if (charData.itemOptions[i].enchState.collapsed) {
             continue;
         } else {
@@ -176,16 +176,27 @@ function renderScreen() {
 
 
         if (charData.itemOptions[i].enchState.lastOfColor) {
-// Before 20211003, this was commented out and everything worked.
             html += "</div><!-- Last of augment color -->";
         }
-// TEMP!!!  Before 20211003, this was commented out and everything worked.
-        if (charData.itemOptions[i].enchState.lastOfAugSlot) {
-            html += "</div><!-- Last of augment slot -->";
-        }
+
+        // if (charData.itemOptions[i].enchState.lastOfAugSlot) {
+        //     html += "</div><!-- Last of augment slot -->";      // Not currently used.
+        // }
 
         if (charData.itemOptions[i].enchState.lastOfSlot) {
             html += "</td></tr><!-- Last of item slot -->";
+
+            // Skip "Extra" slot when it is over-level.
+            if(i+1 < charData.itemOptions.length && charData.itemOptions[i+1].enchState.isExtraSlot && charData.enchFilter.characterLevel < 10) {
+                html += "</table><!-- Last of item type -->";   // Because the Extra slot is always last.
+
+                do {
+                    i++;
+                    // console.log(i + ": characterLevel: " + charData.enchFilter.characterLevel + ": IsExtra: " +
+                    //     charData.itemOptions[i].enchState.isExtraSlot + ": " + charData.itemOptions[i].enchName);
+                } while(i+1 < charData.itemOptions.length && charData.itemOptions[i+1].enchState.isExtraSlot);
+                continue;
+            }
         }
 
         if (charData.itemOptions[i].enchState.lastOfItemType) {
@@ -194,14 +205,11 @@ function renderScreen() {
 
     }
 
-    // html += "</table><!-- Last of everything -->";
-
     // console.log(html);
     document.getElementById("enchantmentOptions").innerHTML = html;
     document.getElementById("result").innerHTML             = charData.reportOut;
-// handleCollapse();
 
-    console.log(charData.enchFilter);
+    // console.log(charData.enchFilter);
 }
 
 function getButton(ench) {
@@ -229,10 +237,6 @@ function getButton(ench) {
     else { return btn; }
 }
 
-function addTooltip(btn) {
-    btn += "title='" + charData.itemOptions[ench].enchDesc + "' ";
-    return btn;
-}
 
 function getHighlight(num) {
     // Set intensity of highlight color based on incoming value relative to max range of 20.
@@ -248,6 +252,7 @@ function getHighlight(num) {
     if(b < 0) { b = 0; }
     return rgb(rAndG, rAndG, b);
 }
+
 
 function rgb(r, g, b){
     return "rgb("+r+","+g+","+b+")";
@@ -400,7 +405,7 @@ function ItemOption(itemOptionItem, itemOptionSlot, enchName, enchEffectType, en
 
 function EnchState(newItemType, newSlot, newAugSlot, newAugColor, newEnchSet,
                    lastOfSet, lastOfColor, lastOfAugSlot, lastOfSlot, lastOfItemType, lastOfAll,
-                   selected, handledBy, blocked, important, isAugmentSlot) {
+                   selected, handledBy, blocked, isAugmentSlot, isExtraSlot) {
     this.newItemType = newItemType;
     this.newSlot     = newSlot;
     this.newAugSlot  = newAugSlot;
@@ -417,9 +422,9 @@ function EnchState(newItemType, newSlot, newAugSlot, newAugColor, newEnchSet,
     this.selected  = selected;          // In use.
     this.handledBy = handledBy;         // Non-stacking enchant already handled.
     this.blocked   = blocked;           // Slot already in use, so unavailable
-    this.important = important;
 
     this.isAugmentSlot = isAugmentSlot;
+    this.isExtraSlot = isExtraSlot;
 }
 
 
