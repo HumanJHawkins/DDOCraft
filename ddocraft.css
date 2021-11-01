@@ -42,7 +42,7 @@ td {
     border: 1px solid #333333;
     border-collapse: collapse;
     /*width: 1%;*/
-    padding: 0;
+    padding: .5vw;
 }
 
 caption {
@@ -272,11 +272,16 @@ img {
     display: inline;
 }
 
+td:hover {
+    background-color: #224;
+}
 
 .itemheader:hover, .slot:hover, .color:hover {
     background-color: #444;
     cursor: pointer;
 }
+
+
 
 .selected {
     background-color: #ddd;
