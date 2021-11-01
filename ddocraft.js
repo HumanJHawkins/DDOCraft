@@ -478,6 +478,8 @@ document.getElementById('loadFile').onchange = function () {
     let fr    = new FileReader();
     fr.onload = function (e) {
         charData = JSON.parse(e.target.result);
+        document.getElementById("characterLevel").value = charData.enchFilter.characterLevel;
+
         renderEnchantmentOptions();
         renderResult();
     }
