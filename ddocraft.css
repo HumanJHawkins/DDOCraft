@@ -272,7 +272,7 @@ img {
     display: inline;
 }
 
-td:hover {
+td.options:hover {
     background-color: #224;
 }
 
@@ -305,11 +305,13 @@ button {
 button:hover:enabled {
     background-color: #666;
     cursor: pointer;
+    text-shadow: -0.04ex 0 currentColor, 0.04ex 0 currentColor;
 }
 
 .selected:hover:enabled {
     background-color: #fff;
     color: #000;
+    text-shadow: -0.04ex 0 currentColor, 0.04ex 0 currentColor;
 }
 
 

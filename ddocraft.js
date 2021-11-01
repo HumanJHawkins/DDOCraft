@@ -138,7 +138,7 @@ function renderEnchantmentOptions() {
                 i = getLastOfSlot(i);
                 continue;
             } else {
-                html += "<tr><td class='slot' onclick='toggleCollapsed(" + i + ", 2)'>" + charData.itemOptions[i].itemOptionSlot + "</td><td>";
+                html += "<tr><td class='slot' onclick='toggleCollapsed(" + i + ", 2)'>" + charData.itemOptions[i].itemOptionSlot + "</td><td class='options'>";
             }
         }
 
