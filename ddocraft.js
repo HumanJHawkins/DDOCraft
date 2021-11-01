@@ -445,7 +445,9 @@ function EnchState(newItemType, newSlot, newAugSlot, newAugColor, newEnchSet,
 
 function handleSave() {
     let characterName = document.getElementById("characterName").value;
-    if (characterName.trim().length < 1) { characterName = "ddoCraft_build"; }
+    if (characterName.trim().length < 1) { characterName = "Unnamed"; }
+    characterName += "_L" + zeroPad(charData.enchFilter.characterLevel, 2);
+    characterName += "_" + getTimestamp();
     downloadJSON(JSON.stringify(charData), characterName + ".json", 'text/plain')
 }
 
@@ -455,8 +457,19 @@ function zeroPad(num, digits) {
 
 function getTimestamp() {
     let time = new Date();
-    return time.getFullYear() + time.getMonth() + time.getDay() + '_' +
-        time.getHours() + time.getMinutes() + time.getSeconds();
+    let timestamp = "" + time.getFullYear() + zeroPad(time.getMonth()+1,2) + zeroPad(time.getDate(),2);
+    let hour = time.getHours();
+    let AMPM = "AM";
+    if(hour > 12) {
+        AMPM = "PM";
+        hour -= 12;
+        if(hour === 0) {
+            hour = 12;
+        }
+    }
+    timestamp = timestamp + AMPM + zeroPad(hour, 2) + zeroPad(time.getMinutes(),2)
+        + zeroPad(time.getSeconds(),2);
+    return timestamp;
 }
 
 
