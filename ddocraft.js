@@ -324,25 +324,26 @@ function enchClick(ench, render = true) {
 
 function renderResult() {
     charData.reportOut = "<h3>Result</h3><table>";
-    charData.reportOut += "<table><tr><th>Item</th><th>Slot</th><th>Color</th><th>Enchantment</th><th>Effect</th></tr>";
+    charData.reportOut += "<table><tr><th>Item</th><th>Slot</th><th>Enchantment</th></tr>";
     for (let i = 0; i < charData.itemOptions.length; i++) {
 
         if (charData.itemOptions[i].enchState.selected) {
-            charData.reportOut += "<tr><td>" + charData.itemOptions[i].itemOptionItem + "</td><td>" +
-                charData.itemOptions[i].itemOptionSlot + "</td><td>";
-
+            charData.reportOut += "<tr><td>" + charData.itemOptions[i].itemOptionItem + "</td><td>";
             if (charData.itemOptions[i].enchState.isAugmentSlot) {
                 charData.reportOut += charData.itemOptions[i].augmentColor + "</td><td>";
             } else {
-                charData.reportOut += "</td><td>";
+                charData.reportOut += charData.itemOptions[i].itemOptionSlot + "</td><td>";
             }
-            charData.reportOut += charData.itemOptions[i].enchName + "</td><td>" + charData.itemOptions[i].enchEffectType + "</td></tr>";
+
+            charData.reportOut += charData.itemOptions[i].enchName + "</td></tr>";
         }
     }
 
     charData.reportOut += "</table>";
     document.getElementById("result").innerHTML = charData.reportOut;
 }
+
+
 
 function minLevelAllowed(ench) {
     return (charData.itemOptions[ench].enchState.selected
@@ -544,6 +545,7 @@ function handleFilterLevel() {
             renderResult();
         } else {
             document.getElementById("characterLevel").value = previousLevel;
+            charData.enchFilter.characterLevel = previousLevel;
         }
     } else {
         renderEnchantmentOptions(); // Going up in level, so show new enhancement options
