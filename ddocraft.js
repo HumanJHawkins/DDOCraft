@@ -325,17 +325,19 @@ function enchClick(ench, render = true) {
 function renderResult() {
     charData.reportOut = "<h3>Result</h3><table>";
     charData.reportOut += "<table><tr><th>Item</th><th>Slot</th><th>Enchantment</th></tr>";
+    let augColor = "";
     for (let i = 0; i < charData.itemOptions.length; i++) {
-
         if (charData.itemOptions[i].enchState.selected) {
             charData.reportOut += "<tr><td>" + charData.itemOptions[i].itemOptionItem + "</td><td>";
             if (charData.itemOptions[i].enchState.isAugmentSlot) {
-                charData.reportOut += charData.itemOptions[i].augmentColor + "</td><td>";
+                // charData.reportOut += charData.itemOptions[i].augmentColor + "</td><td>";
+                augColor = charData.itemOptions[i].augmentColor.substring(0, 1)+"-";
             } else {
-                charData.reportOut += charData.itemOptions[i].itemOptionSlot + "</td><td>";
+                augColor ="";
             }
 
-            charData.reportOut += charData.itemOptions[i].enchName + "</td></tr>";
+            charData.reportOut += charData.itemOptions[i].itemOptionSlot + "</td><td>";
+            charData.reportOut += augColor + charData.itemOptions[i].enchName + "</td></tr>";
         }
     }
 
