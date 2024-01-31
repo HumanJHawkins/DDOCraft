@@ -65,7 +65,7 @@ updateCounter();
     <meta charset="UTF-8">
     <title>DDOCraft: Cannith Crafting Planner b0.8</title>
     <link rel="stylesheet" href="ddocraft.css">
-    <script src="ddocraft.js" defer></script>
+    <script src="dev_ddocraft.js" defer></script>
 </head>
 <body>
 <!-- Modal preferences dialog. Hidden while not in use. -->
@@ -77,11 +77,11 @@ updateCounter();
             <p>Check enchantment groups to show them. Uncheck to hide them. This does not select or deselect
                 enchantments for your build, but it helps with clutter onscreen and highlights enchantments commonly
                 prioritized for the groups checked.</p>
-<!--            <p>Name and level are used in the save file name. Level is only partly implemented in the filter, hiding-->
-<!--                the extra slot and insightful enchantments below level 10. As more data is added related to min levels,-->
-<!--                this may improve.  </p>-->
+            <!--            <p>Name and level are used in the save file name. Level is only partly implemented in the filter, hiding-->
+            <!--                the extra slot and insightful enchantments below level 10. As more data is added related to min levels,-->
+            <!--                this may improve.  </p>-->
         </div>
-<!--        <p class="indent">-->
+        <!--        <p class="indent">-->
         <div class="helpText">
             <label for="characterLevel">Character Level:</label>
             <input type="number" id="characterLevel" name="characterLevel" value="32"
@@ -90,10 +90,10 @@ updateCounter();
 
 
         <div class="helpText modal-checklist">
-<!--            <label for='prefsCharName'>Name: </label>-->
-<!--            <input type="text" id="prefsCharName" placeholder="Character Name" class="charName" />&nbsp;<br />-->
-<!--            <label for='prefsCharLevel'></label>-->
-<!--            <input type="number" id="prefsCharLevel" placeholder="20" class="charLevel" min="1" max="30" />&nbsp;&nbsp;<br />-->
+            <!--            <label for='prefsCharName'>Name: </label>-->
+            <!--            <input type="text" id="prefsCharName" placeholder="Character Name" class="charName" />&nbsp;<br />-->
+            <!--            <label for='prefsCharLevel'></label>-->
+            <!--            <input type="number" id="prefsCharLevel" placeholder="20" class="charLevel" min="1" max="30" />&nbsp;&nbsp;<br />-->
 
             <table class="modal-table">
                 <tr>
@@ -294,9 +294,9 @@ updateCounter();
         </p>
         <p class="indent helpText helpEnd">
             Send bug reports or suggestions via Github at <a href="https://github.com/HumanJHawkins/DDOCraft/issues"
-            target="_blank">https://github.com/HumanJHawkins/DDOCraft/issues</a>, or PM HumanJHawkins at
+                                                             target="_blank">https://github.com/HumanJHawkins/DDOCraft/issues</a>, or PM HumanJHawkins at
             <a href="https://www.ddo.com/en/forums/forum.php"
-            target="_blank">https://www.ddo.com/en/forums/forum.php</a>.
+               target="_blank">https://www.ddo.com/en/forums/forum.php</a>.
             On the off chance you want to buy me a coffee (hey... it happened once!), my Venmo is @humanjhawkins.
         </p>
         <p class="indent helpText">
@@ -309,15 +309,9 @@ updateCounter();
         </p>
     </div>
 </div>
-
-<h3 style="background-color:white;color: black;">COMPATABILITY WARNING: Newly updated and not compatable with
-    older save files. To open older save files, please go to:
-    <a href="https://dev.codehawkins.com/dev2/ddocraft.php">https://dev.codehawkins.com/dev2/ddocraft.php</a><br/>
-    <span style="color: darkblue">Migrate here though for better data, min level support and tooltips.</span></h3>
-<br/>
-<br/>
-
-<h1 style="float:left">DDO Cannith Crafting Planner b0.9</h1>
+<h3>ISSUE: Prior save files may lose their Character Level setting. Please reset that and re-save.<br /> </h3>
+<h3><br /></h3>
+<h1 style="float:left">DDO Cannith Crafting Planner b0.95</h1>
 <h1 style="float:right"><img src="image/blank.png" alt="" class="iconButtonSpacer"/><img src="image/blank.png"
                                                                                          alt=""
                                                                                          class="iconButtonSpacer"/>
@@ -333,7 +327,7 @@ updateCounter();
 <div id="result" class="result"></div>
 <div id="loadSave" class="loadSave">
     <label for='characterName'></label>
-    <input type="text" id="characterName" placeholder="Character Name" class="charName">&nbsp;
+    <input type="text" id="characterName" onchange="handleRename()" placeholder="Character Name" class="charName">&nbsp;
     <button id="save" onclick="handleSave()" class="loadSaveBtn"> Save...</button>
     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
     <button onclick="document.getElementById('loadFile').click()" class="loadSaveBtn"> Open...</button>

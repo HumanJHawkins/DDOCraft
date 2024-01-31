@@ -16,14 +16,17 @@ let buttonCloseAbout;
 
 let extraSlotMinLevel = 10;
 
-let charData = {version: 1.1, dirty: false, itemOptions: {}, enchFilter: {allEnch: true}, reportOut: ""};
+let charData = {
+    itemOptions: {}, enchFilter: {allEnch: true}, reportOut: "",
+    saveFile: { version: 1.2, dirty: false, charName: "", charLevel: 32, enchantments:[] }
+};
+
 initialize();
 
 function initialize() {
     loadEnchantmentOptions();
     initEnchStates();
     initFilter();
-
     dialogPreferences      = document.getElementById('preferences');
     buttonPreferences      = document.getElementById("btnPreferences");
     buttonClosePreferences = document.getElementById("btnClosePreferences");
@@ -36,6 +39,7 @@ function initialize() {
 
     renderEnchantmentOptions();
     renderResult();
+    handleRename(); // Sets to "Unnamed" if not invalid.
     showPreferences();
 }
 
@@ -59,7 +63,8 @@ function initEnchStates() {
     for (let i = 0; i < charData.itemOptions.length; i++) {
         current = charData.itemOptions[i];
         if (i > 0) { last = charData.itemOptions[i - 1]; }
-        if (i < charData.itemOptions.length - 1) { next = charData.itemOptions[i + 1]; } else { next = new ItemOption("", "", "", "", "", ""); }
+        if (i < charData.itemOptions.length - 1) { next = charData.itemOptions[i + 1]; }
+        else { next = new ItemOption("", "", "", "", "", ""); }
 
         current.enchState               = new EnchState();
         current.enchNum                 = i;
@@ -90,7 +95,7 @@ function initEnchStates() {
 }
 
 function initFilter() {
-    charData.enchFilter['characterLevel']   = document.getElementById('characterLevel').value;
+    charData.saveFile.charLevel             = document.getElementById('characterLevel').value;
     charData.enchFilter['allEnch']          = document.getElementById('allEnch').checked;
     charData.enchFilter['basic']            = document.getElementById('basic').checked;
     charData.enchFilter['nonscaling']       = document.getElementById('nonscaling').checked;
@@ -165,8 +170,8 @@ function renderEnchantmentOptions() {
         if (charData.itemOptions[i].enchState.collapsed) {
             continue;
         } else {
-            if ((!charData.itemOptions[i].enchState.isAugmentSlot && charData.enchFilter.characterLevel >= charData.itemOptions[i].enchCannithMinLevel)
-                || charData.itemOptions[i].enchState.isAugmentSlot && charData.enchFilter.characterLevel >= charData.itemOptions[i].enchAugmentMinLevel) {
+            if ((!charData.itemOptions[i].enchState.isAugmentSlot && charData.saveFile.charLevel >= charData.itemOptions[i].enchCannithMinLevel)
+                || charData.itemOptions[i].enchState.isAugmentSlot && charData.saveFile.charLevel >= charData.itemOptions[i].enchAugmentMinLevel) {
                 html += getButton(i);
             }
         }
@@ -188,7 +193,7 @@ function renderEnchantmentOptions() {
             html += "</td></tr><!-- Last of item slot -->";
 
             // Skip "Extra" slot when it is over-level.
-            if (i + 1 < charData.itemOptions.length && charData.itemOptions[i + 1].enchState.isExtraSlot && charData.enchFilter.characterLevel < extraSlotMinLevel) {
+            if (i + 1 < charData.itemOptions.length && charData.itemOptions[i + 1].enchState.isExtraSlot && charData.saveFile.charLevel < extraSlotMinLevel) {
                 html += "</table><!-- Last of item type -->";   // Because the Extra slot is always last.
 
                 do {
@@ -292,8 +297,10 @@ function getEnchFilterValue(ench) {
 }
 
 
-function enchClick(ench, render = true) {
-    charData.itemOptions[ench].enchState.selected = !charData.itemOptions[ench].enchState.selected;
+function enchClick(ench, render = true, toggleSelected = true) {
+    if(toggleSelected) {
+        charData.itemOptions[ench].enchState.selected = !charData.itemOptions[ench].enchState.selected;
+    }
 
     for (let i = 0; i < charData.itemOptions.length; i++) {
         if (i !== ench) {
@@ -307,10 +314,11 @@ function enchClick(ench, render = true) {
                 }
             }
 
-            // Regardless of whether we are selecting or deselecting, the blocked state of other
-            //   enchantments for this slot flips.
+            // If our enchantment state toggled, the blocked state of other
+            //   enchantments must also toggle.
             if ((charData.itemOptions[i].itemOptionItem === charData.itemOptions[ench].itemOptionItem) &&
-                (charData.itemOptions[i].itemOptionSlot === charData.itemOptions[ench].itemOptionSlot)) {
+                (charData.itemOptions[i].itemOptionSlot === charData.itemOptions[ench].itemOptionSlot) &&
+                (toggleSelected)) {
                 charData.itemOptions[i].enchState.blocked = !charData.itemOptions[i].enchState.blocked;
             }
         }
@@ -323,6 +331,9 @@ function enchClick(ench, render = true) {
 }
 
 function renderResult() {
+    // Set background of rows to alternate at item level, not row level
+    //  (group item enchants together).
+    // Store a toggle, and toggle on each new item.
     charData.reportOut = "<h3>Result</h3><table>";
     charData.reportOut += "<table><tr><th>Item</th><th>Slot</th><th>Enchantment</th></tr>";
     let augColor = "";
@@ -345,13 +356,11 @@ function renderResult() {
     document.getElementById("result").innerHTML = charData.reportOut;
 }
 
-
-
 function minLevelAllowed(ench) {
     return (charData.itemOptions[ench].enchState.selected
-        && !(!charData.itemOptions[ench].enchState.isAugmentSlot && (charData.itemOptions[ench].enchCannithMinLevel > charData.enchFilter.characterLevel))
-        && !(charData.itemOptions[ench].enchState.isAugmentSlot && (charData.itemOptions[ench].enchAugmentMinLevel > charData.enchFilter.characterLevel))
-        && !(charData.itemOptions[ench].enchState.isExtraSlot && (extraSlotMinLevel > charData.enchFilter.characterLevel))
+        && !(!charData.itemOptions[ench].enchState.isAugmentSlot && (charData.itemOptions[ench].enchCannithMinLevel > charData.saveFile.charLevel))
+        && !(charData.itemOptions[ench].enchState.isAugmentSlot && (charData.itemOptions[ench].enchAugmentMinLevel > charData.saveFile.charLevel))
+        && !(charData.itemOptions[ench].enchState.isExtraSlot && (extraSlotMinLevel > charData.saveFile.charLevel))
     );
 }
 
@@ -445,18 +454,48 @@ function EnchState(newItemType, newSlot, newAugSlot, newAugColor, newEnchSet,
     this.isExtraSlot   = isExtraSlot;
 }
 
+function handleRename(fixBoth = false) {
+    charData.saveFile.charName = document.getElementById("characterName").value;
+    if(!charData.saveFile.charName) {
+        charData.saveFile.charName = "Unnamed";
+        if(fixBoth){
+            document.getElementById("characterName").value = charData.saveFile.charName;
+        }
+
+    }
+}
 
 function handleSave() {
-    let characterName = document.getElementById("characterName").value;
-    if (characterName.trim().length < 1) { characterName = "Unnamed"; }
-    characterName += "_L" + zeroPad(charData.enchFilter.characterLevel, 2);
-    characterName += "_" + getTimestamp();
-    downloadJSON(JSON.stringify(charData), characterName + ".json", 'text/plain')
+    handleRename(true);
+    updateSave();
+
+    let fileName = charData.saveFile.charName;
+    fileName += "_L" + zeroPad(charData.saveFile.charLevel, 2);
+    fileName += "_" + getTimestamp();
+    downloadJSON(JSON.stringify(charData.saveFile), fileName + ".json", 'text/plain')
 }
 
 function zeroPad(num, digits) {
     return String(num).padStart(digits, '0');
 }
+
+function updateSave() {
+    charData.saveFile.enchantments.length = 0;
+
+    for (let i = 0; i < charData.itemOptions.length; i++) {
+        if (charData.itemOptions[i].enchState.selected) {
+            charData.saveFile.enchantments.push(
+                {
+                    "itemOptionItem": charData.itemOptions[i].itemOptionItem,
+                    "augmentColor": charData.itemOptions[i].augmentColor,
+                    "itemOptionSlot": charData.itemOptions[i].itemOptionSlot,
+                    "enchName": charData.itemOptions[i].enchName
+                }
+            );
+        }
+    }
+}
+
 
 function getTimestamp() {
     let time = new Date();
@@ -475,7 +514,6 @@ function getTimestamp() {
     return timestamp;
 }
 
-
 function downloadJSON(content, fileName, contentType) {
     let a      = document.createElement("a");
     let file   = new Blob([content], {type: contentType});
@@ -484,23 +522,94 @@ function downloadJSON(content, fileName, contentType) {
     a.click();
 }
 
-
+// File Loading
 document.getElementById('loadFile').onchange = function () {
     let files = document.getElementById('loadFile').files;
     if (files.length <= 0) { return false; }
 
-    document.getElementById('characterName').value = String(files[0].name).slice(0, -5);
-
     let fr    = new FileReader();
     fr.onload = function (e) {
-        charData = JSON.parse(e.target.result);
-        document.getElementById("characterLevel").value = charData.enchFilter.characterLevel;
+        incomingFile = JSON.parse(e.target.result);
 
+        let fileName = String(files[0].name);
+        if (!incomingFile.charName) {
+            incomingFile.charName = getNameFromOldFilename(fileName);
+        }
+
+        if (!incomingFile.charLevel) {
+            if (charData.enchFilter.characterLevel) {
+                incomingFile.charLevel = charData.enchFilter.characterLevel;
+            } else {
+                incomingFile.charLevel = getLevelFromOldFilename(fileName);
+            }
+        }
+
+        handleLoad(incomingFile);
         renderEnchantmentOptions();
         renderResult();
     }
     fr.readAsText(files.item(0));
 }
+
+function getNameFromOldFilename(fileName){
+
+    alert(fileName);
+    let likelyName = fileName.slice(0,fileName.indexOf("_L"));
+    alert(fileName.indexOf("_L"));
+    alert(likelyName);
+    if(!likelyName) { likelyName = "Unknown"; }
+    return likelyName;
+}
+
+function getLevelFromOldFilename(fileName){
+    alert(fileName)
+    let likelyLevel = fileName.slice(fileName.indexOf("_L"),2);
+
+    alert(likelyLevel)
+    if(!likelyLevel) { likelyLevel = 32; }
+    return likelyLevel;
+}
+
+
+function handleLoad(incomingFile) {
+    // Need to start with a clean slate to avoid merging loaded data with whatever is on screen.
+    for (let i = 0; i < charData.itemOptions.length; i++) {
+        charData.itemOptions[i].enchState.selected = false;
+        charData.itemOptions[i].enchState.blocked = false;
+        charData.itemOptions[i].enchState.handledBy = -1;
+    }
+
+    document.getElementById('characterName').value = incomingFile.charName;
+    handleRename(true);
+    document.getElementById("characterLevel").value = incomingFile.charLevel;
+    charData.saveFile.charLevel                     = incomingFile.charLevel;
+
+    if(incomingFile.version > 1.15) {
+        for (let i = 0; i < charData.itemOptions.length; i++) {
+            for (let j = 0; j < incomingFile.enchantments.length; j++) {
+                if (charData.itemOptions[i].itemOptionItem === incomingFile.enchantments[j].itemOptionItem &&
+                    charData.itemOptions[i].itemOptionSlot === incomingFile.enchantments[j].itemOptionSlot &&
+                    charData.itemOptions[i].enchName === incomingFile.enchantments[j].enchName) {
+                    enchClick(i, false, true);
+                    break;
+                }
+            }
+        }
+    } else {
+        for (let i = 0; i < charData.itemOptions.length; i++) {
+            for (let j = 0; j < incomingFile.itemOptions.length; j++) {
+                if (charData.itemOptions[i].itemOptionItem === incomingFile.itemOptions[j].itemOptionItem &&
+                    charData.itemOptions[i].itemOptionSlot === incomingFile.itemOptions[j].itemOptionSlot &&
+                    charData.itemOptions[i].enchName === incomingFile.itemOptions[j].enchName &&
+                    incomingFile.itemOptions[j].enchState.selected === true ) {
+                    enchClick(i, false, true);
+                    break;
+                }
+            }
+        }
+    }
+}
+
 
 function showPreferences() {
     dialogPreferences.style.display = 'block';
@@ -520,8 +629,8 @@ function handleFilterCheckbox(checkbox) {
 }
 
 function handleFilterLevel() {
-    let previousLevel                  = charData.enchFilter.characterLevel;
-    charData.enchFilter.characterLevel = document.getElementById("characterLevel").value;
+    let previousLevel               = charData.saveFile.charLevel;
+    charData.saveFile.charLevel     = document.getElementById("characterLevel").value;
 
     let lostEnchantments = "";
     for (let i = 0; i < charData.itemOptions.length; i++) {
@@ -547,7 +656,7 @@ function handleFilterLevel() {
             renderResult();
         } else {
             document.getElementById("characterLevel").value = previousLevel;
-            charData.enchFilter.characterLevel = previousLevel;
+            charData.saveFile.charLevel = previousLevel;
         }
     } else {
         renderEnchantmentOptions(); // Going up in level, so show new enhancement options
