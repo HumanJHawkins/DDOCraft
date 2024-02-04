@@ -225,7 +225,7 @@ img {
 
 
 .itemheader {
-    background-color: #333;
+    background-color: #555;
     color: white;
     cursor: pointer;
     font-size: calc(5px + .75vw);
@@ -293,6 +293,10 @@ td.options:hover {
     background-color: #222;
     font-style: italic;
     /*font-weight: lighter;*/
+}
+
+.collapsed {
+    background-color: #333;
 }
 
 button {

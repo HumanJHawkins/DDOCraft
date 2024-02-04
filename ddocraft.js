@@ -130,12 +130,12 @@ function renderEnchantmentOptions() {
     for (let i = 0; i < charData.itemOptions.length; i++) {
         if (charData.itemOptions[i].enchState.newItemType) {
             if (charData.itemOptions[i].enchState.collapsed === 3) {
-                html += "<table><caption class='itemheader collapsed' onclick='toggleCollapsed(" + i + ", 3)'>" +
+                html += "<table><caption class='itemheader collapsed' onclick='toggleCollapsed(" + i + ", 3)'>&#9655; " +
                     charData.itemOptions[i].itemOptionItem + "</caption>";
                 i = getLastOfItem(i);
                 continue;
             } else {
-                html += "<table><caption class='itemheader' onclick='toggleCollapsed(" + i + ", 3)'>" +
+                html += "<table><caption class='itemheader' onclick='toggleCollapsed(" + i + ", 3)'>&#9661; " +
                     charData.itemOptions[i].itemOptionItem + " </caption>";
             }
         }
@@ -156,7 +156,7 @@ function renderEnchantmentOptions() {
 
         if (charData.itemOptions[i].enchState.newAugColor) {
             if (charData.itemOptions[i].enchState.collapsed === 1) {
-                html += " <div class='color collapsed' onclick='toggleCollapsed(" + i + ", 1)'>&nbsp;" + charData.itemOptions[i].augmentColor + "&nbsp;</div>&nbsp;";
+                html += " <div class='color collapsed' onclick='toggleCollapsed(" + i + ", 1)'>&nbsp" + charData.itemOptions[i].augmentColor + "&nbsp;</div>&nbsp;";
                 i = getLastOfColor(i);
                 continue;
             } else {
