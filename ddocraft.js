@@ -614,9 +614,11 @@ function handleLoad(incomingFile) {
             for (let j = 0; j < incomingFile.itemOptions.length; j++) {
                 if (charData.itemOptions[i].itemOptionItem === incomingFile.itemOptions[j].itemOptionItem &&
                     charData.itemOptions[i].itemOptionSlot === incomingFile.itemOptions[j].itemOptionSlot &&
-                    charData.itemOptions[i].enchName === incomingFile.itemOptions[j].enchName &&
-                    incomingFile.itemOptions[j].enchState.selected === true ) {
-                    enchClick(i, false, true);
+                    charData.itemOptions[i].enchName === incomingFile.itemOptions[j].enchName) {
+                    if(incomingFile.itemOptions[j].enchState.selected) {
+                        enchClick(i, false, true);
+                    }
+                    charData.itemOptions[i].enchState.collapsed = incomingFile.itemOptions[j].enchState.collapsed;
                     break;
                 }
             }
