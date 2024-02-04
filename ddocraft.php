@@ -53,7 +53,6 @@ logIp();
 updateCounter();
 ?>
 
-
 <!DOCTYPE html>
 <!--Author: J. Hawkins-->
 <!--Copyright 2021. GNU General Public License v3.0-->
@@ -65,7 +64,7 @@ updateCounter();
     <meta charset="UTF-8">
     <title>DDOCraft: Cannith Crafting Planner b0.8</title>
     <link rel="stylesheet" href="ddocraft.css">
-    <script src="dev_ddocraft.js" defer></script>
+    <script src="ddocraft.js" defer></script>
 </head>
 <body>
 <!-- Modal preferences dialog. Hidden while not in use. -->
@@ -309,9 +308,9 @@ updateCounter();
         </p>
     </div>
 </div>
-<h3>ISSUE: Prior save files may lose their Character Level setting. Please reset that and re-save.<br /> </h3>
-<h3><br /></h3>
-<h1 style="float:left">DDO Cannith Crafting Planner b0.95</h1>
+<!--<h3>ISSUE: Prior save files may lose their Character Level setting. Please reset that and re-save.<br /> </h3>-->
+<!--<h3><br /></h3>-->
+<h1 style="float:left">DDO Cannith Crafting Planner b0.97</h1>
 <h1 style="float:right"><img src="image/blank.png" alt="" class="iconButtonSpacer"/><img src="image/blank.png"
                                                                                          alt=""
                                                                                          class="iconButtonSpacer"/>

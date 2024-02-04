@@ -4,6 +4,9 @@
 // licensed works and modifications, which include larger works using a licensed work, under the same license.
 // Copyright and license notices must be preserved. Contributors provide an express grant of patent rights.
 
+// TO DO:
+// Do a better job of highlighting collapsed items? (Standard chevrons?)
+
 let dialogPreferences;
 let buttonPreferences;
 let buttonClosePreferences;
@@ -18,7 +21,7 @@ let extraSlotMinLevel = 10;
 
 let charData = {
     itemOptions: {}, enchFilter: {allEnch: true}, reportOut: "",
-    saveFile: { version: 1.2, dirty: false, charName: "", charLevel: 32, enchantments:[] }
+    saveFile: { version: 1.3, dirty: false, charName: "", charLevel: 32, enchantments:[] }
 };
 
 initialize();
@@ -483,19 +486,21 @@ function updateSave() {
     charData.saveFile.enchantments.length = 0;
 
     for (let i = 0; i < charData.itemOptions.length; i++) {
-        if (charData.itemOptions[i].enchState.selected) {
+        if (charData.itemOptions[i].enchState.selected ||
+            (charData.itemOptions[i].enchState.collapsed >= 1)) {
             charData.saveFile.enchantments.push(
                 {
                     "itemOptionItem": charData.itemOptions[i].itemOptionItem,
                     "augmentColor": charData.itemOptions[i].augmentColor,
                     "itemOptionSlot": charData.itemOptions[i].itemOptionSlot,
-                    "enchName": charData.itemOptions[i].enchName
+                    "enchName": charData.itemOptions[i].enchName,
+                    "selected": charData.itemOptions[i].enchState.selected,
+                    "collapsed": charData.itemOptions[i].enchState.collapsed
                 }
             );
         }
     }
 }
-
 
 function getTimestamp() {
     let time = new Date();
@@ -552,21 +557,15 @@ document.getElementById('loadFile').onchange = function () {
 }
 
 function getNameFromOldFilename(fileName){
-
-    alert(fileName);
     let likelyName = fileName.slice(0,fileName.indexOf("_L"));
-    alert(fileName.indexOf("_L"));
-    alert(likelyName);
     if(!likelyName) { likelyName = "Unknown"; }
     return likelyName;
 }
 
 function getLevelFromOldFilename(fileName){
-    alert(fileName)
-    let likelyLevel = fileName.slice(fileName.indexOf("_L"),2);
-
-    alert(likelyLevel)
-    if(!likelyLevel) { likelyLevel = 32; }
+    let levelStart = fileName.indexOf("_L") + 2;
+    let likelyLevel = fileName.substring(levelStart, levelStart+2);
+    if(!likelyLevel || likelyLevel < 1 || likelyLevel > 32) { likelyLevel = 32; }
     return likelyLevel;
 }
 
@@ -577,6 +576,7 @@ function handleLoad(incomingFile) {
         charData.itemOptions[i].enchState.selected = false;
         charData.itemOptions[i].enchState.blocked = false;
         charData.itemOptions[i].enchState.handledBy = -1;
+        charData.itemOptions[i].enchState.collapsed = 0;
     }
 
     document.getElementById('characterName').value = incomingFile.charName;
@@ -584,7 +584,21 @@ function handleLoad(incomingFile) {
     document.getElementById("characterLevel").value = incomingFile.charLevel;
     charData.saveFile.charLevel                     = incomingFile.charLevel;
 
-    if(incomingFile.version > 1.15) {
+    if(incomingFile.version > 1.25) {
+        for (let i = 0; i < charData.itemOptions.length; i++) {
+            for (let j = 0; j < incomingFile.enchantments.length; j++) {
+                if (charData.itemOptions[i].itemOptionItem === incomingFile.enchantments[j].itemOptionItem &&
+                    charData.itemOptions[i].itemOptionSlot === incomingFile.enchantments[j].itemOptionSlot &&
+                    charData.itemOptions[i].enchName === incomingFile.enchantments[j].enchName) {
+                    if(incomingFile.enchantments[j].selected) {
+                        enchClick(i, false, true);
+                    }
+                    charData.itemOptions[i].enchState.collapsed = incomingFile.enchantments[j].collapsed;
+                    break;
+                }
+            }
+        }
+    } else if(incomingFile.version > 1.15) {
         for (let i = 0; i < charData.itemOptions.length; i++) {
             for (let j = 0; j < incomingFile.enchantments.length; j++) {
                 if (charData.itemOptions[i].itemOptionItem === incomingFile.enchantments[j].itemOptionItem &&
