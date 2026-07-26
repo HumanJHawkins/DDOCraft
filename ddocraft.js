@@ -9,26 +9,25 @@
 
 // TO DO: Named item support - remaining steps. Delete each as it's completed.
 // Done so far: prepend "Cannith " to itemOptionItem values; add itemOptionCategory field;
-//   key item grouping off itemOptionCategory and add per-category dropdown (not yet wired);
-//   add Tourney Armor test record (corrected so its rows don't fork the catalog by magnitude).
+//   key item grouping off itemOptionCategory and add per-category dropdown; add Tourney Armor
+//   test record (corrected so its rows don't fork the catalog by magnitude); track the active
+//   itemOptionItem per category in charData.categoryChoice (dropdown updates it, not yet wired
+//   to rendering or selection).
 //
-// 5. Wire the category dropdown's onchange to track the active itemOptionItem per category
-//    (e.g. charData.categoryChoice["Armor"]). No visual effect yet - verify state updates
-//    correctly in isolation before tying it to rendering.
-// 6. Wire the actual swap: rendering for a category shows only the active itemOptionItem's rows.
-// 7. Build a magnitude/description lookup table, keyed by Character Level and itemOptionItem,
+// 5. Wire the actual swap: rendering for a category shows only the active itemOptionItem's rows.
+// 6. Build a magnitude/description lookup table, keyed by Character Level and itemOptionItem,
 //    and migrate description display to pull from it. Magnitude can't live in a static enchDesc -
 //    Cannith magnitudes scale with character level, so a hardcoded number is wrong as soon as
 //    level changes. Needed before named items (or anything else) can correctly show magnitude.
-// 8. Decide and implement Cannith's "left behind" treatment (blacked out vs. hidden) when a
+// 7. Decide and implement Cannith's "left behind" treatment (blacked out vs. hidden) when a
 //    named item is active for that category.
-// 9. Auto-select the named item's fixed effects, render as locked/non-clickable, using the
-//    lookup table from step 7 for accurate descriptions.
-// 10. Add the cross-item conflict-detection warning (yellow bar) for same-enchEffectType
-//     selections that can't be prevented outright once named items are in play.
-// 11. Persist the per-category choice in the save file (version bump, load-compat branch).
-// 12. Confirm-before-clearing when switching a category's dropdown away from a populated choice.
-// 13. Bring in the real named-item dataset.
+// 8. Auto-select the named item's fixed effects, render as locked/non-clickable, using the
+//    lookup table from step 6 for accurate descriptions.
+// 9. Add the cross-item conflict-detection warning (yellow bar) for same-enchEffectType
+//    selections that can't be prevented outright once named items are in play.
+// 10. Persist the per-category choice in the save file (version bump, load-compat branch).
+// 11. Confirm-before-clearing when switching a category's dropdown away from a populated choice.
+// 12. Bring in the real named-item dataset.
 
 let dialogPreferences;
 let buttonPreferences;
