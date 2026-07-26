@@ -75,7 +75,7 @@ function initEnchStates() {
         current.enchState.selected      = false;
         current.enchState.blocked       = false;
         current.enchState.handledBy     = -1;
-        current.enchState.newItemType   = current.itemOptionItem !== last.itemOptionItem;
+        current.enchState.newItemType   = current.itemOptionCategory !== last.itemOptionCategory;
         current.enchState.newSlot       = current.itemOptionSlot !== last.itemOptionSlot;
         current.enchState.isAugmentSlot = current.itemOptionSlot.substring(0, 3) === "Aug";
         current.enchState.newAugSlot    = current.enchState.newSlot && current.enchState.isAugmentSlot;
@@ -92,7 +92,7 @@ function initEnchStates() {
         current.enchState.lastOfColor    = current.enchState.isAugmentSlot && current.augmentColor !== next.augmentColor;
         current.enchState.lastOfAugSlot  = current.enchState.isAugmentSlot && current.itemOptionSlot !== next.itemOptionSlot;
         current.enchState.lastOfSlot     = current.itemOptionSlot !== next.itemOptionSlot;
-        current.enchState.lastOfItemType = current.itemOptionItem !== next.itemOptionItem;
+        current.enchState.lastOfItemType = current.itemOptionCategory !== next.itemOptionCategory;
         current.enchState.lastOfAll      = i === charData.itemOptions.length - 1;
     }
 }
@@ -131,12 +131,13 @@ function renderEnchantmentOptions() {
         if (charData.itemOptions[i].enchState.newItemType) {
             if (charData.itemOptions[i].enchState.collapsed === 3) {
                 html += "<table><caption class='itemheader collapsed' onclick='toggleCollapsed(" + i + ", 3)'>&#9655; " +
-                    charData.itemOptions[i].itemOptionItem + "</caption>";
+                    charData.itemOptions[i].itemOptionCategory + "</caption>";
                 i = getLastOfItem(i);
                 continue;
             } else {
                 html += "<table><caption class='itemheader' onclick='toggleCollapsed(" + i + ", 3)'>&#9661; " +
-                    charData.itemOptions[i].itemOptionItem + " </caption>";
+                    charData.itemOptions[i].itemOptionCategory + " " +
+                    getCategoryDropdownHtml(charData.itemOptions[i].itemOptionCategory) + "</caption>";
             }
         }
 
@@ -216,6 +217,23 @@ function renderEnchantmentOptions() {
     document.getElementById("enchantmentOptions").innerHTML = html;
 
     // console.log(charData.enchFilter);
+}
+
+function getCategoryDropdownHtml(category) {
+    // Not yet wired to change anything - just lists the itemOptionItem choices available for this category.
+    let items = [];
+    for (let i = 0; i < charData.itemOptions.length; i++) {
+        if (charData.itemOptions[i].itemOptionCategory === category && !items.includes(charData.itemOptions[i].itemOptionItem)) {
+            items.push(charData.itemOptions[i].itemOptionItem);
+        }
+    }
+
+    let html = "<select class='categorySelect' onclick='event.stopPropagation()'>";
+    for (let item of items) {
+        html += "<option value='" + item + "'>" + item + "</option>";
+    }
+    html += "</select>";
+    return html;
 }
 
 function getButton(ench) {
