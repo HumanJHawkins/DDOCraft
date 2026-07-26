@@ -43,7 +43,7 @@ let buttonCloseAbout;
 let extraSlotMinLevel = 10;
 
 let charData = {
-    itemOptions: {}, enchFilter: {allEnch: true}, reportOut: "",
+    itemOptions: {}, enchFilter: {allEnch: true}, reportOut: "", categoryChoice: {},
     saveFile: { version: 1.3, dirty: false, charName: "", charLevel: 32, enchantments:[] }
 };
 
@@ -52,6 +52,7 @@ initialize();
 function initialize() {
     loadEnchantmentOptions();
     initEnchStates();
+    initCategoryChoice();
     initFilter();
     dialogPreferences      = document.getElementById('preferences');
     buttonPreferences      = document.getElementById("btnPreferences");
@@ -118,6 +119,22 @@ function initEnchStates() {
         current.enchState.lastOfItemType = current.itemOptionCategory !== next.itemOptionCategory;
         current.enchState.lastOfAll      = i === charData.itemOptions.length - 1;
     }
+}
+
+function initCategoryChoice() {
+    // Defaults every category to its Cannith-sourced itemOptionItem. Tracked separately from any
+    //   rendering/selection state so it can be wired up incrementally.
+    for (let i = 0; i < charData.itemOptions.length; i++) {
+        let category = charData.itemOptions[i].itemOptionCategory;
+        if (!(category in charData.categoryChoice) && charData.itemOptions[i].itemOptionItem.startsWith("Cannith ")) {
+            charData.categoryChoice[category] = charData.itemOptions[i].itemOptionItem;
+        }
+    }
+}
+
+function handleCategoryChange(selectElement, category) {
+    charData.categoryChoice[category] = selectElement.value;
+    // Not yet wired to affect rendering or selection - see TO DO step 6.
 }
 
 function initFilter() {
@@ -243,7 +260,8 @@ function renderEnchantmentOptions() {
 }
 
 function getCategoryDropdownHtml(category) {
-    // Not yet wired to change anything - just lists the itemOptionItem choices available for this category.
+    // Selection is tracked in charData.categoryChoice, but doesn't yet affect rendering or
+    //   selection state - see TO DO step 6.
     let items = [];
     for (let i = 0; i < charData.itemOptions.length; i++) {
         if (charData.itemOptions[i].itemOptionCategory === category && !items.includes(charData.itemOptions[i].itemOptionItem)) {
@@ -251,9 +269,10 @@ function getCategoryDropdownHtml(category) {
         }
     }
 
-    let html = "<select class='categorySelect' onclick='event.stopPropagation()'>";
+    let html = "<select class='categorySelect' onclick='event.stopPropagation()' onchange='handleCategoryChange(this, \"" + category + "\")'>";
     for (let item of items) {
-        html += "<option value='" + item + "'>" + item + "</option>";
+        let selected = item === charData.categoryChoice[category] ? " selected" : "";
+        html += "<option value='" + item + "'" + selected + ">" + item + "</option>";
     }
     html += "</select>";
     return html;
