@@ -310,7 +310,7 @@ updateCounter();
 </div>
 <!--<h3>ISSUE: Prior save files may lose their Character Level setting. Please reset that and re-save.<br /> </h3>-->
 <!--<h3><br /></h3>-->
-<h1 style="float:left">DDO Cannith Crafting Planner b0.97</h1>
+<h1 style="float:left">DDO Cannith Crafting Planner b0.98</h1>
 <h1 style="float:right"><img src="image/blank.png" alt="" class="iconButtonSpacer"/><img src="image/blank.png"
                                                                                          alt=""
                                                                                          class="iconButtonSpacer"/>

@@ -311,6 +311,12 @@ function enchClick(ench, render = true, toggleSelected = true) {
                 if (charData.itemOptions[i].enchEffectType === charData.itemOptions[ench].enchEffectType) {
                     charData.itemOptions[i].enchState.handledBy = ench;
                 }
+                // A wildcard enchantment (e.g. "Aligned") covers whatever the superceded
+                //   entries need, so it's the same "already handled" treatment.
+                if (charData.itemOptions[i].itemOptionItem === charData.itemOptions[ench].itemOptionItem &&
+                    charData.itemOptions[i].enchSupercededBy === charData.itemOptions[ench].enchName) {
+                    charData.itemOptions[i].enchState.handledBy = ench;
+                }
             } else {
                 if (charData.itemOptions[i].enchState.handledBy === ench) {
                     charData.itemOptions[i].enchState.handledBy = -1;
