@@ -39,15 +39,17 @@
 //   crafting could never produce for that category). Both pieces become ordinary entries in the
 //   same selections/duplicate system - nothing about them is locked or non-removable.
 
-// FUTURE (2026-07-27): Longer-term direction is a real backend - Postgres + Node.js, likely on
-//   the same infrastructure being consolidated for GateIron. Motivation beyond "it's a better
+// FUTURE (2026-07-27, updated 2026-07-27): Longer-term direction is a real backend - MariaDB
+//   (switched from the originally-discussed Postgres: same relational design goals, but included
+//   in Jeff's existing Hostinger plan rather than requiring an upgrade) + Node.js, likely on the
+//   same infrastructure being consolidated for GateIron. Motivation beyond "it's a better
 //   architecture": crowd-sourced named-item data-mining (if several unrelated users independently
 //   enter the same effect set for a named item, that agreement is itself evidence, and can seed a
 //   prepopulated dropdown without hand-curation) and real user accounts/saved characters/builds -
 //   none of which are possible with a static-file client. Not started; schema will be designed
-//   directly in Postgres when that begins, rather than continuing to normalize equipDDO.sqlite
+//   directly in MariaDB when that begins, rather than continuing to normalize equipDDO.sqlite
 //   further (PHASE 2 steps 1-2 below are effectively superseded by this, not abandoned - the
-//   relational design work still needs doing, just against Postgres instead of SQLite). The
+//   relational design work still needs doing, just against MariaDB instead of SQLite). The
 //   client-side rewrite below does NOT wait on this: it's built against the existing ddocraft.json
 //   with the loading step isolated, specifically so the eventual swap to a live API is a small,
 //   contained change instead of another full rewrite.
@@ -83,7 +85,7 @@
 //    + slot + color -> effect) so "is Sheltering a valid Helm/Prefix option" is explicit
 //    relational data, not implied by row presence in a flat table. Augment color-eligibility
 //    rules must keep behaving exactly as they do today.
-// 2. Export normalized JSON (or a live API, if the Postgres backend is underway by then) instead
+// 2. Export normalized JSON (or a live API, if the MariaDB backend is underway by then) instead
 //    of one flattened file - charData.enchantments/charData.catalog's *shape* doesn't change,
 //    only loadEnchantmentOptions()'s fetch mechanism does.
 
@@ -102,24 +104,33 @@
 //    between choices; relies on browser search for usability at scale, same as today's ~1500-row
 //    lists. Feeds charData.selections.inherent - ordinary selected/duplicate rules apply via the
 //    same computeSelectionIndex() pass, nothing locked or non-removable.
-// 6. Open question to resolve before/during step 5: does the current enchantment schema
-//    accommodate intrinsic body-type properties (e.g. Mithril, Superior Nimbleness)? Already
-//    answered for the general case - the legacy Tourney Armor data (enchGroup='Named Item')
-//    proves the pattern works - but re-check once that legacy data is removed (see step 8).
+// 6. Open question, mostly resolved: does the current enchantment schema accommodate intrinsic
+//    body-type properties (e.g. Mithril, Superior Nimbleness)? Yes - Damage Reduction (Adamantine)
+//    / Superior Nimbleness / Tourney Armor Extras (enchGroup='Named Item') prove the pattern
+//    works, and survived the legacy Tourney Armor removal below as generic master-pool rows. Real
+//    remaining gap: they currently have no itemOption binding, so today's export/loader never
+//    surfaces them (see KNOWN GAP note in apply_corrections.py) - step 5 needs to fix that as part
+//    of building the picker, not just consume ddocraft.json unchanged.
 // 7. Toggling Named/Custom on for a category fully replaces that category's Cannith rows while
 //    active (hidden, not blacked out).
-// 8. Remove the legacy Tourney Armor / "Named Item Effects" rows from the dataset - under the new
-//    plan the app has no knowledge of any specific named item, so this per-item curated data is
-//    pure dead weight, not a reference worth keeping.
-// 9. Confirm-before-clearing when turning Named/Custom off, or when changing the name/augment
+// 8. Confirm-before-clearing when turning Named/Custom off, or when changing the name/augment
 //    config, since either would discard configured slots and inherent-effect selections.
-// 10. Magnitude/description lookup table, keyed by Character Level and itemOptionItem; migrate
-//     description display to pull from it instead of a static enchDesc.
-// 11. Persist the custom item definition (name, augment config, chosen inherent effects) and
+// 9. Magnitude/description lookup table, keyed by Character Level and itemOptionItem; migrate
+//    description display to pull from it instead of a static enchDesc.
+// 10. Persist the custom item definition (name, augment config, chosen inherent effects) and
 //     per-category toggle state in the save file.
-// 12. (Future, explicitly out of scope for this phase) Optional prepopulated dropdown of popular
+// 11. (Future, explicitly out of scope for this phase) Optional prepopulated dropdown of popular
 //     named items layered on top of the custom-item mechanism, for convenience - full manual
 //     entry is the complete solution for now.
+
+// DONE (2026-07-27): Legacy Tourney Armor data removed from the pipeline (old PHASE 3 step 8) -
+//   apply_corrections.py no longer creates itemOption rows binding "Tourney Armor" to anything;
+//   the three named-item-only enchantment rows it introduced stay in the master enchantment table
+//   (still useful, unrelated to any specific item now) but are currently unreachable in the export
+//   until PHASE 3 step 5 addresses that. equipDDO.sqlite and ddocraft.json regenerated through the
+//   normal pipeline (build_db.py -> apply_corrections.py -> export_ddocraft_json.py); diffed
+//   against the prior ddocraft.json first to confirm the only change was the 59 Tourney Armor rows
+//   disappearing (3886 -> 3827), everything else byte-identical.
 
 let dialogPreferences;
 let buttonPreferences;

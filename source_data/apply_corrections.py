@@ -151,27 +151,23 @@ print("Sample row itemOptionCategory/itemOptionItem:", cur.fetchone())
 # both declaring, say, an Augment 1 Blue slot.
 cur.execute("CREATE UNIQUE INDEX idx_itemOption_unique ON itemOption(itemOptionItem, itemOptionSlot, itemOptionEnchantment)")
 
-# --- Step 4: re-add Tourney Armor, properly normalized ---
-# Augment slots: just two declaration rows (which color each slot has). The shared 'Augment'
-# pseudo-item catalog does the rest via the same join every Cannith item already uses - no
-# duplicated candidate rows needed, unlike the flat-file version shipped this week.
-cur.executemany(
-    "INSERT INTO itemOption (itemOptionSortOrder, itemOptionCategory, itemOptionItem, itemOptionSlot, itemOptionEnchantment) "
-    "VALUES (?, 'Armor', 'Tourney Armor', ?, ?)",
-    [
-        (9000, "Augment 1", "Blue"),
-        (9001, "Augment 2", "Colorless"),
-    ]
-)
-
-# New enchantment rows only for effects genuinely not in the existing catalog. Sheltering,
-# Protection, and Parrying are NOT duplicated here - Tourney Armor's itemOption rows below
-# reference the existing enchantment definitions by name, same as any Cannith item would.
-# Note: because these are now genuinely shared, Tourney Armor's Sheltering/Protection/Parrying
-# use whatever enchCannithMinLevel the shared definition already has (0/0/10) rather than the
-# level-4 placeholder the flat-file version had - that placeholder can't coexist with sharing
-# the same underlying definition Cannith Goggles etc. also use. Proper per-item level display
-# is TODO step 16 (magnitude/description lookup table), not something to fake here.
+# --- Step 4: add named-item-only enchantment types to the master pool ---
+# Originally this step also re-added Tourney Armor itself as curated itemOption rows (a specific
+# item, with a specific augment config, with these effects bound to it). That's gone - PHASE 3's
+# pivot (see ddocraft.js header) replaced hand-curated named items with user-defined custom items,
+# which have no backing data at all beyond whatever the user types at point of use. What's left of
+# this step: three effect types that exist on named items in-game but aren't currently produced by
+# Cannith crafting, so they weren't anywhere in the recovered catalog. They stay in the enchantment
+# table - a generic master pool, not tied to any item - because a user building a custom item that
+# has one of these effects needs to be able to pick it from PHASE 3's universal effects list.
+#
+# KNOWN GAP (2026-07-27): with no itemOption row binding them to anything, these three rows are
+# currently unreachable in the exported JSON - vAllEnchantment only emits enchantment rows joined
+# to at least one itemOption (WHERE combined.itemOptionSortOrder IS NOT NULL). Nothing in today's
+# UI depends on them being visible (their only prior binding was the now-removed Tourney Armor
+# rows), so this is inert, not a regression - but it means PHASE 3 step 5 (the universal
+# inherent-effects picker) can't just consume ddocraft.json as-is; it needs the export/loader to
+# surface all enchantment rows regardless of itemOption binding, not only the joined ones.
 weight_fields = ["allEnch","basic","nonscaling","forMeleeDmg","forRangedDmg","forACDefence",
     "forResistDefence","forHitPoints","forAlchemist","forArtificer","forBarbarian","forBard",
     "forCleric","forDruid","forFavoredSoul","forFighter","forMonk","forPaladin","forRanger",
@@ -205,32 +201,13 @@ cur.executemany(
     new_enchantments
 )
 
-cur.executemany(
-    "INSERT INTO itemOption (itemOptionSortOrder, itemOptionCategory, itemOptionItem, itemOptionSlot, itemOptionEnchantment) "
-    "VALUES (?, 'Armor', 'Tourney Armor', 'Named Item Effects', ?)",
-    [
-        (9002, "Sheltering"),
-        (9003, "Protection"),
-        (9004, "Parrying"),
-        (9005, "Damage Reduction (Adamantine)"),
-        (9006, "Superior Nimbleness"),
-        (9007, "Tourney Armor Extras"),
-    ]
-)
-
-cur.execute("SELECT COUNT(*) FROM vAllEnchantment WHERE itemOptionItem = 'Tourney Armor'")
-tourney_count = cur.fetchone()[0]
-cur.execute("SELECT itemOptionSlot, augmentColor, itemOptionEnchantment, enchEffectType FROM vAllEnchantment "
-            "WHERE itemOptionItem = 'Tourney Armor' AND itemOptionSlot = 'Augment 1' ORDER BY itemOptionEnchantment")
-aug1 = cur.fetchall()
-cur.execute("SELECT itemOptionSlot, augmentColor, itemOptionEnchantment FROM vAllEnchantment "
-            "WHERE itemOptionItem = 'Tourney Armor' AND itemOptionSlot = 'Named Item Effects'")
-effects = cur.fetchall()
-print(f"Tourney Armor total rows: {tourney_count}")
-print(f"  Augment 1 candidates: {len(aug1)} (expect 16, all Blue)")
-print(f"  Named Item Effects: {len(effects)} (expect 6)")
-for row in effects:
+cur.execute("SELECT enchName, enchGroup FROM enchantment WHERE enchGroup = 'Named Item' ORDER BY enchName")
+named_item_effects = cur.fetchall()
+print(f"Named-item-only effect types in master pool: {len(named_item_effects)} (expect 3)")
+for row in named_item_effects:
     print("   ", row)
+if len(named_item_effects) != 3:
+    raise SystemExit(f"MISMATCH: expected 3 named-item-only enchantment rows, got {len(named_item_effects)}")
 
 conn.commit()
 conn.close()
