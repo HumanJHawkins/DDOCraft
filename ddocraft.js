@@ -91,34 +91,41 @@
 
 // PHASE 3: Named/Custom item feature, built on the new architecture (see PIVOT note above).
 //
-// 3. Inline augment editor: a "+ Add Augment" control (color picker) in the category header bar;
-//    each added slot gets a "-" remove control in its own slot-name cell; each slot renders the
-//    full color-eligible option grid exactly like a normal augment slot (no new rendering logic
-//    - same machinery as Cannith augments). Cap at 7 slots. Each slot needs a stable ID, not a
-//    positional index, so removing one doesn't renumber/orphan the others. Removing a slot that
-//    holds a selection needs its own confirm, same reasoning as step 6 below.
-// 4. Universal inherent-effects picker: one unscoped multiselect over every enchantment in the
+// 3. Universal inherent-effects picker: one unscoped multiselect over every enchantment in the
 //    master table (not filtered by category - see PIVOT note). No slot, no mutual exclusivity
 //    between choices; relies on browser search for usability at scale, same as today's ~1500-row
 //    lists. Feeds charData.selections.inherent - ordinary selected/duplicate rules apply via the
-//    same computeSelectionIndex() pass, nothing locked or non-removable. Needs step 5 fixed first
+//    same computeSelectionIndex() pass, nothing locked or non-removable. Needs step 4 fixed first
 //    (the master pool must surface every enchantment row, not just ones with a catalog binding).
-// 5. Open question, mostly resolved: does the current enchantment schema accommodate intrinsic
+// 4. Open question, mostly resolved: does the current enchantment schema accommodate intrinsic
 //    body-type properties (e.g. Mithril, Superior Nimbleness)? Yes - Damage Reduction (Adamantine)
 //    / Superior Nimbleness / Tourney Armor Extras (enchGroup='Named Item') prove the pattern
 //    works, and survived the legacy Tourney Armor removal below as generic master-pool rows. Real
 //    remaining gap: they currently have no itemOption binding, so today's export/loader never
-//    surfaces them (see KNOWN GAP note in apply_corrections.py) - step 4 needs to fix that as part
+//    surfaces them (see KNOWN GAP note in apply_corrections.py) - step 3 needs to fix that as part
 //    of building the picker, not just consume ddocraft.json unchanged.
-// 6. Confirm-before-clearing when changing the augment config in a way that would discard a
-//    selection (name-field toggle-off is already handled - see DONE note below).
-// 7. Magnitude/description lookup table, keyed by Character Level and itemOptionItem; migrate
+// 5. Magnitude/description lookup table, keyed by Character Level and itemOptionItem; migrate
 //    description display to pull from it instead of a static enchDesc.
-// 8. Persist the custom item definition (name, augment config, chosen inherent effects) and
+// 6. Persist the custom item definition (name, augment config, chosen inherent effects) and
 //    per-category toggle state in the save file.
-// 9. (Future, explicitly out of scope for this phase) Optional prepopulated dropdown of popular
+// 7. (Future, explicitly out of scope for this phase) Optional prepopulated dropdown of popular
 //    named items layered on top of the custom-item mechanism, for convenience - full manual
 //    entry is the complete solution for now.
+
+// DONE (2026-07-27): Old PHASE 3 steps 3 and 6 - the inline augment editor. A "+ Add Augment"
+//   select in the custom item's row list (color picker; resets itself after each pick) appends a
+//   slot with a stable numeric ID (charData.customItems[category].augments, nextAugmentId never
+//   reused) - capped at 7. Each slot renders via the exact same getButton() every Cannith augment
+//   slot uses, sourced from a new charData.augmentOptionsByColor[color] lookup (every enchantment
+//   eligible for that color, harvested once from the same rows the catalog is built from - color
+//   eligibility is global, not item-specific, so this needed no new data). A "x" control removes a
+//   slot, confirming first only if it holds a selection. Turning the whole category back to
+//   Cannith mode now also deletes any lingering selections keyed to the custom pseudo-item
+//   ("custom:"+category) - otherwise they'd sit invisibly in the selections store and keep
+//   skewing duplicate-warning counts elsewhere even after being "discarded." Verified: candidates
+//   render correctly per color, selection participates in cross-item duplicate detection exactly
+//   like a Cannith pick, cap enforced, remove-with-confirm and remove-without-confirm both correct,
+//   toggle-off cleanup leaves no orphaned selection.
 
 // DONE (2026-07-27): Old PHASE 3 steps 3 and 7 - the "Named or Custom Item" toggle. Each category
 //   header now has a checkbox (charData.categoryMode[category], default 'cannith'); switching it
@@ -160,6 +167,13 @@ let charData = {
 
     // Stable category walk order (first-appearance order in the source data).
     categoryOrder: [],
+
+    // augmentOptionsByColor[color] = [enchName, ...] - every enchantment eligible for that augment
+    //   color, independent of any specific item (augment color-eligibility is global in the source
+    //   data - every item's same-colored augment slot offers the identical candidate list). Built
+    //   once from the same rows as the catalog above. Drives PHASE 3's custom-item augment slots,
+    //   which have no backing catalog entry of their own to walk.
+    augmentOptionsByColor: {},
 
     // What's actually been picked - the single source of truth for rendering state. Catalog data
     //   above never mutates once loaded.
@@ -272,6 +286,13 @@ function buildCatalog(flatRows) {
         if (!(slot in charData.catalog[category][item])) { charData.catalog[category][item][slot] = {}; }
         if (!(color in charData.catalog[category][item][slot])) { charData.catalog[category][item][slot][color] = []; }
         charData.catalog[category][item][slot][color].push(row.enchName);
+
+        if (slot.substring(0, 3) === "Aug" && color) {
+            if (!(color in charData.augmentOptionsByColor)) { charData.augmentOptionsByColor[color] = []; }
+            if (!charData.augmentOptionsByColor[color].includes(row.enchName)) {
+                charData.augmentOptionsByColor[color].push(row.enchName);
+            }
+        }
     }
 }
 
@@ -382,7 +403,7 @@ function renderEnchantmentOptions() {
             "')\">&#9661; " + escHtml(category) + " " + getCategoryModeToggleHtml(category);
 
         if (mode === "custom") {
-            html += "</caption>" + renderCustomItemBody(category) + "</table>";
+            html += "</caption>" + renderCustomItemBody(category, idx) + "</table>";
             continue;
         }
 
@@ -445,27 +466,82 @@ function getCategoryModeToggleHtml(category) {
         escJs(category) + "')\"" + checked + " /> Named or Custom Item</label>";
 }
 
-function renderCustomItemBody(category) {
-    // Name field only for now - augment editor and inherent-effects picker are PHASE 3 steps 4-5.
-    let custom = charData.customItems[category] || {name: ""};
-    return "<tr><td class='slot'>Name</td><td class='options'>" +
+function customItemKey(category) {
+    // Stable pseudo-item name for the selections store - opaque to enchClick/getButton, which
+    //   never distinguish a real catalog item from a custom one. Category alone is a sufficient
+    //   key since only one custom item can be active per category at a time.
+    return "custom:" + category;
+}
+
+let AUGMENT_SLOT_CAP = 7;
+
+function renderCustomItemBody(category, idx) {
+    let custom = charData.customItems[category] || {name: "", augments: [], nextAugmentId: 1};
+    let item   = customItemKey(category);
+    let html   = "<tr><td class='slot'>Name</td><td class='options'>" +
         "<input type='text' class='customItemName' value=\"" + escHtml(custom.name) +
         "\" placeholder='e.g. Tourney Armor' onchange=\"handleCustomItemName(this,'" + escJs(category) + "')\" />" +
         "</td></tr>";
+
+    custom.augments.forEach(function (aug, position) {
+        let slot         = "Augment#" + aug.id;  // stable key - "Aug" prefix reuses getButton's
+                                                  //   existing augment-vs-cannith min-level check.
+        let displayLabel = "Augment " + (position + 1) + " (" + aug.color + ")";
+        let slotKey      = item + "|" + slot;
+
+        html += "<tr><td class='slot'>" +
+            "<span onclick=\"toggleCollapsed('slot','" + escJs(slotKey) + "')\">" + escHtml(displayLabel) + "</span> " +
+            "<span class='removeAugment' title='Remove this augment slot' onclick=\"handleRemoveCustomAugment('" +
+            escJs(category) + "'," + aug.id + ")\">&#10005;</span></td><td class='options'>";
+
+        if (charData.collapsed.slot.has(slotKey)) {
+            html += "&nbsp;";
+        } else {
+            html += "<div class='ench'> ";
+            for (let enchName of (charData.augmentOptionsByColor[aug.color] || [])) {
+                html += getButton(item, slot, aug.color, enchName, idx);
+            }
+            html += "</div>";
+        }
+
+        html += "</td></tr>";
+    });
+
+    html += "<tr><td class='slot'></td><td class='options'>";
+    if (custom.augments.length < AUGMENT_SLOT_CAP) {
+        let colorOptions = Object.keys(charData.augmentOptionsByColor).map(function (c) {
+            return "<option value=\"" + escHtml(c) + "\">" + escHtml(c) + "</option>";
+        }).join("");
+        html += "<select class='addAugmentSelect' onchange=\"handleAddAugmentSelect(this,'" + escJs(category) + "')\">" +
+            "<option value=''>+ Add Augment...</option>" + colorOptions + "</select>";
+    } else {
+        html += "<em>Maximum " + AUGMENT_SLOT_CAP + " augment slots</em>";
+    }
+    html += "</td></tr>";
+
+    return html;
 }
 
 function handleCategoryModeToggle(checkbox, category) {
     if (checkbox.checked) {
         charData.categoryMode[category] = "custom";
-        if (!charData.customItems[category]) { charData.customItems[category] = {name: ""}; }
+        if (!charData.customItems[category]) {
+            charData.customItems[category] = {name: "", augments: [], nextAugmentId: 1};
+        }
     } else {
-        let name = (charData.customItems[category] || {}).name || "";
-        if (name && !confirm("Switch \"" + category + "\" back to Cannith crafting? This will discard the custom item \"" + name + "\".")) {
+        let custom = charData.customItems[category] || {name: "", augments: []};
+        if ((custom.name || custom.augments.length > 0) &&
+            !confirm("Switch \"" + category + "\" back to Cannith crafting? This will discard the custom item" +
+                (custom.name ? " \"" + custom.name + "\"" : "") + ".")) {
             checkbox.checked = true;
             return;
         }
         charData.categoryMode[category] = "cannith";
         delete charData.customItems[category];
+        // The custom item's selections (if any) belong to a pseudo-item nothing will render again -
+        //   without this they'd sit invisibly in the selections store, still counted by
+        //   computeSelectionIndex() and silently skewing duplicate warnings elsewhere.
+        delete charData.selections.positional[customItemKey(category)];
     }
 
     renderEnchantmentOptions();
@@ -474,6 +550,36 @@ function handleCategoryModeToggle(checkbox, category) {
 
 function handleCustomItemName(input, category) {
     charData.customItems[category].name = input.value;
+}
+
+function handleAddAugmentSelect(select, category) {
+    let color = select.value;
+    select.value = "";
+    if (!color) { return; }
+
+    let custom = charData.customItems[category];
+    if (custom.augments.length >= AUGMENT_SLOT_CAP) { return; }
+    custom.augments.push({id: custom.nextAugmentId++, color: color});
+
+    renderEnchantmentOptions();
+    renderResult();
+}
+
+function handleRemoveCustomAugment(category, augId) {
+    let custom = charData.customItems[category];
+    let slot   = "Augment#" + augId;
+    let item   = customItemKey(category);
+    let occupant = getOccupant(item, slot);
+
+    if (occupant && !confirm("Remove this augment slot? This will deselect \"" + occupant.enchName + "\".")) {
+        return;
+    }
+
+    clearOccupant(item, slot);
+    custom.augments = custom.augments.filter(function (a) { return a.id !== augId; });
+
+    renderEnchantmentOptions();
+    renderResult();
 }
 
 function getCategoryDropdownHtml(category) {
