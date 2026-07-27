@@ -8,8 +8,22 @@
 // PHASE 1 (done): equipDDO.sqlite (source_data/) is now the real source of truth - built from
 //   the recovered CSVs, questionable rows flagged and excluded, Cannith/category split moved
 //   into the schema, Tourney Armor re-added as normalized rows referencing shared definitions,
-//   level defaults bumped to 36. ddocraft.json is NOT yet regenerated from it - the app still
-//   runs on the hand-patched flat file from earlier this week until Phase 2 lands.
+//   level defaults bumped to 36.
+//
+// TEST (done, 2026-07-27): ddocraft.json is now generated FROM equipDDO.sqlite
+//   (source_data/export_ddocraft_json.py, still the old flat/duplicated shape - this was a
+//   narrow test of "does the app work correctly sourced from the new data" without doing any of
+//   Phase 2's rendering/state rewrite. renderEnchantmentOptions() and everything else in this
+//   file is completely unchanged. The old hand-patched flat file is preserved in
+//   obsolete/ddocraft_hand-patched-flat-file_last-version-2026-07-27.json for reference; nobody
+//   should hand-edit ddocraft.json again, ever - edit equipDDO.sqlite and re-run build_db.py ->
+//   apply_corrections.py -> export_ddocraft_json.py instead. Confirmed via full browser test
+//   suite: rendering, cross-item stacking, enchSupercededBy, category dropdown tracking,
+//   collapse, and the 12 questionable rows now genuinely excluded from the live app for the
+//   first time (they were flagged in the database in Phase 1 but never actually reached the
+//   deployed file until this). Phase 2 below (two normalized files, client-side join, the
+//   real render/state rewrite) is still fully ahead - this test deliberately did not touch any
+//   of that, per instruction not to implement it as part of this narrower experiment.
 
 // PHASE 2: New client-side data + rendering architecture. Replaces the dense nested-loop /
 //   precomputed-boundary-flag render model and per-row mutable selection state, since building
