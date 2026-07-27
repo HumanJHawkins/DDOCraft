@@ -91,37 +91,42 @@
 
 // PHASE 3: Named/Custom item feature, built on the new architecture (see PIVOT note above).
 //
-// 3. Replace the Cannith-vs-named-item dropdown with a "Named or Custom Item" toggle per
-//    category. Off = existing Cannith rendering, unchanged. On = name field + inline augment
-//    editor.
-// 4. Inline augment editor: a "+ Add Augment" control (color picker) in the category header bar;
+// 3. Inline augment editor: a "+ Add Augment" control (color picker) in the category header bar;
 //    each added slot gets a "-" remove control in its own slot-name cell; each slot renders the
 //    full color-eligible option grid exactly like a normal augment slot (no new rendering logic
 //    - same machinery as Cannith augments). Cap at 7 slots. Each slot needs a stable ID, not a
-//    positional index, so removing one doesn't renumber/orphan the others.
-// 5. Universal inherent-effects picker: one unscoped multiselect over every enchantment in the
+//    positional index, so removing one doesn't renumber/orphan the others. Removing a slot that
+//    holds a selection needs its own confirm, same reasoning as step 6 below.
+// 4. Universal inherent-effects picker: one unscoped multiselect over every enchantment in the
 //    master table (not filtered by category - see PIVOT note). No slot, no mutual exclusivity
 //    between choices; relies on browser search for usability at scale, same as today's ~1500-row
 //    lists. Feeds charData.selections.inherent - ordinary selected/duplicate rules apply via the
-//    same computeSelectionIndex() pass, nothing locked or non-removable.
-// 6. Open question, mostly resolved: does the current enchantment schema accommodate intrinsic
+//    same computeSelectionIndex() pass, nothing locked or non-removable. Needs step 5 fixed first
+//    (the master pool must surface every enchantment row, not just ones with a catalog binding).
+// 5. Open question, mostly resolved: does the current enchantment schema accommodate intrinsic
 //    body-type properties (e.g. Mithril, Superior Nimbleness)? Yes - Damage Reduction (Adamantine)
 //    / Superior Nimbleness / Tourney Armor Extras (enchGroup='Named Item') prove the pattern
 //    works, and survived the legacy Tourney Armor removal below as generic master-pool rows. Real
 //    remaining gap: they currently have no itemOption binding, so today's export/loader never
-//    surfaces them (see KNOWN GAP note in apply_corrections.py) - step 5 needs to fix that as part
+//    surfaces them (see KNOWN GAP note in apply_corrections.py) - step 4 needs to fix that as part
 //    of building the picker, not just consume ddocraft.json unchanged.
-// 7. Toggling Named/Custom on for a category fully replaces that category's Cannith rows while
-//    active (hidden, not blacked out).
-// 8. Confirm-before-clearing when turning Named/Custom off, or when changing the name/augment
-//    config, since either would discard configured slots and inherent-effect selections.
-// 9. Magnitude/description lookup table, keyed by Character Level and itemOptionItem; migrate
+// 6. Confirm-before-clearing when changing the augment config in a way that would discard a
+//    selection (name-field toggle-off is already handled - see DONE note below).
+// 7. Magnitude/description lookup table, keyed by Character Level and itemOptionItem; migrate
 //    description display to pull from it instead of a static enchDesc.
-// 10. Persist the custom item definition (name, augment config, chosen inherent effects) and
-//     per-category toggle state in the save file.
-// 11. (Future, explicitly out of scope for this phase) Optional prepopulated dropdown of popular
-//     named items layered on top of the custom-item mechanism, for convenience - full manual
-//     entry is the complete solution for now.
+// 8. Persist the custom item definition (name, augment config, chosen inherent effects) and
+//    per-category toggle state in the save file.
+// 9. (Future, explicitly out of scope for this phase) Optional prepopulated dropdown of popular
+//    named items layered on top of the custom-item mechanism, for convenience - full manual
+//    entry is the complete solution for now.
+
+// DONE (2026-07-27): Old PHASE 3 steps 3 and 7 - the "Named or Custom Item" toggle. Each category
+//   header now has a checkbox (charData.categoryMode[category], default 'cannith'); switching it
+//   to 'custom' hides that category's Cannith rows entirely (not blacked out) and renders a name
+//   field instead, backed by charData.customItems[category] = {name}. Turning it back off prompts
+//   a confirm if a name has been entered (discarding it otherwise silently would lose real user
+//   input), and reverts the checkbox visually on cancel. Augment editor and inherent-effects
+//   picker (old steps 4-5, renumbered 3-4 above) are still ahead - this is name-field-only so far.
 
 // DONE (2026-07-27): Legacy Tourney Armor data removed from the pipeline (old PHASE 3 step 8) -
 //   apply_corrections.py no longer creates itemOption rows binding "Tourney Armor" to anything;
@@ -179,6 +184,17 @@ let charData = {
     enchFilter: {allEnch: true},
     reportOut: "",
     categoryChoice: {},
+
+    // categoryMode[category] = 'cannith' (default, implicit) | 'custom'. When custom, that
+    //   category's Cannith rows are hidden and customItems[category] drives rendering instead.
+    categoryMode: {},
+
+    // customItems[category] = { name } - only present while categoryMode[category] === 'custom'.
+    //   Purely in-memory, user-typed data; the app has no knowledge of any specific named item (see
+    //   PIVOT note above) - "Tourney Armor" here would be indistinguishable from "Bob's Vest".
+    //   Augment config and inherent-effect selections land here in later PHASE 3 steps.
+    customItems: {},
+
     saveFile: {version: 2.0, dirty: false, charName: "", charLevel: 36, positional: [], inherent: [], collapsed: {item: [], slot: [], color: []}}
 };
 
@@ -208,7 +224,7 @@ function loadEnchantmentOptions() {
     // WARNING: Requires JSON file ordered by category then item then slot then color.
     // This is the one function that knows about the flat/duplicated ddocraft.json shape - the
     //   rest of the app only ever sees charData.enchantments / charData.catalog. Swapping this
-    //   for a live API later (normalized export or Postgres-backed) means rewriting this function
+    //   for a live API later (normalized export or MariaDB-backed) means rewriting this function
     //   only, as long as it still produces the same two structures.
     let itemOptionsRequest                = new XMLHttpRequest();
     itemOptionsRequest.onreadystatechange = function () {
@@ -354,9 +370,7 @@ function renderEnchantmentOptions() {
     let html = "";
 
     for (let category of charData.categoryOrder) {
-        let item = charData.categoryChoice[category];
-        if (!item) { continue; }
-        let itemNode = charData.catalog[category][item];
+        let mode = charData.categoryMode[category] || "cannith";
 
         if (charData.collapsed.item.has(category)) {
             html += "<table><caption class='itemheader collapsed' onclick=\"toggleCollapsed('item','" +
@@ -365,7 +379,18 @@ function renderEnchantmentOptions() {
         }
 
         html += "<table><caption class='itemheader' onclick=\"toggleCollapsed('item','" + escJs(category) +
-            "')\">&#9661; " + escHtml(category) + " " + getCategoryDropdownHtml(category) + "</caption>";
+            "')\">&#9661; " + escHtml(category) + " " + getCategoryModeToggleHtml(category);
+
+        if (mode === "custom") {
+            html += "</caption>" + renderCustomItemBody(category) + "</table>";
+            continue;
+        }
+
+        let item = charData.categoryChoice[category];
+        if (!item) { html += "</caption></table>"; continue; }
+        let itemNode = charData.catalog[category][item];
+
+        html += " " + getCategoryDropdownHtml(category) + "</caption>";
 
         for (let slot of Object.keys(itemNode)) {
             if (slot === "Extra" && charData.saveFile.charLevel < extraSlotMinLevel) { continue; }
@@ -411,6 +436,44 @@ function renderEnchantmentOptions() {
     }
 
     document.getElementById("enchantmentOptions").innerHTML = html;
+}
+
+function getCategoryModeToggleHtml(category) {
+    let checked = charData.categoryMode[category] === "custom" ? " checked" : "";
+    return "<label class='customToggle' onclick='event.stopPropagation()'>" +
+        "<input type='checkbox' onclick='event.stopPropagation()' onchange=\"handleCategoryModeToggle(this,'" +
+        escJs(category) + "')\"" + checked + " /> Named or Custom Item</label>";
+}
+
+function renderCustomItemBody(category) {
+    // Name field only for now - augment editor and inherent-effects picker are PHASE 3 steps 4-5.
+    let custom = charData.customItems[category] || {name: ""};
+    return "<tr><td class='slot'>Name</td><td class='options'>" +
+        "<input type='text' class='customItemName' value=\"" + escHtml(custom.name) +
+        "\" placeholder='e.g. Tourney Armor' onchange=\"handleCustomItemName(this,'" + escJs(category) + "')\" />" +
+        "</td></tr>";
+}
+
+function handleCategoryModeToggle(checkbox, category) {
+    if (checkbox.checked) {
+        charData.categoryMode[category] = "custom";
+        if (!charData.customItems[category]) { charData.customItems[category] = {name: ""}; }
+    } else {
+        let name = (charData.customItems[category] || {}).name || "";
+        if (name && !confirm("Switch \"" + category + "\" back to Cannith crafting? This will discard the custom item \"" + name + "\".")) {
+            checkbox.checked = true;
+            return;
+        }
+        charData.categoryMode[category] = "cannith";
+        delete charData.customItems[category];
+    }
+
+    renderEnchantmentOptions();
+    renderResult();
+}
+
+function handleCustomItemName(input, category) {
+    charData.customItems[category].name = input.value;
 }
 
 function getCategoryDropdownHtml(category) {
