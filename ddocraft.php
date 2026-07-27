@@ -83,7 +83,7 @@ updateCounter();
         <!--        <p class="indent">-->
         <div class="helpText">
             <label for="characterLevel">Character Level:</label>
-            <input type="number" id="characterLevel" name="characterLevel" value="32"
+            <input type="number" id="characterLevel" name="characterLevel" value="36"
                    onchange="handleFilterLevel()" min="0" max="50" />&nbsp;&nbsp;&nbsp;<strong>&#8592;</strong>&nbsp;&nbsp;&nbsp;Set this at least!!!
         </div>
 
