@@ -97,6 +97,22 @@
 //    named items layered on top of the custom-item mechanism, for convenience - full manual
 //    entry is the complete solution for now.
 
+// FIXED (2026-07-27): Two bugs Jeff found testing the custom-item feature.
+//   (1) There was no way back to Cannith mode once a category switched to custom - the old
+//   confirm-then-delete toggle handler is gone. Toggling either direction is now purely a mode
+//   flip: nothing is ever deleted just for being hidden. A hidden custom item's selections stay
+//   exactly as left and are excluded from duplicate-warning accounting while inactive (new
+//   categoryOfCustomItemKey() helper, checked in computeSelectionIndex()) - so a duplicate that
+//   existed only because of a now-hidden custom pick correctly clears, and reappears if the
+//   category is switched back to custom. No confirm dialog needed anywhere in this flow anymore,
+//   since nothing is ever lost.
+//   (2) The augment slot's "x" remove control looked wired but didn't reliably work - per
+//   instruction, replaced the confirm-then-maybe-delete version with an unconditional delete,
+//   matching how an ordinary re-selection elsewhere in the app already never confirms. Re-verified
+//   removing from the middle of a multi-slot stack: the stable per-slot id (not array position)
+//   means the slots on either side keep their own selections untouched, and displayed numbering
+//   ("Augment 1", "Augment 2", ...) recomputes cleanly with no gap.
+
 // DONE (2026-07-27): Old PHASE 3 steps 3, 4, and 6 - the universal inherent-effects picker, plus
 //   persistence for the whole custom-item feature. Fixed the export gap first: vAllEnchantment's
 //   WHERE combined.itemOptionSortOrder IS NOT NULL filter used to silently drop any enchantment
@@ -375,6 +391,13 @@ function clearOccupant(item, slot) {
     if (charData.selections.positional[item]) { delete charData.selections.positional[item][slot]; }
 }
 
+function categoryOfCustomItemKey(item) {
+    // Returns the owning category if `item` is a custom pseudo-item key, else null. Lets
+    //   computeSelectionIndex() tell "a real Cannith item's selection" apart from "a custom item's
+    //   selection that's currently hidden because its category is toggled back to Cannith mode."
+    return item.indexOf("custom:") === 0 ? item.slice(7) : null;
+}
+
 // One pass over current selections, computing everything getButton() needs to decide every
 //   candidate's appearance without re-scanning the selections store per-button.
 function computeSelectionIndex() {
@@ -390,11 +413,19 @@ function computeSelectionIndex() {
     }
 
     for (let item of Object.keys(charData.selections.positional)) {
+        // A custom item's selections are preserved when its category is switched back to Cannith
+        //   mode (nothing is ever deleted just for being hidden - see handleCategoryModeToggle),
+        //   but they must not count here while hidden, or a duplicate warning could persist on a
+        //   Cannith pick even though the thing it was supposedly duplicating isn't visible anywhere.
+        let owningCategory = categoryOfCustomItemKey(item);
+        if (owningCategory && (charData.categoryMode[owningCategory] || "cannith") !== "custom") { continue; }
+
         for (let slot of Object.keys(charData.selections.positional[item])) {
             account(item, charData.selections.positional[item][slot].enchName);
         }
     }
     for (let category of Object.keys(charData.selections.inherent)) {
+        if ((charData.categoryMode[category] || "cannith") !== "custom") { continue; }
         for (let item of Object.keys(charData.selections.inherent[category])) {
             for (let enchName of charData.selections.inherent[category][item]) {
                 account(item, enchName);
@@ -615,28 +646,13 @@ function enchClickInherent(category, item, enchName, render = true) {
 }
 
 function handleCategoryModeToggle(checkbox, category) {
-    if (checkbox.checked) {
-        charData.categoryMode[category] = "custom";
-        if (!charData.customItems[category]) {
-            charData.customItems[category] = {name: "", augments: [], nextAugmentId: 1};
-        }
-    } else {
-        let custom = charData.customItems[category] || {name: "", augments: []};
-        let inherentSet = (charData.selections.inherent[category] || {})[customItemKey(category)];
-        let hasInherent = !!inherentSet && inherentSet.size > 0;
-        if ((custom.name || custom.augments.length > 0 || hasInherent) &&
-            !confirm("Switch \"" + category + "\" back to Cannith crafting? This will discard the custom item" +
-                (custom.name ? " \"" + custom.name + "\"" : "") + ".")) {
-            checkbox.checked = true;
-            return;
-        }
-        charData.categoryMode[category] = "cannith";
-        delete charData.customItems[category];
-        // The custom item's selections (if any) belong to a pseudo-item nothing will render again -
-        //   without this they'd sit invisibly in the selections store, still counted by
-        //   computeSelectionIndex() and silently skewing duplicate warnings elsewhere.
-        delete charData.selections.positional[customItemKey(category)];
-        delete charData.selections.inherent[category];
+    // Non-destructive both ways: the custom item's name/augments/selections are never deleted just
+    //   for being switched away from - they're preserved exactly as left, and excluded from
+    //   duplicate-warning accounting while hidden (see computeSelectionIndex()). Switching back to
+    //   custom mode picks up right where it was. No confirm needed here, because nothing is lost.
+    charData.categoryMode[category] = checkbox.checked ? "custom" : "cannith";
+    if (checkbox.checked && !charData.customItems[category]) {
+        charData.customItems[category] = {name: "", augments: [], nextAugmentId: 1};
     }
 
     renderEnchantmentOptions();
@@ -661,14 +677,12 @@ function handleAddAugmentSelect(select, category) {
 }
 
 function handleRemoveCustomAugment(category, augId) {
+    // Always deletes immediately, no confirm - matches an ordinary augment reselect elsewhere in
+    //   the app, which also never confirms. Filters by stable id, not array position, so removing
+    //   a slot out of the middle of the list can't misattribute or orphan the ones on either side.
     let custom = charData.customItems[category];
     let slot   = "Augment#" + augId;
     let item   = customItemKey(category);
-    let occupant = getOccupant(item, slot);
-
-    if (occupant && !confirm("Remove this augment slot? This will deselect \"" + occupant.enchName + "\".")) {
-        return;
-    }
 
     clearOccupant(item, slot);
     custom.augments = custom.augments.filter(function (a) { return a.id !== augId; });

@@ -258,8 +258,11 @@ img {
 
 .removeAugment {
     cursor: pointer;
+    display: inline-block;
+    padding: .15vw .4vw;
     margin-left: .3vw;
     color: #d55181;
+    font-weight: bold;
 }
 
 .removeAugment:hover {
