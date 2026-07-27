@@ -7,7 +7,11 @@
 // TO DO:
 // Do a better job of highlighting collapsed items? (Standard chevrons?)
 
-// TO DO: Move to SQLite as the real source of truth. Delete each as it's completed.
+// TO DO: Full staged plan, three merged streams (SQLite migration, render/state architecture
+//   rewrite, named item feature). One continuous numbering - delete each step as it's completed,
+//   and renumber the rest if a step is removed so the order never has gaps or collisions.
+
+// PHASE 1: SQLite becomes the real source of truth; data corrections.
 // The original MySQL data (recovered, in source_data/) is more trustworthy and far easier to
 //   maintain than hand-patching ddocraft.json directly, which is how this file has been edited
 //   all week. Once this lands, ddocraft.json becomes a pure generated build output - nobody
@@ -19,8 +23,9 @@
 //    is a secondary concern to not losing this data again.
 // 2. Add a data-quality status column (e.g. enchantment.dataStatus) and mark Resist/Insightful
 //    Resist (Light/Negative/Poison) and the six per-stat "Insightful Ability" augments as
-//    'questionable' rather than deleting outright - believed to not actually exist in-game, but
-//    kept on record rather than erased in case memory is wrong. Excluded from the exported JSON.
+//    'questionable' rather than deleting outright - believed to not actually exist in-game (or
+//    not exist as augments specifically), but kept on record in case memory is wrong. Excluded
+//    from the exported data.
 // 3. Move the Cannith/category split into the schema itself, instead of the post-hoc rename
 //    script used on the flat file this week.
 // 4. Re-add Tourney Armor as normalized source rows - reference the existing enchantment rows
@@ -30,38 +35,53 @@
 //    instead of duplicating candidate rows the way the flat-file version currently does.
 // 5. Bump the level-32 defaults to 36 (current level cap; was 32 when this was built) - the
 //    default characterLevel value in ddocraft.php and charData.saveFile.charLevel in ddocraft.js.
-// 6. Build the export script (Python + sqlite3) running the vAllEnchantment-equivalent query
-//    against the new schema to produce ddocraft.json.
-// 7. Regenerate and verify: replace the committed ddocraft.json, re-run the full verification
-//    pass (render, stacking, category dropdown, Tourney Armor, confirm the 12 questionable rows
-//    are gone, confirm level default is 36).
-// 8. Commit the new .sqlite file, export script, and regenerated JSON. Decide whether the
-//    transitional CSVs in source_data/ stay as a historical snapshot or get removed once the
-//    database is verified solid.
 
-// TO DO: Named item support - remaining steps. Delete each as it's completed.
-// Done so far: prepend "Cannith " to itemOptionItem values; add itemOptionCategory field;
-//   key item grouping off itemOptionCategory and add per-category dropdown; add Tourney Armor
-//   test record (corrected so its rows don't fork the catalog by magnitude); track the active
-//   itemOptionItem per category in charData.categoryChoice (dropdown updates it, not yet wired
-//   to rendering or selection).
-// Note: once the SQLite migration above lands, step 12 below (bringing in the real dataset)
-//   happens via that pipeline rather than more hand-patching.
+// PHASE 2: New client-side data + rendering architecture. Replaces the dense nested-loop /
+//   precomputed-boundary-flag render model and per-row mutable selection state, since building
+//   a new client-side loader (needed regardless, to consume the normalized export) is the
+//   natural point to also stop reconstructing the old flat-with-flags shape at all.
 //
-// 5. Wire the actual swap: rendering for a category shows only the active itemOptionItem's rows.
-// 6. Build a magnitude/description lookup table, keyed by Character Level and itemOptionItem,
-//    and migrate description display to pull from it. Magnitude can't live in a static enchDesc -
-//    Cannith magnitudes scale with character level, so a hardcoded number is wrong as soon as
-//    level changes. Needed before named items (or anything else) can correctly show magnitude.
-// 7. Decide and implement Cannith's "left behind" treatment (blacked out vs. hidden) when a
-//    named item is active for that category.
-// 8. Auto-select the named item's fixed effects, render as locked/non-clickable, using the
-//    lookup table from step 6 for accurate descriptions.
-// 9. Add the cross-item conflict-detection warning (yellow bar) for same-enchEffectType
-//    selections that can't be prevented outright once named items are in play.
-// 10. Persist the per-category choice in the save file (version bump, load-compat branch).
-// 11. Confirm-before-clearing when switching a category's dropdown away from a populated choice.
-// 12. Bring in the real named-item dataset.
+// 6. Export two normalized JSON files from SQLite (enchantment.json, itemOption.json) instead
+//    of one flattened file - smaller payload, no duplication, matches the real schema.
+// 7. Build the client-side loader: parse the two files and build a nested lookup structure once
+//    at load (category -> item -> slot -> color -> enchantments), replacing initEnchStates()'s
+//    flat-array boundary-flag computation entirely.
+// 8. Introduce a compact, separate "selections" store (what's been picked, keyed by
+//    category/item/slot/color) instead of mutating enchState directly on every one of the
+//    ~4000+ catalog rows. Selection state and catalog data stop being the same object.
+// 9. Rewrite renderEnchantmentOptions() as a data-driven walk over the nested structure. For
+//    each candidate: selected at this exact position shows selected; the same enchEffectType
+//    (or enchSupercededBy target) found anywhere else in the selections store shows disabled/
+//    handled; the same item+slot occupied by something else shows disabled/blocked; otherwise
+//    normal, highlighted by filter weight.
+// 10. Rewrite click handling to mutate the selections store (add/remove one entry) instead of
+//     scanning and flagging the whole catalog on every click.
+// 11. Rewrite the three-level collapse mechanism (item/slot/color) against the new walk.
+// 12. Rewrite save/load to read/write the selections store directly - dovetails with the
+//     "just the facts, tolerant of catalog drift" save format already agreed on.
+// 13. Re-verify every previously-validated behavior against the new architecture: rendering,
+//     global stacking, enchSupercededBy, category dropdown, Tourney Armor, min-level gating,
+//     filter highlighting, save/load round-trip.
+// 14. Commit the new SQLite file, export script, the two JSON files, and the rewritten
+//     ddocraft.js. Decide whether the transitional CSVs/scratch scripts in source_data/ stay as
+//     a historical snapshot or get removed once the database is verified solid.
+
+// PHASE 3: Named item feature completion - simpler on the new architecture, since swapping which
+//   item's rows appear for a category becomes a walk decision, not a boundary-flag patch.
+//
+// 15. Wire the category dropdown to actually swap which item's rows render for that category.
+// 16. Magnitude/description lookup table, keyed by Character Level and itemOptionItem; migrate
+//     description display to pull from it instead of a static enchDesc.
+// 17. Cannith's "left behind" treatment (blacked out vs. hidden) when a named item is active for
+//     that category.
+// 18. Auto-select the named item's fixed effects as locked/non-removable entries in the
+//     selections store, rendered non-clickable.
+// 19. Cross-item conflict-detection warning (yellow bar) - scan the selections store for
+//     duplicate enchEffectTypes; informational, not blocking, since named items can make a
+//     redundant effect worth taking anyway.
+// 20. Persist the selections store and per-category choice in the save file.
+// 21. Confirm-before-clearing when switching a category's dropdown away from a populated choice.
+// 22. Bring in the real, much larger named-item dataset via the SQLite/CSV pipeline.
 
 let dialogPreferences;
 let buttonPreferences;
