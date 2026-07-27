@@ -91,26 +91,38 @@
 
 // PHASE 3: Named/Custom item feature, built on the new architecture (see PIVOT note above).
 //
-// 3. Universal inherent-effects picker: one unscoped multiselect over every enchantment in the
-//    master table (not filtered by category - see PIVOT note). No slot, no mutual exclusivity
-//    between choices; relies on browser search for usability at scale, same as today's ~1500-row
-//    lists. Feeds charData.selections.inherent - ordinary selected/duplicate rules apply via the
-//    same computeSelectionIndex() pass, nothing locked or non-removable. Needs step 4 fixed first
-//    (the master pool must surface every enchantment row, not just ones with a catalog binding).
-// 4. Open question, mostly resolved: does the current enchantment schema accommodate intrinsic
-//    body-type properties (e.g. Mithril, Superior Nimbleness)? Yes - Damage Reduction (Adamantine)
-//    / Superior Nimbleness / Tourney Armor Extras (enchGroup='Named Item') prove the pattern
-//    works, and survived the legacy Tourney Armor removal below as generic master-pool rows. Real
-//    remaining gap: they currently have no itemOption binding, so today's export/loader never
-//    surfaces them (see KNOWN GAP note in apply_corrections.py) - step 3 needs to fix that as part
-//    of building the picker, not just consume ddocraft.json unchanged.
-// 5. Magnitude/description lookup table, keyed by Character Level and itemOptionItem; migrate
+// 3. Magnitude/description lookup table, keyed by Character Level and itemOptionItem; migrate
 //    description display to pull from it instead of a static enchDesc.
-// 6. Persist the custom item definition (name, augment config, chosen inherent effects) and
-//    per-category toggle state in the save file.
-// 7. (Future, explicitly out of scope for this phase) Optional prepopulated dropdown of popular
+// 4. (Future, explicitly out of scope for this phase) Optional prepopulated dropdown of popular
 //    named items layered on top of the custom-item mechanism, for convenience - full manual
 //    entry is the complete solution for now.
+
+// DONE (2026-07-27): Old PHASE 3 steps 3, 4, and 6 - the universal inherent-effects picker, plus
+//   persistence for the whole custom-item feature. Fixed the export gap first: vAllEnchantment's
+//   WHERE combined.itemOptionSortOrder IS NOT NULL filter used to silently drop any enchantment
+//   with zero itemOption bindings - removed it (apply_corrections.py), which surfaced not just the
+//   3 named-item-only rows from the Tourney Armor removal but 3 more pre-existing orphaned rows
+//   nobody had noticed (Adamantine (Armor), Mithril, Insightful Skill (Use Magic Device)) - all
+//   now real, pickable master-pool entries. buildCatalog() skips catalog-building for rows with no
+//   itemOptionCategory (nothing to catalog) but still adds them to charData.enchantments.
+//   The picker itself: one flat, alphabetically-sorted list of every enchantment, deliberately not
+//   filtered by category (a named item's whole appeal can be an effect Cannith crafting could never
+//   produce there) and deliberately not specially searchable (relies on the browser's own search,
+//   same precedent as the existing ~1500-row Cannith lists). No level gating (an item's inherent
+//   effect isn't crafted at a threshold) and no "blocked" state (no slot to occupy) - otherwise the
+//   same selected/duplicate/discouraged rules as everything else, via computeSelectionIndex().
+//   Turning a category back to Cannith mode now also clears any inherent selections, same reasoning
+//   as the positional cleanup from the augment-editor commit.
+//   Persistence: turned out to be most of the way there already (charData.saveFile.inherent and
+//   its handleLoad restoration were scaffolded, unused, back in the original rewrite) - just needed
+//   categoryMode and customItems added, and critically, restored BEFORE positional/inherent
+//   selections on load, since a "custom:Category" selection is meaningless without the config that
+//   makes that category render in custom mode with the matching augment slots. Save version bumped
+//   to 2.1 (additive - a 2.0 file still loads fine, it just won't have had a custom item to restore).
+//   Verified: unbound enchantments load and render; inherent selection participates in cross-item
+//   duplicate detection against both Cannith and augment picks; full save/load round-trip restores
+//   categoryMode, customItems (name, augments with correct ids/colors), positional, and inherent
+//   selections, and everything re-renders correctly from that alone.
 
 // DONE (2026-07-27): Old PHASE 3 steps 3 and 6 - the inline augment editor. A "+ Add Augment"
 //   select in the custom item's row list (color picker; resets itself after each pick) appends a
@@ -209,7 +221,8 @@ let charData = {
     //   Augment config and inherent-effect selections land here in later PHASE 3 steps.
     customItems: {},
 
-    saveFile: {version: 2.0, dirty: false, charName: "", charLevel: 36, positional: [], inherent: [], collapsed: {item: [], slot: [], color: []}}
+    saveFile: {version: 2.1, dirty: false, charName: "", charLevel: 36, positional: [], inherent: [],
+        categoryMode: {}, customItems: {}, collapsed: {item: [], slot: [], color: []}}
 };
 
 initialize();
@@ -277,6 +290,12 @@ function buildCatalog(flatRows) {
 
         let category = row.itemOptionCategory, item = row.itemOptionItem,
             slot = row.itemOptionSlot, color = row.augmentColor || "";
+
+        // Some enchantment rows have no itemOption binding at all (the master pool needed for
+        //   PHASE 3's inherent-effects picker includes them - see apply_corrections.py) - they're
+        //   already in charData.enchantments from above, but there's no slot/color to catalog them
+        //   under, so there's nothing further to do here.
+        if (!category) { continue; }
 
         if (!(category in charData.catalog)) {
             charData.catalog[category] = {};
@@ -519,7 +538,80 @@ function renderCustomItemBody(category, idx) {
     }
     html += "</td></tr>";
 
+    html += renderInherentPicker(category, idx);
+
     return html;
+}
+
+function renderInherentPicker(category, idx) {
+    // Deliberately unscoped by category (see PIVOT note) - a named item's whole appeal can be an
+    //   effect normal Cannith crafting could never produce for that category. Deliberately flat and
+    //   alphabetical rather than grouped/filtered - relies on the browser's own search, same as the
+    //   existing ~1500-row Cannith lists already do.
+    let item    = customItemKey(category);
+    let slotKey = item + "|InherentEffects";
+
+    if (charData.collapsed.slot.has(slotKey)) {
+        return "<tr class='collapsed'><td class='slot' onclick=\"toggleCollapsed('slot','" +
+            escJs(slotKey) + "')\">Inherent Effects<td>&nbsp;</td></tr>";
+    }
+
+    let html = "<tr><td class='slot' onclick=\"toggleCollapsed('slot','" + escJs(slotKey) +
+        "')\">Inherent Effects</td><td class='options'><div class='ench'> ";
+    for (let enchName of Object.keys(charData.enchantments).sort()) {
+        html += getInherentButton(category, item, enchName, idx);
+    }
+    html += "</div></td></tr>";
+
+    return html;
+}
+
+function getInherentButton(category, item, enchName, idx) {
+    // No level gating (an item's inherent effect isn't being crafted at a level threshold - it's
+    //   just a property the item already has) and no "blocked" state (no slot to occupy).
+    let ench = charData.enchantments[enchName];
+
+    let selectedSet = (charData.selections.inherent[category] || {})[item];
+    let isSelected  = !!selectedSet && selectedSet.has(enchName);
+    let effectCount = idx.effectTypeCounts[ench.enchEffectType] || 0;
+    let isDuplicate = isSelected && effectCount > 1;
+    let isHandled   = !isSelected && (
+        effectCount > 0 ||
+        (idx.selectedNamesByItem[item] && idx.selectedNamesByItem[item].has(ench.enchSupercededBy))
+    );
+
+    let enchValue = getEnchFilterValue(enchName);
+    let onclick   = "enchClickInherent('" + escJs(category) + "','" + escJs(item) + "','" + escJs(enchName) + "')";
+    let title     = escHtml(ench.enchDesc);
+    let btn;
+
+    if (isSelected) {
+        btn = "<button class='" + (isDuplicate ? "duplicate" : "selected") + "' title=\"" + title + "\" ";
+        enchValue = 1;
+    } else if (isHandled) {
+        btn = "<button class='handled' title=\"" + title + "\" ";
+    } else if (enchValue > 1) {
+        btn = "<button style='background-color: " + getHighlight(enchValue) + "; color: black;' title=\"" + title + "\" ";
+    } else {
+        btn = "<button title=\"" + title + "\" ";
+    }
+
+    btn += "onclick=\"" + onclick + "\">" + escHtml(enchName) + "</button> ";
+
+    return enchValue < 1 ? "" : btn;
+}
+
+function enchClickInherent(category, item, enchName, render = true) {
+    if (!(category in charData.selections.inherent)) { charData.selections.inherent[category] = {}; }
+    if (!(item in charData.selections.inherent[category])) { charData.selections.inherent[category][item] = new Set(); }
+
+    let set = charData.selections.inherent[category][item];
+    if (set.has(enchName)) { set.delete(enchName); } else { set.add(enchName); }
+
+    if (render) {
+        renderEnchantmentOptions();
+        renderResult();
+    }
 }
 
 function handleCategoryModeToggle(checkbox, category) {
@@ -530,7 +622,9 @@ function handleCategoryModeToggle(checkbox, category) {
         }
     } else {
         let custom = charData.customItems[category] || {name: "", augments: []};
-        if ((custom.name || custom.augments.length > 0) &&
+        let inherentSet = (charData.selections.inherent[category] || {})[customItemKey(category)];
+        let hasInherent = !!inherentSet && inherentSet.size > 0;
+        if ((custom.name || custom.augments.length > 0 || hasInherent) &&
             !confirm("Switch \"" + category + "\" back to Cannith crafting? This will discard the custom item" +
                 (custom.name ? " \"" + custom.name + "\"" : "") + ".")) {
             checkbox.checked = true;
@@ -542,6 +636,7 @@ function handleCategoryModeToggle(checkbox, category) {
         //   without this they'd sit invisibly in the selections store, still counted by
         //   computeSelectionIndex() and silently skewing duplicate warnings elsewhere.
         delete charData.selections.positional[customItemKey(category)];
+        delete charData.selections.inherent[category];
     }
 
     renderEnchantmentOptions();
@@ -745,6 +840,16 @@ function renderResult() {
         }
     }
 
+    for (let category of Object.keys(charData.selections.inherent)) {
+        for (let item of Object.keys(charData.selections.inherent[category])) {
+            for (let enchName of charData.selections.inherent[category][item]) {
+                charData.reportOut += "<tr><td>" + escHtml(item) + "</td><td>";
+                charData.reportOut += "Inherent</td><td>";
+                charData.reportOut += escHtml(enchName) + "</td></tr>";
+            }
+        }
+    }
+
     charData.reportOut += "</table>";
     document.getElementById("result").innerHTML = charData.reportOut;
 }
@@ -810,9 +915,14 @@ function updateSave() {
         }
     }
 
-    charData.saveFile.positional = positional;
-    charData.saveFile.inherent   = inherent;
-    charData.saveFile.collapsed  = {
+    charData.saveFile.positional   = positional;
+    charData.saveFile.inherent     = inherent;
+    // Custom item config has to be saved alongside its selections, not just the selections alone -
+    //   a "custom:Category" positional/inherent entry is meaningless without categoryMode/
+    //   customItems to make that category render in custom mode with the matching augment slots.
+    charData.saveFile.categoryMode = Object.assign({}, charData.categoryMode);
+    charData.saveFile.customItems  = JSON.parse(JSON.stringify(charData.customItems));
+    charData.saveFile.collapsed    = {
         item: Array.from(charData.collapsed.item),
         slot: Array.from(charData.collapsed.slot),
         color: Array.from(charData.collapsed.color)
@@ -887,6 +997,8 @@ function handleLoad(incomingFile) {
     // Need to start with a clean slate to avoid merging loaded data with whatever is on screen.
     charData.selections.positional = {};
     charData.selections.inherent   = {};
+    charData.categoryMode          = {};
+    charData.customItems           = {};
     charData.collapsed.item.clear();
     charData.collapsed.slot.clear();
     charData.collapsed.color.clear();
@@ -895,6 +1007,22 @@ function handleLoad(incomingFile) {
     handleRename(true);
     document.getElementById("characterLevel").value = incomingFile.charLevel;
     charData.saveFile.charLevel                     = incomingFile.charLevel;
+
+    // Custom item config restored BEFORE its selections below - a "custom:Category" positional/
+    //   inherent entry only renders anywhere if categoryMode/customItems already put that category
+    //   in custom mode with the matching augment slots; restoring selections first would leave them
+    //   orphaned in the store, invisible but still counted by computeSelectionIndex().
+    for (let category of Object.keys(incomingFile.categoryMode || {})) {
+        charData.categoryMode[category] = incomingFile.categoryMode[category];
+    }
+    for (let category of Object.keys(incomingFile.customItems || {})) {
+        let saved = incomingFile.customItems[category];
+        charData.customItems[category] = {
+            name: saved.name || "",
+            augments: (saved.augments || []).map(function (a) { return {id: a.id, color: a.color}; }),
+            nextAugmentId: saved.nextAugmentId || 1
+        };
+    }
 
     // Save format is not backward compatible with pre-rewrite files (version < 2.0) - the old
     //   format has no equivalent of a flat "enchantments" array to translate from; a save made

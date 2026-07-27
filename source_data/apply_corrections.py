@@ -135,15 +135,34 @@ left join (
     select itemOptionID, itemOptionSortOrder, itemOptionCategory, itemOptionItem, itemOptionSlot, augmentColor, itemOptionEnchantment from vAugmentOption
 ) combined
 on combined.itemOptionEnchantment = enchantment.enchName
-where combined.itemOptionSortOrder is not null
-  and (enchantment.dataStatus is null or enchantment.dataStatus <> 'questionable')
-order by combined.itemOptionSortOrder, combined.itemOptionSlot, combined.augmentColor, enchantment.enchSortOrder;
+where (enchantment.dataStatus is null or enchantment.dataStatus <> 'questionable')
+order by (combined.itemOptionSortOrder is null), combined.itemOptionSortOrder,
+    combined.itemOptionSlot, combined.augmentColor, enchantment.enchSortOrder;
 """)
 
 cur.execute("SELECT COUNT(*) FROM vAllEnchantment")
-print(f"vAllEnchantment after category split: {cur.fetchone()[0]} rows (expect 3827, unchanged)")
+row_count = cur.fetchone()[0]
+print(f"vAllEnchantment after category split: {row_count} rows "
+      f"(expect 3830 - 3827 bound rows, unchanged, plus 3 pre-existing enchantment rows with no "
+      f"itemOption binding at all, newly surfaced by removing vAllEnchantment's IS NOT NULL filter "
+      f"- see PHASE 3 note below)")
 cur.execute("SELECT itemOptionCategory, itemOptionItem FROM vAllEnchantment LIMIT 1")
 print("Sample row itemOptionCategory/itemOptionItem:", cur.fetchone())
+
+# Discovered while fixing the PHASE 3 export gap (removing the old WHERE combined.itemOptionSortOrder
+# IS NOT NULL filter below, which used to hide any enchantment row with zero itemOption bindings):
+# three enchantment rows already existed in the recovered data with no binding at all - Adamantine
+# (Armor), Mithril, and Insightful Skill (Use Magic Device). These were completely invisible in the
+# app before this session, unrelated to the Tourney Armor removal - just orphaned since whatever
+# process originally recovered this data. Left as-is (not removed, not bound to anything) - they're
+# real effect types, exactly the kind of thing the PHASE 3 inherent-effects picker needs to be able
+# to surface, so their newfound visibility is a fix, not a regression to chase down.
+cur.execute("""
+    SELECT enchName FROM enchantment
+    WHERE enchName NOT IN (SELECT itemOptionEnchantment FROM itemOption)
+      AND enchGroup <> 'Named Item'
+""")
+print("Pre-existing unbound enchantment rows (expect 3):", [r[0] for r in cur.fetchall()])
 
 # Now that itemOptionItem exists and distinguishes concrete items within a category, add the
 # correctly-scoped uniqueness: one row per (item, slot, enchantment) - not per (category, slot,
