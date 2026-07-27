@@ -12,7 +12,7 @@ body {
     margin: 2vw;
     /*background-image: url("../image/PubDomain_FadedRock.jpg");*/
     color: #f1f1f1;
-    background-color: black;
+    background-color: #0d0d0d;
 }
 
 h1 {
@@ -39,7 +39,7 @@ table {
 td {
     text-align: left;
     vertical-align: top;
-    border: 1px solid #333333;
+    border: 1px solid #2c2c2a;
     border-collapse: collapse;
     /*width: 1%;*/
     padding: .5vw;
@@ -284,15 +284,13 @@ td.options:hover {
 
 
 .selected {
-    background-color: #ddd;
-    color: #222;
+    background-color: #0ca30c;
+    color: #0b0b0b;
 }
 
-.handled, .blocked {
-    color: #555;
-    background-color: #222;
-    font-style: italic;
-    /*font-weight: lighter;*/
+.duplicate {
+    background-color: #d55181;
+    color: #0b0b0b;
 }
 
 .collapsed {
@@ -300,21 +298,27 @@ td.options:hover {
 }
 
 button {
-    color: #bbb;
-    background-color: #444;
+    color: #c3c2b7;
+    background-color: #1a1a19;
     font-size: calc(4px + .5vw);
 
 }
 
 button:hover:enabled {
-    background-color: #666;
+    background-color: #333333;
     cursor: pointer;
     text-shadow: -0.04ex 0 currentColor, 0.04ex 0 currentColor;
 }
 
 .selected:hover:enabled {
-    background-color: #fff;
-    color: #000;
+    background-color: #2ecc40;
+    color: #0b0b0b;
+    text-shadow: -0.04ex 0 currentColor, 0.04ex 0 currentColor;
+}
+
+.duplicate:hover:enabled {
+    background-color: #e17ba0;
+    color: #0b0b0b;
     text-shadow: -0.04ex 0 currentColor, 0.04ex 0 currentColor;
 }
 
@@ -323,6 +327,14 @@ button:disabled,
 button[disabled] {
     background-color: #222;
     color: #000;
+}
+
+/* Same specificity as button:disabled (element + one class/pseudo-class) - placed
+   after it so it wins the tie once these buttons stop carrying the disabled attribute. */
+button.handled, button.blocked {
+    color: #555;
+    background-color: #141413;
+    font-style: italic;
 }
 
 

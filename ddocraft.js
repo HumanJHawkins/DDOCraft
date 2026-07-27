@@ -142,6 +142,7 @@ function initEnchStates() {
         current.enchState.selected      = false;
         current.enchState.blocked       = false;
         current.enchState.handledBy     = -1;
+        current.enchState.duplicate     = false;
         current.enchState.newItemType   = current.itemOptionCategory !== last.itemOptionCategory;
         current.enchState.newSlot       = current.itemOptionSlot !== last.itemOptionSlot;
         current.enchState.isAugmentSlot = current.itemOptionSlot.substring(0, 3) === "Aug";
@@ -326,12 +327,17 @@ function getButton(ench) {
     let btn;
 
     if (charData.itemOptions[ench].enchState.selected) {
-        btn       = "<button class='selected' title='" + charData.itemOptions[ench].enchDesc + "' ";
+        let selectedClass = charData.itemOptions[ench].enchState.duplicate ? "duplicate" : "selected";
+        btn       = "<button class='" + selectedClass + "' title='" + charData.itemOptions[ench].enchDesc + "' ";
         enchValue = 1;  // Display all selected enchantments
     } else if (charData.itemOptions[ench].enchState.handledBy > -1) {
-        btn = "<button disabled class='handled' ";
+        // Discouraged, not disabled: the same effect is already selected elsewhere, but taking
+        //   it here too is allowed (see updateDuplicateStates()).
+        btn = "<button class='handled' title='" + charData.itemOptions[ench].enchDesc + "' ";
     } else if (charData.itemOptions[ench].enchState.blocked) {
-        btn = "<button disabled class='blocked' ";
+        // Discouraged, not disabled: only one effect may occupy this item+slot at a time, but
+        //   clicking a different one here swaps it in rather than being blocked (see enchClick()).
+        btn = "<button class='blocked' title='" + charData.itemOptions[ench].enchDesc + "' ";
     } else if (enchValue > 1) {
         btn = "<button style='background-color: " + getHighlight(enchValue) + "; color: black;' ";
         btn += "title='" + charData.itemOptions[ench].enchDesc + "' ";
@@ -346,18 +352,19 @@ function getButton(ench) {
 
 
 function getHighlight(num) {
-    // Set intensity of highlight color based on incoming value relative to max range of 20.
-    // Base color is #444 (68, 68, 68).
-    let midValue    = 68;
-    let maxVal      = 32;
-    let rAndGFactor = (255 - midValue) / maxVal;
-    let bFactor     = midValue / maxVal;
+    // Recommendation-strength tint: interpolates from a muted blue (#3987e5) to a
+    // bright blue (#cde2fb) as more active filters match this effect, relative to
+    // max range of 32. Black text (set by the caller) stays legible across the
+    // whole span - both endpoints clear 4.5:1.
+    let maxVal = 32;
+    let base   = [57, 135, 229];
+    let peak   = [205, 226, 251];
 
-    let rAndG = (num * rAndGFactor) + midValue;
-    let b     = midValue - (num * bFactor);
-    if (rAndG > 255) { rAndG = 255; }
-    if (b < 0) { b = 0; }
-    return rgb(rAndG, rAndG, b);
+    let t = Math.min(num / maxVal, 1);
+    let r = Math.round(base[0] + (peak[0] - base[0]) * t);
+    let g = Math.round(base[1] + (peak[1] - base[1]) * t);
+    let b = Math.round(base[2] + (peak[2] - base[2]) * t);
+    return rgb(r, g, b);
 }
 
 
@@ -404,8 +411,24 @@ function getEnchFilterValue(ench) {
 
 
 function enchClick(ench, render = true, toggleSelected = true) {
-    if(toggleSelected) {
-        charData.itemOptions[ench].enchState.selected = !charData.itemOptions[ench].enchState.selected;
+    if (toggleSelected) {
+        let selecting = !charData.itemOptions[ench].enchState.selected;
+
+        // Only one effect may be selected per item+slot at a time. Selecting a new one swaps
+        //   out whatever was selected here before (deselect then select), rather than blocking
+        //   the click - so changing your mind is one click instead of deselect-then-select.
+        if (selecting) {
+            for (let i = 0; i < charData.itemOptions.length; i++) {
+                if (i !== ench &&
+                    charData.itemOptions[i].itemOptionItem === charData.itemOptions[ench].itemOptionItem &&
+                    charData.itemOptions[i].itemOptionSlot === charData.itemOptions[ench].itemOptionSlot &&
+                    charData.itemOptions[i].enchState.selected) {
+                    enchClick(i, false, true);
+                }
+            }
+        }
+
+        charData.itemOptions[ench].enchState.selected = selecting;
     }
 
     for (let i = 0; i < charData.itemOptions.length; i++) {
@@ -425,20 +448,52 @@ function enchClick(ench, render = true, toggleSelected = true) {
                     charData.itemOptions[i].enchState.handledBy = -1;
                 }
             }
-
-            // If our enchantment state toggled, the blocked state of other
-            //   enchantments must also toggle.
-            if ((charData.itemOptions[i].itemOptionItem === charData.itemOptions[ench].itemOptionItem) &&
-                (charData.itemOptions[i].itemOptionSlot === charData.itemOptions[ench].itemOptionSlot) &&
-                (toggleSelected)) {
-                charData.itemOptions[i].enchState.blocked = !charData.itemOptions[i].enchState.blocked;
-            }
         }
     }
+
+    updateSlotBlockedStates(charData.itemOptions[ench].itemOptionItem, charData.itemOptions[ench].itemOptionSlot);
+    updateDuplicateStates(charData.itemOptions[ench].enchEffectType);
 
     if(render) {
         renderEnchantmentOptions();
         renderResult();
+    }
+}
+
+function updateSlotBlockedStates(itemOptionItem, itemOptionSlot) {
+    // Recomputed fresh on every click rather than toggled, so it can never drift out of sync
+    //   with actual selection state (unlike a toggle, which only stays correct if every
+    //   select/deselect that touches this slot toggles it exactly once).
+    let anySelected = false;
+    for (let i = 0; i < charData.itemOptions.length; i++) {
+        if (charData.itemOptions[i].itemOptionItem === itemOptionItem &&
+            charData.itemOptions[i].itemOptionSlot === itemOptionSlot &&
+            charData.itemOptions[i].enchState.selected) {
+            anySelected = true;
+            break;
+        }
+    }
+    for (let i = 0; i < charData.itemOptions.length; i++) {
+        if (charData.itemOptions[i].itemOptionItem === itemOptionItem &&
+            charData.itemOptions[i].itemOptionSlot === itemOptionSlot) {
+            charData.itemOptions[i].enchState.blocked = anySelected && !charData.itemOptions[i].enchState.selected;
+        }
+    }
+}
+
+function updateDuplicateStates(enchEffectType) {
+    // Duplicate is a warning, not a block: the same effect is allowed to be selected in more
+    //   than one place. Every selected row sharing this effect type is flagged together.
+    let selectedCount = 0;
+    for (let i = 0; i < charData.itemOptions.length; i++) {
+        if (charData.itemOptions[i].enchEffectType === enchEffectType && charData.itemOptions[i].enchState.selected) {
+            selectedCount++;
+        }
+    }
+    for (let i = 0; i < charData.itemOptions.length; i++) {
+        if (charData.itemOptions[i].enchEffectType === enchEffectType) {
+            charData.itemOptions[i].enchState.duplicate = charData.itemOptions[i].enchState.selected && selectedCount > 1;
+        }
     }
 }
 
@@ -544,7 +599,7 @@ function ItemOption(itemOptionItem, itemOptionSlot, enchName, enchEffectType, en
 
 function EnchState(newItemType, newSlot, newAugSlot, newAugColor, newEnchSet,
                    lastOfSet, lastOfColor, lastOfAugSlot, lastOfSlot, lastOfItemType, lastOfAll,
-                   selected, handledBy, blocked, isAugmentSlot, isExtraSlot) {
+                   selected, handledBy, blocked, duplicate, isAugmentSlot, isExtraSlot) {
     this.newItemType = newItemType;
     this.newSlot     = newSlot;
     this.newAugSlot  = newAugSlot;
@@ -559,8 +614,9 @@ function EnchState(newItemType, newSlot, newAugSlot, newAugColor, newEnchSet,
     this.lastOfAll      = lastOfAll;
 
     this.selected  = selected;          // In use.
-    this.handledBy = handledBy;         // Non-stacking enchant already handled.
+    this.handledBy = handledBy;         // Non-stacking enchant already handled elsewhere - discouraged, still clickable.
     this.blocked   = blocked;           // Slot already in use, so unavailable
+    this.duplicate = duplicate;         // In use, and the same effect is also selected elsewhere.
 
     this.isAugmentSlot = isAugmentSlot;
     this.isExtraSlot   = isExtraSlot;
@@ -685,6 +741,7 @@ function handleLoad(incomingFile) {
         charData.itemOptions[i].enchState.selected = false;
         charData.itemOptions[i].enchState.blocked = false;
         charData.itemOptions[i].enchState.handledBy = -1;
+        charData.itemOptions[i].enchState.duplicate = false;
         charData.itemOptions[i].enchState.collapsed = 0;
     }
 
