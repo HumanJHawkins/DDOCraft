@@ -1,5 +1,7 @@
 // TO DO:
 // Do a better job of highlighting collapsed items? (Standard chevrons?)
+// Examine and clean up the 12 excluded/flagged data-discrepancy rows (see PHASE 1 below) - very
+//   low priority, current dataset is believed correct, but it should stay on the list to check.
 
 // TO DO: Full staged plan, three merged streams (SQLite migration, render/state architecture
 //   rewrite, named item feature). One continuous numbering - delete each step as it's completed,
@@ -13,65 +15,111 @@
 // TEST (done, 2026-07-27): ddocraft.json is now generated FROM equipDDO.sqlite
 //   (source_data/export_ddocraft_json.py, still the old flat/duplicated shape - this was a
 //   narrow test of "does the app work correctly sourced from the new data" without doing any of
-//   Phase 2's rendering/state rewrite. renderEnchantmentOptions() and everything else in this
-//   file is completely unchanged. The old hand-patched flat file is preserved in
+//   Phase 2's rendering/state rewrite. The old hand-patched flat file is preserved in
 //   obsolete/ddocraft_hand-patched-flat-file_last-version-2026-07-27.json for reference; nobody
 //   should hand-edit ddocraft.json again, ever - edit equipDDO.sqlite and re-run build_db.py ->
-//   apply_corrections.py -> export_ddocraft_json.py instead. Confirmed via full browser test
-//   suite: rendering, cross-item stacking, enchSupercededBy, category dropdown tracking,
-//   collapse, and the 12 questionable rows now genuinely excluded from the live app for the
-//   first time (they were flagged in the database in Phase 1 but never actually reached the
-//   deployed file until this). Phase 2 below (two normalized files, client-side join, the
-//   real render/state rewrite) is still fully ahead - this test deliberately did not touch any
-//   of that, per instruction not to implement it as part of this narrower experiment.
+//   apply_corrections.py -> export_ddocraft_json.py instead.
 
-// PHASE 2: New client-side data + rendering architecture. Replaces the dense nested-loop /
-//   precomputed-boundary-flag render model and per-row mutable selection state, since building
-//   a new client-side loader (needed regardless, to consume the normalized export) is the
-//   natural point to also stop reconstructing the old flat-with-flags shape at all. This is the
-//   big, substantial-rewrite phase - do it in checked, individually-verified steps, not one leap.
-//
-// 1. Export two normalized JSON files from equipDDO.sqlite (enchantment.json, itemOption.json)
-//    instead of one flattened file - smaller payload, no duplication, matches the real schema.
-// 2. Build the client-side loader: parse the two files and build a nested lookup structure once
-//    at load (category -> item -> slot -> color -> enchantments), replacing initEnchStates()'s
-//    flat-array boundary-flag computation entirely.
-// 3. Introduce a compact, separate "selections" store (what's been picked, keyed by
-//    category/item/slot/color) instead of mutating enchState directly on every one of the
-//    ~4000+ catalog rows. Selection state and catalog data stop being the same object.
-// 4. Rewrite renderEnchantmentOptions() as a data-driven walk over the nested structure. For
-//    each candidate: selected at this exact position shows selected; the same enchEffectType
-//    (or enchSupercededBy target) found anywhere else in the selections store shows disabled/
-//    handled; the same item+slot occupied by something else shows disabled/blocked; otherwise
-//    normal, highlighted by filter weight.
-// 5. Rewrite click handling to mutate the selections store (add/remove one entry) instead of
-//    scanning and flagging the whole catalog on every click.
-// 6. Rewrite the three-level collapse mechanism (item/slot/color) against the new walk.
-// 7. Rewrite save/load to read/write the selections store directly - dovetails with the
-//    "just the facts, tolerant of catalog drift" save format already agreed on.
-// 8. Re-verify every previously-validated behavior against the new architecture: rendering,
-//    global stacking, enchSupercededBy, category dropdown, Tourney Armor, min-level gating,
-//    filter highlighting, save/load round-trip.
-// 9. Commit the export script, the two JSON files, and the rewritten ddocraft.js. Decide
-//    whether the transitional CSVs/scratch scripts in source_data/ stay as a historical
-//    snapshot or get removed once the database is verified solid.
+// DONE (2026-07-27): Duplicate-effect handling redesigned from "block the second selection" to
+//   "allow it, flag it" - selecting an effect already selected elsewhere no longer disables the
+//   click; both instances render as a warning (rose "duplicate") instead of plain selected
+//   (green), since a redundant effect is sometimes worth the dead weight to also get a named
+//   item's other unique effect. New button-state palette (dark theme, WCAG-checked): green
+//   selected, rose duplicate warning, muted "discouraged" for an effect taken elsewhere or a slot
+//   already occupied (clickable now, not disabled), blue gradient for filter-recommended effects
+//   (suppressed once anything is selected for that effect, anywhere). Clicking a different effect
+//   in an occupied slot now swaps it in directly instead of being blocked. Committed in ebaba8b.
 
-// PHASE 3: Named item feature completion - simpler on the new architecture, since swapping which
-//   item's rows appear for a category becomes a walk decision, not a boundary-flag patch.
+// PIVOT (2026-07-27): The named-item plan changed from "hand-curate ~10-20 popular items as data"
+//   to "let the user define any named/custom item at point of use" - full replacement, not a
+//   hybrid. A named/custom item decomposes into two independently-rendered pieces: real augment
+//   slots (identical to Cannith augment rendering - color-eligibility rules are UNCHANGED) and a
+//   flat, unscoped pool of inherent/fixed effects (no slot, no mutual exclusivity - deliberately
+//   NOT filtered by category, since a named item's whole appeal can be an effect normal Cannith
+//   crafting could never produce for that category). Both pieces become ordinary entries in the
+//   same selections/duplicate system - nothing about them is locked or non-removable.
+
+// FUTURE (2026-07-27): Longer-term direction is a real backend - Postgres + Node.js, likely on
+//   the same infrastructure being consolidated for GateIron. Motivation beyond "it's a better
+//   architecture": crowd-sourced named-item data-mining (if several unrelated users independently
+//   enter the same effect set for a named item, that agreement is itself evidence, and can seed a
+//   prepopulated dropdown without hand-curation) and real user accounts/saved characters/builds -
+//   none of which are possible with a static-file client. Not started; schema will be designed
+//   directly in Postgres when that begins, rather than continuing to normalize equipDDO.sqlite
+//   further (PHASE 2 steps 1-2 below are effectively superseded by this, not abandoned - the
+//   relational design work still needs doing, just against Postgres instead of SQLite). The
+//   client-side rewrite below does NOT wait on this: it's built against the existing ddocraft.json
+//   with the loading step isolated, specifically so the eventual swap to a live API is a small,
+//   contained change instead of another full rewrite.
+
+// DONE (2026-07-27): PHASE 2 steps 3-9 (client-side render/state rewrite) complete, against the
+//   existing ddocraft.json (steps 1-2, normalizing the export itself, deferred - see FUTURE note).
+//   loadEnchantmentOptions() now builds two structures once at load: charData.enchantments (one
+//   deduped record per enchantment, keyed by name) and charData.catalog (category -> item -> slot
+//   -> color -> ordered list of candidate enchantment names), replacing initEnchStates()'s flat-
+//   array boundary-flag computation entirely. A new charData.selections store (positional, keyed
+//   by item/slot: what occupies this exact slot right now; inherent, keyed by category/item: a
+//   set of fixed effects with no slot - reserved, unused until named/custom items land) replaced
+//   per-row enchState mutation - selection state and catalog data are no longer the same object.
+//   renderEnchantmentOptions()/getButton() are now a data-driven walk over categories, computing
+//   selected/duplicate/discouraged-but-clickable/blocked/gradient fresh from the selections store
+//   on every render via one pass (computeSelectionIndex()) instead of scanning ~4000+ rows.
+//   enchClick() collapsed to a handful of lines: since a slot's occupant is a single dict entry,
+//   "swap" is just overwriting it - no more explicit deselect-then-select loop, and no more
+//   toggled "blocked" flag to drift out of sync (blocked/duplicate/handled are recomputed, never
+//   stored). Collapse state moved from a per-row scalar to three explicit key sets (item/slot/
+//   color), toggled directly instead of via boundary-relative priority rules. Save/load rewritten
+//   against the selections store directly (version bumped to 2.0 - NOT backward compatible with
+//   older save files; explicitly not carrying forward the old format's 3-branch legacy parsing,
+//   flagged here rather than silently dropped). Verified in-browser: rendering, cross-item
+//   duplicate warning and revert, same-slot swap (including while the outgoing selection was
+//   itself a duplicate elsewhere), three-level collapse, filter gradient, level-gating confirm
+//   dialog, save/load round-trip, category dropdown (still cosmetic-only pending PHASE 3 step 11).
+
+// PHASE 2 (remaining): schema/export normalization - see FUTURE note above; likely superseded by
+//   a Postgres schema rather than continued SQLite work.
 //
-// 10. Wire the category dropdown to actually swap which item's rows render for that category.
-// 11. Magnitude/description lookup table, keyed by Character Level and itemOptionItem; migrate
+// 1. Normalize the schema: an item-category table, and a Cannith-options linking table (category
+//    + slot + color -> effect) so "is Sheltering a valid Helm/Prefix option" is explicit
+//    relational data, not implied by row presence in a flat table. Augment color-eligibility
+//    rules must keep behaving exactly as they do today.
+// 2. Export normalized JSON (or a live API, if the Postgres backend is underway by then) instead
+//    of one flattened file - charData.enchantments/charData.catalog's *shape* doesn't change,
+//    only loadEnchantmentOptions()'s fetch mechanism does.
+
+// PHASE 3: Named/Custom item feature, built on the new architecture (see PIVOT note above).
+//
+// 3. Replace the Cannith-vs-named-item dropdown with a "Named or Custom Item" toggle per
+//    category. Off = existing Cannith rendering, unchanged. On = name field + inline augment
+//    editor.
+// 4. Inline augment editor: a "+ Add Augment" control (color picker) in the category header bar;
+//    each added slot gets a "-" remove control in its own slot-name cell; each slot renders the
+//    full color-eligible option grid exactly like a normal augment slot (no new rendering logic
+//    - same machinery as Cannith augments). Cap at 7 slots. Each slot needs a stable ID, not a
+//    positional index, so removing one doesn't renumber/orphan the others.
+// 5. Universal inherent-effects picker: one unscoped multiselect over every enchantment in the
+//    master table (not filtered by category - see PIVOT note). No slot, no mutual exclusivity
+//    between choices; relies on browser search for usability at scale, same as today's ~1500-row
+//    lists. Feeds charData.selections.inherent - ordinary selected/duplicate rules apply via the
+//    same computeSelectionIndex() pass, nothing locked or non-removable.
+// 6. Open question to resolve before/during step 5: does the current enchantment schema
+//    accommodate intrinsic body-type properties (e.g. Mithril, Superior Nimbleness)? Already
+//    answered for the general case - the legacy Tourney Armor data (enchGroup='Named Item')
+//    proves the pattern works - but re-check once that legacy data is removed (see step 8).
+// 7. Toggling Named/Custom on for a category fully replaces that category's Cannith rows while
+//    active (hidden, not blacked out).
+// 8. Remove the legacy Tourney Armor / "Named Item Effects" rows from the dataset - under the new
+//    plan the app has no knowledge of any specific named item, so this per-item curated data is
+//    pure dead weight, not a reference worth keeping.
+// 9. Confirm-before-clearing when turning Named/Custom off, or when changing the name/augment
+//    config, since either would discard configured slots and inherent-effect selections.
+// 10. Magnitude/description lookup table, keyed by Character Level and itemOptionItem; migrate
 //     description display to pull from it instead of a static enchDesc.
-// 12. Cannith's "left behind" treatment (blacked out vs. hidden) when a named item is active for
-//     that category.
-// 13. Auto-select the named item's fixed effects as locked/non-removable entries in the
-//     selections store, rendered non-clickable.
-// 14. Cross-item conflict-detection warning (yellow bar) - scan the selections store for
-//     duplicate enchEffectTypes; informational, not blocking, since named items can make a
-//     redundant effect worth taking anyway.
-// 15. Persist the selections store and per-category choice in the save file.
-// 16. Confirm-before-clearing when switching a category's dropdown away from a populated choice.
-// 17. Bring in the real, much larger named-item dataset via the SQLite/CSV pipeline.
+// 11. Persist the custom item definition (name, augment config, chosen inherent effects) and
+//     per-category toggle state in the save file.
+// 12. (Future, explicitly out of scope for this phase) Optional prepopulated dropdown of popular
+//     named items layered on top of the custom-item mechanism, for convenience - full manual
+//     entry is the complete solution for now.
 
 let dialogPreferences;
 let buttonPreferences;
@@ -86,15 +134,47 @@ let buttonCloseAbout;
 let extraSlotMinLevel = 10;
 
 let charData = {
-    itemOptions: {}, enchFilter: {allEnch: true}, reportOut: "", categoryChoice: {},
-    saveFile: { version: 1.3, dirty: false, charName: "", charLevel: 36, enchantments:[] }
+    // enchantments[enchName] = { enchName, enchEffectType, enchDesc, enchSupercededBy,
+    //   enchCannithMinLevel, enchAugmentMinLevel, allEnch, basic, nonscaling, for<Role>... }
+    enchantments: {},
+
+    // catalog[category][item][slot][color] = [enchName, ...] in catalog order. color is "" for
+    //   non-augment slots (matches the source data's own convention).
+    catalog: {},
+
+    // Stable category walk order (first-appearance order in the source data).
+    categoryOrder: [],
+
+    // What's actually been picked - the single source of truth for rendering state. Catalog data
+    //   above never mutates once loaded.
+    selections: {
+        // positional[item][slot] = { enchName, color } - one occupant per item+slot, spanning all
+        //   colors of that slot (matches the real-world "one augment per slot" constraint).
+        positional: {},
+        // inherent[category][item] = Set(enchName) - fixed effects with no slot. Reserved for
+        //   PHASE 3 named/custom items; unused and unreachable through the UI until then.
+        inherent: {}
+    },
+
+    // Three independent collapse levels, each a Set of path keys. A collapsed node's children are
+    //   simply never walked, so there's no need to encode a single per-row priority scalar - a
+    //   node is exactly as collapsed as whichever of these sets contains its key.
+    collapsed: {
+        item: new Set(),   // key: category
+        slot: new Set(),   // key: item|slot
+        color: new Set()   // key: item|slot|color
+    },
+
+    enchFilter: {allEnch: true},
+    reportOut: "",
+    categoryChoice: {},
+    saveFile: {version: 2.0, dirty: false, charName: "", charLevel: 36, positional: [], inherent: [], collapsed: {item: [], slot: [], color: []}}
 };
 
 initialize();
 
 function initialize() {
     loadEnchantmentOptions();
-    initEnchStates();
     initCategoryChoice();
     initFilter();
     dialogPreferences      = document.getElementById('preferences');
@@ -114,11 +194,15 @@ function initialize() {
 }
 
 function loadEnchantmentOptions() {
-    // WARNING: Requires JSON file ordered by item then slot.
+    // WARNING: Requires JSON file ordered by category then item then slot then color.
+    // This is the one function that knows about the flat/duplicated ddocraft.json shape - the
+    //   rest of the app only ever sees charData.enchantments / charData.catalog. Swapping this
+    //   for a live API later (normalized export or Postgres-backed) means rewriting this function
+    //   only, as long as it still produces the same two structures.
     let itemOptionsRequest                = new XMLHttpRequest();
     itemOptionsRequest.onreadystatechange = function () {
         if (this.readyState === 4 && this.status === 200) {
-            charData.itemOptions = JSON.parse(this.responseText);
+            buildCatalog(JSON.parse(this.responseText));
         }
     };
 
@@ -127,58 +211,59 @@ function loadEnchantmentOptions() {
     itemOptionsRequest.send();
 }
 
-function initEnchStates() {
-    let current, next;
-    let last = new ItemOption("", "", "", "", "", "");
-    for (let i = 0; i < charData.itemOptions.length; i++) {
-        current = charData.itemOptions[i];
-        if (i > 0) { last = charData.itemOptions[i - 1]; }
-        if (i < charData.itemOptions.length - 1) { next = charData.itemOptions[i + 1]; }
-        else { next = new ItemOption("", "", "", "", "", ""); }
+function buildCatalog(flatRows) {
+    for (let row of flatRows) {
+        if (!(row.enchName in charData.enchantments)) {
+            charData.enchantments[row.enchName] = {
+                enchName: row.enchName,
+                enchEffectType: row.enchEffectType,
+                enchDesc: row.enchDesc,
+                enchSupercededBy: row.enchSupercededBy,
+                enchCannithMinLevel: row.enchCannithMinLevel,
+                enchAugmentMinLevel: row.enchAugmentMinLevel,
+                allEnch: row.allEnch, basic: row.basic, nonscaling: row.nonscaling,
+                forMeleeDmg: row.forMeleeDmg, forRangedDmg: row.forRangedDmg,
+                forACDefence: row.forACDefence, forResistDefence: row.forResistDefence,
+                forHitPoints: row.forHitPoints, forAlchemist: row.forAlchemist,
+                forArtificer: row.forArtificer, forBarbarian: row.forBarbarian,
+                forBard: row.forBard, forCleric: row.forCleric, forDruid: row.forDruid,
+                forFavoredSoul: row.forFavoredSoul, forFighter: row.forFighter,
+                forMonk: row.forMonk, forPaladin: row.forPaladin, forRanger: row.forRanger,
+                forRogue: row.forRogue, forSorcerer: row.forSorcerer, forWarlock: row.forWarlock,
+                forWizard: row.forWizard
+            };
+        }
 
-        current.enchState               = new EnchState();
-        current.enchNum                 = i;
-        current.enchState.collapsed     = 0;   //  0 == Not. 1 == Color. 2 == slot. 3 == Item
-        current.enchState.selected      = false;
-        current.enchState.blocked       = false;
-        current.enchState.handledBy     = -1;
-        current.enchState.duplicate     = false;
-        current.enchState.newItemType   = current.itemOptionCategory !== last.itemOptionCategory;
-        current.enchState.newSlot       = current.itemOptionSlot !== last.itemOptionSlot;
-        current.enchState.isAugmentSlot = current.itemOptionSlot.substring(0, 3) === "Aug";
-        current.enchState.newAugSlot    = current.enchState.newSlot && current.enchState.isAugmentSlot;
+        let category = row.itemOptionCategory, item = row.itemOptionItem,
+            slot = row.itemOptionSlot, color = row.augmentColor || "";
 
-        // For newAugColor, it is a new color (instance) if the color is in a new augment slot, even if the
-        //   actual color is the same.
-        current.enchState.newAugColor = current.enchState.isAugmentSlot && current.augmentColor !== last.augmentColor
-            || current.enchState.isAugmentSlot && current.enchState.newAugSlot;
-
-        current.enchState.isExtraSlot = current.itemOptionSlot.substring(0, 3) === "Ext";
-
-        current.enchState.newEnchSet     = current.enchState.newAugColor || current.enchState.newSlot;
-        current.enchState.lastOfSet      = current.augmentColor !== next.augmentColor || current.itemOptionSlot !== next.itemOptionSlot;
-        current.enchState.lastOfColor    = current.enchState.isAugmentSlot && current.augmentColor !== next.augmentColor;
-        current.enchState.lastOfAugSlot  = current.enchState.isAugmentSlot && current.itemOptionSlot !== next.itemOptionSlot;
-        current.enchState.lastOfSlot     = current.itemOptionSlot !== next.itemOptionSlot;
-        current.enchState.lastOfItemType = current.itemOptionCategory !== next.itemOptionCategory;
-        current.enchState.lastOfAll      = i === charData.itemOptions.length - 1;
+        if (!(category in charData.catalog)) {
+            charData.catalog[category] = {};
+            charData.categoryOrder.push(category);
+        }
+        if (!(item in charData.catalog[category])) { charData.catalog[category][item] = {}; }
+        if (!(slot in charData.catalog[category][item])) { charData.catalog[category][item][slot] = {}; }
+        if (!(color in charData.catalog[category][item][slot])) { charData.catalog[category][item][slot][color] = []; }
+        charData.catalog[category][item][slot][color].push(row.enchName);
     }
 }
 
 function initCategoryChoice() {
-    // Defaults every category to its Cannith-sourced itemOptionItem. Tracked separately from any
-    //   rendering/selection state so it can be wired up incrementally.
-    for (let i = 0; i < charData.itemOptions.length; i++) {
-        let category = charData.itemOptions[i].itemOptionCategory;
-        if (!(category in charData.categoryChoice) && charData.itemOptions[i].itemOptionItem.startsWith("Cannith ")) {
-            charData.categoryChoice[category] = charData.itemOptions[i].itemOptionItem;
+    // Defaults every category to its Cannith-sourced item. Tracked separately from selection
+    //   state so PHASE 3 can extend it to a "Named or Custom" toggle without disturbing this.
+    for (let category of charData.categoryOrder) {
+        for (let item of Object.keys(charData.catalog[category])) {
+            if (item.startsWith("Cannith ")) {
+                charData.categoryChoice[category] = item;
+                break;
+            }
         }
     }
 }
 
 function handleCategoryChange(selectElement, category) {
     charData.categoryChoice[category] = selectElement.value;
-    // Not yet wired to affect rendering or selection - see TO DO step 6.
+    // Cosmetic only until PHASE 3 step 3 wires this to actually swap rendered rows.
 }
 
 function initFilter() {
@@ -208,148 +293,189 @@ function initFilter() {
     charData.enchFilter['forWizard']        = document.getElementById('forWizard').checked;
 }
 
+// ---- Selections store accessors ----
 
-function renderEnchantmentOptions() {
-    let html = "";
-    for (let i = 0; i < charData.itemOptions.length; i++) {
-        if (charData.itemOptions[i].enchState.newItemType) {
-            if (charData.itemOptions[i].enchState.collapsed === 3) {
-                html += "<table><caption class='itemheader collapsed' onclick='toggleCollapsed(" + i + ", 3)'>&#9655; " +
-                    charData.itemOptions[i].itemOptionCategory + "</caption>";
-                i = getLastOfItem(i);
-                continue;
-            } else {
-                html += "<table><caption class='itemheader' onclick='toggleCollapsed(" + i + ", 3)'>&#9661; " +
-                    charData.itemOptions[i].itemOptionCategory + " " +
-                    getCategoryDropdownHtml(charData.itemOptions[i].itemOptionCategory) + "</caption>";
-            }
-        }
+function getOccupant(item, slot) {
+    return (charData.selections.positional[item] || {})[slot];
+}
 
-        if (charData.itemOptions[i].enchState.newSlot) {
-            if (charData.itemOptions[i].enchState.collapsed === 2) {
-                html += "<tr class='collapsed'><td class='slot' onclick='toggleCollapsed(" + i + ", 2)'>" + charData.itemOptions[i].itemOptionSlot + "<td>&nbsp;</td></tr>";
-                i = getLastOfSlot(i);
-                continue;
-            } else {
-                html += "<tr><td class='slot' onclick='toggleCollapsed(" + i + ", 2)'>" + charData.itemOptions[i].itemOptionSlot + "</td><td class='options'>";
-            }
-        }
+function setOccupant(item, slot, enchName, color) {
+    if (!(item in charData.selections.positional)) { charData.selections.positional[item] = {}; }
+    charData.selections.positional[item][slot] = {enchName: enchName, color: color};
+}
 
-        // if (charData.itemOptions[i].enchState.newAugSlot) {
-        //     html += "<div class='augment'> ";                   // Not currently used
-        // }
+function clearOccupant(item, slot) {
+    if (charData.selections.positional[item]) { delete charData.selections.positional[item][slot]; }
+}
 
-        if (charData.itemOptions[i].enchState.newAugColor) {
-            if (charData.itemOptions[i].enchState.collapsed === 1) {
-                html += " <div class='color collapsed' onclick='toggleCollapsed(" + i + ", 1)'>&nbsp" + charData.itemOptions[i].augmentColor + "&nbsp;</div>&nbsp;";
-                i = getLastOfColor(i);
-                continue;
-            } else {
-                if (i > 1 && charData.itemOptions[i - 1].enchState.lastOfColor && !charData.itemOptions[i - 1].enchState.lastOfSlot) { html += "<br />" }
-                html += " <div class='color' onclick='toggleCollapsed(" + i + ", 1)'>&nbsp;" + charData.itemOptions[i].augmentColor + ":</div>&nbsp;";
-            }
-        }
+// One pass over current selections, computing everything getButton() needs to decide every
+//   candidate's appearance without re-scanning the selections store per-button.
+function computeSelectionIndex() {
+    let effectTypeCounts   = {};   // enchEffectType -> how many selections share it
+    let selectedNamesByItem = {};  // item -> Set(enchName) - for enchSupercededBy wildcard matches
 
-        if (charData.itemOptions[i].enchState.newEnchSet) {
-            html += "<div class='ench'> ";
-        }
-
-        // Skip enchantments that are over-level.
-        if (charData.itemOptions[i].enchState.collapsed) {
-            continue;
-        } else {
-            if ((!charData.itemOptions[i].enchState.isAugmentSlot && charData.saveFile.charLevel >= charData.itemOptions[i].enchCannithMinLevel)
-                || charData.itemOptions[i].enchState.isAugmentSlot && charData.saveFile.charLevel >= charData.itemOptions[i].enchAugmentMinLevel) {
-                html += getButton(i);
-            }
-        }
-
-        if (charData.itemOptions[i].enchState.lastOfSet) {
-            html += "</div><!-- Last of section -->";
-        }
-
-
-        if (charData.itemOptions[i].enchState.lastOfColor) {
-            html += "</div><!-- Last of augment color -->";
-        }
-
-        // if (charData.itemOptions[i].enchState.lastOfAugSlot) {
-        //     html += "</div><!-- Last of augment slot -->";      // Not currently used.
-        // }
-
-        if (charData.itemOptions[i].enchState.lastOfSlot) {
-            html += "</td></tr><!-- Last of item slot -->";
-
-            // Skip "Extra" slot when it is over-level.
-            if (i + 1 < charData.itemOptions.length && charData.itemOptions[i + 1].enchState.isExtraSlot && charData.saveFile.charLevel < extraSlotMinLevel) {
-                html += "</table><!-- Last of item type -->";   // Because the Extra slot is always last.
-
-                do {
-                    i++;
-                } while (i + 1 < charData.itemOptions.length && charData.itemOptions[i + 1].enchState.isExtraSlot);
-                continue;
-            }
-        }
-
-        if (charData.itemOptions[i].enchState.lastOfItemType) {
-            html += "</table><!-- Last of item type -->";
-        }
-
+    function account(item, enchName) {
+        let ench = charData.enchantments[enchName];
+        if (!ench) { return; }
+        effectTypeCounts[ench.enchEffectType] = (effectTypeCounts[ench.enchEffectType] || 0) + 1;
+        if (!(item in selectedNamesByItem)) { selectedNamesByItem[item] = new Set(); }
+        selectedNamesByItem[item].add(enchName);
     }
 
-    // console.log(html);
-    document.getElementById("enchantmentOptions").innerHTML = html;
+    for (let item of Object.keys(charData.selections.positional)) {
+        for (let slot of Object.keys(charData.selections.positional[item])) {
+            account(item, charData.selections.positional[item][slot].enchName);
+        }
+    }
+    for (let category of Object.keys(charData.selections.inherent)) {
+        for (let item of Object.keys(charData.selections.inherent[category])) {
+            for (let enchName of charData.selections.inherent[category][item]) {
+                account(item, enchName);
+            }
+        }
+    }
 
-    // console.log(charData.enchFilter);
+    return {effectTypeCounts: effectTypeCounts, selectedNamesByItem: selectedNamesByItem};
+}
+
+function renderEnchantmentOptions() {
+    let idx  = computeSelectionIndex();
+    let html = "";
+
+    for (let category of charData.categoryOrder) {
+        let item = charData.categoryChoice[category];
+        if (!item) { continue; }
+        let itemNode = charData.catalog[category][item];
+
+        if (charData.collapsed.item.has(category)) {
+            html += "<table><caption class='itemheader collapsed' onclick=\"toggleCollapsed('item','" +
+                escJs(category) + "')\">&#9655; " + escHtml(category) + "</caption></table>";
+            continue;
+        }
+
+        html += "<table><caption class='itemheader' onclick=\"toggleCollapsed('item','" + escJs(category) +
+            "')\">&#9661; " + escHtml(category) + " " + getCategoryDropdownHtml(category) + "</caption>";
+
+        for (let slot of Object.keys(itemNode)) {
+            if (slot === "Extra" && charData.saveFile.charLevel < extraSlotMinLevel) { continue; }
+
+            let slotKey = item + "|" + slot;
+            if (charData.collapsed.slot.has(slotKey)) {
+                html += "<tr class='collapsed'><td class='slot' onclick=\"toggleCollapsed('slot','" +
+                    escJs(slotKey) + "')\">" + escHtml(slot) + "<td>&nbsp;</td></tr>";
+                continue;
+            }
+
+            html += "<tr><td class='slot' onclick=\"toggleCollapsed('slot','" + escJs(slotKey) +
+                "')\">" + escHtml(slot) + "</td><td class='options'>";
+
+            let isAugment = slot.substring(0, 3) === "Aug";
+            let colors    = Object.keys(itemNode[slot]);
+            for (let c = 0; c < colors.length; c++) {
+                let color    = colors[c];
+                let colorKey = slotKey + "|" + color;
+
+                if (isAugment) {
+                    if (c > 0) { html += "<br />"; }
+                    if (charData.collapsed.color.has(colorKey)) {
+                        html += "<div class='color collapsed' onclick=\"toggleCollapsed('color','" +
+                            escJs(colorKey) + "')\">&nbsp;" + escHtml(color) + "&nbsp;</div>&nbsp;";
+                        continue;
+                    }
+                    html += "<div class='color' onclick=\"toggleCollapsed('color','" + escJs(colorKey) +
+                        "')\">&nbsp;" + escHtml(color) + ":</div>&nbsp;";
+                }
+
+                html += "<div class='ench'> ";
+                for (let enchName of itemNode[slot][color]) {
+                    html += getButton(item, slot, color, enchName, idx);
+                }
+                html += "</div>";
+            }
+
+            html += "</td></tr>";
+        }
+
+        html += "</table>";
+    }
+
+    document.getElementById("enchantmentOptions").innerHTML = html;
 }
 
 function getCategoryDropdownHtml(category) {
-    // Selection is tracked in charData.categoryChoice, but doesn't yet affect rendering or
-    //   selection state - see TO DO step 6.
-    let items = [];
-    for (let i = 0; i < charData.itemOptions.length; i++) {
-        if (charData.itemOptions[i].itemOptionCategory === category && !items.includes(charData.itemOptions[i].itemOptionItem)) {
-            items.push(charData.itemOptions[i].itemOptionItem);
-        }
-    }
+    // Selection is tracked in charData.categoryChoice, but doesn't yet affect rendering beyond
+    //   which item's rows are walked above - see PHASE 3 step 3.
+    let items = Object.keys(charData.catalog[category]);
 
-    let html = "<select class='categorySelect' onclick='event.stopPropagation()' onchange='handleCategoryChange(this, \"" + category + "\")'>";
+    let html = "<select class='categorySelect' onclick='event.stopPropagation()' onchange=\"handleCategoryChange(this, '" +
+        escJs(category) + "')\">";
     for (let item of items) {
         let selected = item === charData.categoryChoice[category] ? " selected" : "";
-        html += "<option value='" + item + "'" + selected + ">" + item + "</option>";
+        html += "<option value=\"" + escHtml(item) + "\"" + selected + ">" + escHtml(item) + "</option>";
     }
     html += "</select>";
     return html;
 }
 
-function getButton(ench) {
-    let enchValue = getEnchFilterValue(ench);
+function getButton(item, slot, color, enchName, idx) {
+    let ench = charData.enchantments[enchName];
+    let isAugment = slot.substring(0, 3) === "Aug";
+    let minLevel  = isAugment ? ench.enchAugmentMinLevel : ench.enchCannithMinLevel;
+    if (charData.saveFile.charLevel < minLevel) { return ""; }
+
+    let enchValue = getEnchFilterValue(enchName);
+
+    let occupant      = getOccupant(item, slot);
+    let isSelectedHere = !!occupant && occupant.enchName === enchName && occupant.color === color;
+    let isBlocked      = !!occupant && !isSelectedHere;
+    let effectCount    = idx.effectTypeCounts[ench.enchEffectType] || 0;
+    let isDuplicate    = isSelectedHere && effectCount > 1;
+    let isHandled      = !isSelectedHere && !isBlocked && (
+        effectCount > 0 ||
+        (idx.selectedNamesByItem[item] && idx.selectedNamesByItem[item].has(ench.enchSupercededBy))
+    );
+
+    let onclick = "enchClick('" + escJs(item) + "','" + escJs(slot) + "','" + escJs(color) + "','" + escJs(enchName) + "')";
+    let title   = escHtml(ench.enchDesc);
     let btn;
 
-    if (charData.itemOptions[ench].enchState.selected) {
-        let selectedClass = charData.itemOptions[ench].enchState.duplicate ? "duplicate" : "selected";
-        btn       = "<button class='" + selectedClass + "' title='" + charData.itemOptions[ench].enchDesc + "' ";
-        enchValue = 1;  // Display all selected enchantments
-    } else if (charData.itemOptions[ench].enchState.handledBy > -1) {
+    if (isSelectedHere) {
+        btn = "<button class='" + (isDuplicate ? "duplicate" : "selected") + "' title=\"" + title + "\" ";
+        enchValue = 1;  // Display all selected enchantments regardless of filter.
+    } else if (isHandled) {
         // Discouraged, not disabled: the same effect is already selected elsewhere, but taking
-        //   it here too is allowed (see updateDuplicateStates()).
-        btn = "<button class='handled' title='" + charData.itemOptions[ench].enchDesc + "' ";
-    } else if (charData.itemOptions[ench].enchState.blocked) {
+        //   it here too is allowed (see computeSelectionIndex()).
+        btn = "<button class='handled' title=\"" + title + "\" ";
+    } else if (isBlocked) {
         // Discouraged, not disabled: only one effect may occupy this item+slot at a time, but
         //   clicking a different one here swaps it in rather than being blocked (see enchClick()).
-        btn = "<button class='blocked' title='" + charData.itemOptions[ench].enchDesc + "' ";
+        btn = "<button class='blocked' title=\"" + title + "\" ";
     } else if (enchValue > 1) {
-        btn = "<button style='background-color: " + getHighlight(enchValue) + "; color: black;' ";
-        btn += "title='" + charData.itemOptions[ench].enchDesc + "' ";
+        btn = "<button style='background-color: " + getHighlight(enchValue) + "; color: black;' title=\"" + title + "\" ";
     } else {
-        btn = "<button title='" + charData.itemOptions[ench].enchDesc + "' ";
+        btn = "<button title=\"" + title + "\" ";
     }
 
-    btn += "onclick='enchClick(" + ench + ")'>" + charData.itemOptions[ench].enchName + "</button> ";
+    btn += "onclick=\"" + onclick + "\">" + escHtml(enchName) + "</button> ";
 
-    if (enchValue < 1) { return ""; } else { return btn; }
+    return enchValue < 1 ? "" : btn;
 }
 
+function escHtml(s) {
+    return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function escJs(s) {
+    // Safe to interpolate into a JS single-quoted string literal that itself sits inside an
+    //   HTML double-quoted attribute - escapes for both layers, in order. Needed because catalog
+    //   text (item/slot/color/enchantment names) can contain apostrophes (e.g. "Master's Gift").
+    return String(s == null ? "" : s)
+        .replace(/\\/g, "\\\\").replace(/'/g, "\\'")
+        .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
 function getHighlight(num) {
     // Recommendation-strength tint: interpolates from a muted blue (#3987e5) to a
@@ -373,149 +499,69 @@ function rgb(r, g, b) {
 }
 
 
-function getEnchFilterValue(ench) {
+function getEnchFilterValue(enchName) {
+    let ench      = charData.enchantments[enchName];
     let enchValue = 0;
     if (charData.enchFilter.allEnch) { enchValue += 1; }
-    if (charData.enchFilter.basic) { enchValue += charData.itemOptions[ench].basic; }
-    if (charData.enchFilter.nonscaling) { enchValue += charData.itemOptions[ench].nonscaling; }
-    if (charData.enchFilter.forMeleeDmg) { enchValue += charData.itemOptions[ench].forMeleeDmg; }
-    if (charData.enchFilter.forRangedDmg) { enchValue += charData.itemOptions[ench].forRangedDmg; }
-    if (charData.enchFilter.forACDefence) { enchValue += charData.itemOptions[ench].forACDefence; }
-    if (charData.enchFilter.forResistDefence) { enchValue += charData.itemOptions[ench].forResistDefence; }
-    if (charData.enchFilter.forHitPoints) { enchValue += charData.itemOptions[ench].forHitPoints; }
-    if (charData.enchFilter.forAlchemist) { enchValue += charData.itemOptions[ench].forAlchemist; }
-    if (charData.enchFilter.forArtificer) { enchValue += charData.itemOptions[ench].forArtificer; }
-    if (charData.enchFilter.forBarbarian) { enchValue += charData.itemOptions[ench].forBarbarian; }
-    if (charData.enchFilter.forBard) { enchValue += charData.itemOptions[ench].forBard; }
-    if (charData.enchFilter.forCleric) { enchValue += charData.itemOptions[ench].forCleric; }
-    if (charData.enchFilter.forDruid) { enchValue += charData.itemOptions[ench].forDruid; }
-    if (charData.enchFilter.forFavoredSoul) { enchValue += charData.itemOptions[ench].forFavoredSoul; }
-    if (charData.enchFilter.forFighter) { enchValue += charData.itemOptions[ench].forFighter; }
-    if (charData.enchFilter.forMonk) { enchValue += charData.itemOptions[ench].forMonk; }
-    if (charData.enchFilter.forPaladin) { enchValue += charData.itemOptions[ench].forPaladin; }
-    if (charData.enchFilter.forRanger) { enchValue += charData.itemOptions[ench].forRanger; }
-    if (charData.enchFilter.forRogue) { enchValue += charData.itemOptions[ench].forRogue; }
-    if (charData.enchFilter.forSorcerer) { enchValue += charData.itemOptions[ench].forSorcerer; }
-    if (charData.enchFilter.forWarlock) { enchValue += charData.itemOptions[ench].forWarlock; }
-    if (charData.enchFilter.forWizard) { enchValue += charData.itemOptions[ench].forWizard; }
-
-    // if(charData.itemOptions[ench].enchName == "Ability (Charisma)"
-    //     || charData.itemOptions[ench].enchName == "Ability (Intelligence)"
-    //     || charData.itemOptions[ench].enchName == "Ability (Constitution)") {
-    //     console.log(charData.itemOptions[ench]);
-    //     console.log(enchValue);
-    // }
+    if (charData.enchFilter.basic) { enchValue += ench.basic; }
+    if (charData.enchFilter.nonscaling) { enchValue += ench.nonscaling; }
+    if (charData.enchFilter.forMeleeDmg) { enchValue += ench.forMeleeDmg; }
+    if (charData.enchFilter.forRangedDmg) { enchValue += ench.forRangedDmg; }
+    if (charData.enchFilter.forACDefence) { enchValue += ench.forACDefence; }
+    if (charData.enchFilter.forResistDefence) { enchValue += ench.forResistDefence; }
+    if (charData.enchFilter.forHitPoints) { enchValue += ench.forHitPoints; }
+    if (charData.enchFilter.forAlchemist) { enchValue += ench.forAlchemist; }
+    if (charData.enchFilter.forArtificer) { enchValue += ench.forArtificer; }
+    if (charData.enchFilter.forBarbarian) { enchValue += ench.forBarbarian; }
+    if (charData.enchFilter.forBard) { enchValue += ench.forBard; }
+    if (charData.enchFilter.forCleric) { enchValue += ench.forCleric; }
+    if (charData.enchFilter.forDruid) { enchValue += ench.forDruid; }
+    if (charData.enchFilter.forFavoredSoul) { enchValue += ench.forFavoredSoul; }
+    if (charData.enchFilter.forFighter) { enchValue += ench.forFighter; }
+    if (charData.enchFilter.forMonk) { enchValue += ench.forMonk; }
+    if (charData.enchFilter.forPaladin) { enchValue += ench.forPaladin; }
+    if (charData.enchFilter.forRanger) { enchValue += ench.forRanger; }
+    if (charData.enchFilter.forRogue) { enchValue += ench.forRogue; }
+    if (charData.enchFilter.forSorcerer) { enchValue += ench.forSorcerer; }
+    if (charData.enchFilter.forWarlock) { enchValue += ench.forWarlock; }
+    if (charData.enchFilter.forWizard) { enchValue += ench.forWizard; }
 
     return enchValue;
 }
 
 
-function enchClick(ench, render = true, toggleSelected = true) {
-    if (toggleSelected) {
-        let selecting = !charData.itemOptions[ench].enchState.selected;
+function enchClick(item, slot, color, enchName, render = true) {
+    let occupant = getOccupant(item, slot);
 
-        // Only one effect may be selected per item+slot at a time. Selecting a new one swaps
-        //   out whatever was selected here before (deselect then select), rather than blocking
-        //   the click - so changing your mind is one click instead of deselect-then-select.
-        if (selecting) {
-            for (let i = 0; i < charData.itemOptions.length; i++) {
-                if (i !== ench &&
-                    charData.itemOptions[i].itemOptionItem === charData.itemOptions[ench].itemOptionItem &&
-                    charData.itemOptions[i].itemOptionSlot === charData.itemOptions[ench].itemOptionSlot &&
-                    charData.itemOptions[i].enchState.selected) {
-                    enchClick(i, false, true);
-                }
-            }
-        }
-
-        charData.itemOptions[ench].enchState.selected = selecting;
+    if (occupant && occupant.enchName === enchName && occupant.color === color) {
+        clearOccupant(item, slot);
+    } else {
+        // Whether the slot was empty or held something else, this just replaces it - "swap" is
+        //   free because a slot's occupant is a single dict entry, not a set of toggled flags.
+        setOccupant(item, slot, enchName, color);
     }
 
-    for (let i = 0; i < charData.itemOptions.length; i++) {
-        if (i !== ench) {
-            if (charData.itemOptions[ench].enchState.selected) {
-                if (charData.itemOptions[i].enchEffectType === charData.itemOptions[ench].enchEffectType) {
-                    charData.itemOptions[i].enchState.handledBy = ench;
-                }
-                // A wildcard enchantment (e.g. "Aligned") covers whatever the superceded
-                //   entries need, so it's the same "already handled" treatment.
-                if (charData.itemOptions[i].itemOptionItem === charData.itemOptions[ench].itemOptionItem &&
-                    charData.itemOptions[i].enchSupercededBy === charData.itemOptions[ench].enchName) {
-                    charData.itemOptions[i].enchState.handledBy = ench;
-                }
-            } else {
-                if (charData.itemOptions[i].enchState.handledBy === ench) {
-                    charData.itemOptions[i].enchState.handledBy = -1;
-                }
-            }
-        }
-    }
-
-    updateSlotBlockedStates(charData.itemOptions[ench].itemOptionItem, charData.itemOptions[ench].itemOptionSlot);
-    updateDuplicateStates(charData.itemOptions[ench].enchEffectType);
-
-    if(render) {
+    if (render) {
         renderEnchantmentOptions();
         renderResult();
-    }
-}
-
-function updateSlotBlockedStates(itemOptionItem, itemOptionSlot) {
-    // Recomputed fresh on every click rather than toggled, so it can never drift out of sync
-    //   with actual selection state (unlike a toggle, which only stays correct if every
-    //   select/deselect that touches this slot toggles it exactly once).
-    let anySelected = false;
-    for (let i = 0; i < charData.itemOptions.length; i++) {
-        if (charData.itemOptions[i].itemOptionItem === itemOptionItem &&
-            charData.itemOptions[i].itemOptionSlot === itemOptionSlot &&
-            charData.itemOptions[i].enchState.selected) {
-            anySelected = true;
-            break;
-        }
-    }
-    for (let i = 0; i < charData.itemOptions.length; i++) {
-        if (charData.itemOptions[i].itemOptionItem === itemOptionItem &&
-            charData.itemOptions[i].itemOptionSlot === itemOptionSlot) {
-            charData.itemOptions[i].enchState.blocked = anySelected && !charData.itemOptions[i].enchState.selected;
-        }
-    }
-}
-
-function updateDuplicateStates(enchEffectType) {
-    // Duplicate is a warning, not a block: the same effect is allowed to be selected in more
-    //   than one place. Every selected row sharing this effect type is flagged together.
-    let selectedCount = 0;
-    for (let i = 0; i < charData.itemOptions.length; i++) {
-        if (charData.itemOptions[i].enchEffectType === enchEffectType && charData.itemOptions[i].enchState.selected) {
-            selectedCount++;
-        }
-    }
-    for (let i = 0; i < charData.itemOptions.length; i++) {
-        if (charData.itemOptions[i].enchEffectType === enchEffectType) {
-            charData.itemOptions[i].enchState.duplicate = charData.itemOptions[i].enchState.selected && selectedCount > 1;
-        }
     }
 }
 
 function renderResult() {
     // Set background of rows to alternate at item level, not row level
     //  (group item enchants together).
-    // Store a toggle, and toggle on each new item.
     charData.reportOut = "<h3>Result</h3><table>";
     charData.reportOut += "<table><tr><th>Item</th><th>Slot</th><th>Enchantment</th></tr>";
-    let augColor = "";
-    for (let i = 0; i < charData.itemOptions.length; i++) {
-        if (charData.itemOptions[i].enchState.selected) {
-            charData.reportOut += "<tr><td>" + charData.itemOptions[i].itemOptionItem + "</td><td>";
-            if (charData.itemOptions[i].enchState.isAugmentSlot) {
-                // charData.reportOut += charData.itemOptions[i].augmentColor + "</td><td>";
-                augColor = charData.itemOptions[i].augmentColor.substring(0, 1)+"-";
-            } else {
-                augColor ="";
-            }
 
-            charData.reportOut += charData.itemOptions[i].itemOptionSlot + "</td><td>";
-            charData.reportOut += augColor + charData.itemOptions[i].enchName + "</td></tr>";
+    for (let item of Object.keys(charData.selections.positional)) {
+        for (let slot of Object.keys(charData.selections.positional[item])) {
+            let occupant = charData.selections.positional[item][slot];
+            let isAugment = slot.substring(0, 3) === "Aug";
+            let augColor = isAugment && occupant.color ? occupant.color.substring(0, 1) + "-" : "";
+
+            charData.reportOut += "<tr><td>" + escHtml(item) + "</td><td>";
+            charData.reportOut += escHtml(slot) + "</td><td>";
+            charData.reportOut += escHtml(augColor + occupant.enchName) + "</td></tr>";
         }
     }
 
@@ -523,104 +569,23 @@ function renderResult() {
     document.getElementById("result").innerHTML = charData.reportOut;
 }
 
-function minLevelAllowed(ench) {
-    return (charData.itemOptions[ench].enchState.selected
-        && !(!charData.itemOptions[ench].enchState.isAugmentSlot && (charData.itemOptions[ench].enchCannithMinLevel > charData.saveFile.charLevel))
-        && !(charData.itemOptions[ench].enchState.isAugmentSlot && (charData.itemOptions[ench].enchAugmentMinLevel > charData.saveFile.charLevel))
-        && !(charData.itemOptions[ench].enchState.isExtraSlot && (extraSlotMinLevel > charData.saveFile.charLevel))
-    );
+function minLevelAllowed(item, slot, enchName) {
+    let ench      = charData.enchantments[enchName];
+    let isAugment = slot.substring(0, 3) === "Aug";
+    let isExtra   = slot.substring(0, 3) === "Ext";
+
+    if (isExtra) { return charData.saveFile.charLevel >= extraSlotMinLevel; }
+    if (isAugment) { return charData.saveFile.charLevel >= ench.enchAugmentMinLevel; }
+    return charData.saveFile.charLevel >= ench.enchCannithMinLevel;
 }
 
 
-function toggleCollapsed(enchNum, level) {
-    // Toggle everything at the same heirarchy level and lower.
-
-    // TO DO: Use bitwise logic to allow multiple levels of collapse to be stored.
-    //   i.e. Prevent collapse of item to wipe out collapse of augment slots.
-    if (charData.itemOptions[enchNum].enchState.newItemType
-        && charData.itemOptions[enchNum].enchState.collapsed !== 3
-        && level === 3) {
-        charData.itemOptions[enchNum].enchState.collapsed = 3;
-    } else if (charData.itemOptions[enchNum].enchState.newSlot
-        && charData.itemOptions[enchNum].enchState.collapsed < 2
-        && level === 2) {
-        charData.itemOptions[enchNum].enchState.collapsed = 2;
-    } else if (charData.itemOptions[enchNum].enchState.newAugColor
-        && charData.itemOptions[enchNum].enchState.collapsed < 1
-        && level === 1) {
-        charData.itemOptions[enchNum].enchState.collapsed = 1;
-    } else {
-        charData.itemOptions[enchNum].enchState.collapsed = 0;
-    }
-
+function toggleCollapsed(level, key) {
+    let set = charData.collapsed[level];
+    if (set.has(key)) { set.delete(key); } else { set.add(key); }
     renderEnchantmentOptions();
 }
 
-function getLastOfItem(ench) {
-    while (!charData.itemOptions[ench].enchState.lastOfItemType) {
-        ench++;
-    }
-    return ench;
-}
-
-function getLastOfSlot(ench) {
-    while (!charData.itemOptions[ench].enchState.lastOfSlot) {
-        ench++;
-    }
-    return ench;
-}
-
-function getLastOfColor(ench) {
-    while (!charData.itemOptions[ench].enchState.lastOfColor) {
-        ench++;
-    }
-    return ench;
-}
-
-
-function ItemOption(itemOptionItem, itemOptionSlot, enchName, enchEffectType, enchDesc, enchCannithMinLevel,
-                    enchAugmentMinLevel, augmentColor, enchSupercededBy, itemOptionSortOrder, enchSortOrder,
-                    enchState, enchNum) {
-    this.itemOptionItem      = itemOptionItem;
-    this.itemOptionSlot      = itemOptionSlot;
-    this.enchName            = enchName;
-    this.enchEffectType      = enchEffectType;
-    this.enchDesc            = enchDesc;
-    this.enchCannithMinLevel = enchCannithMinLevel;
-    this.enchAugmentMinLevel = enchAugmentMinLevel;
-    this.augmentColor        = augmentColor;
-    this.enchSupercededBy    = enchSupercededBy;
-    this.itemOptionSortOrder = itemOptionSortOrder;
-    this.enchSortOrder       = enchSortOrder;
-    this.enchState           = enchState;
-    this.enchNum             = enchNum;
-}
-
-
-function EnchState(newItemType, newSlot, newAugSlot, newAugColor, newEnchSet,
-                   lastOfSet, lastOfColor, lastOfAugSlot, lastOfSlot, lastOfItemType, lastOfAll,
-                   selected, handledBy, blocked, duplicate, isAugmentSlot, isExtraSlot) {
-    this.newItemType = newItemType;
-    this.newSlot     = newSlot;
-    this.newAugSlot  = newAugSlot;
-    this.newAugColor = newAugColor;
-    this.newEnchSet  = newEnchSet;
-
-    this.lastOfSet      = lastOfSet;
-    this.lastOfColor    = lastOfColor;
-    this.lastOfAugSlot  = lastOfAugSlot;
-    this.lastOfSlot     = lastOfSlot;
-    this.lastOfItemType = lastOfItemType;
-    this.lastOfAll      = lastOfAll;
-
-    this.selected  = selected;          // In use.
-    this.handledBy = handledBy;         // Non-stacking enchant already handled elsewhere - discouraged, still clickable.
-    this.blocked   = blocked;           // Slot already in use, so unavailable
-    this.duplicate = duplicate;         // In use, and the same effect is also selected elsewhere.
-
-    this.isAugmentSlot = isAugmentSlot;
-    this.isExtraSlot   = isExtraSlot;
-}
 
 function handleRename(fixBoth = false) {
     charData.saveFile.charName = document.getElementById("characterName").value;
@@ -648,23 +613,30 @@ function zeroPad(num, digits) {
 }
 
 function updateSave() {
-    charData.saveFile.enchantments.length = 0;
-
-    for (let i = 0; i < charData.itemOptions.length; i++) {
-        if (charData.itemOptions[i].enchState.selected ||
-            (charData.itemOptions[i].enchState.collapsed >= 1)) {
-            charData.saveFile.enchantments.push(
-                {
-                    "itemOptionItem": charData.itemOptions[i].itemOptionItem,
-                    "augmentColor": charData.itemOptions[i].augmentColor,
-                    "itemOptionSlot": charData.itemOptions[i].itemOptionSlot,
-                    "enchName": charData.itemOptions[i].enchName,
-                    "selected": charData.itemOptions[i].enchState.selected,
-                    "collapsed": charData.itemOptions[i].enchState.collapsed
-                }
-            );
+    let positional = [];
+    for (let item of Object.keys(charData.selections.positional)) {
+        for (let slot of Object.keys(charData.selections.positional[item])) {
+            let occupant = charData.selections.positional[item][slot];
+            positional.push({item: item, slot: slot, color: occupant.color, enchName: occupant.enchName});
         }
     }
+
+    let inherent = [];
+    for (let category of Object.keys(charData.selections.inherent)) {
+        for (let item of Object.keys(charData.selections.inherent[category])) {
+            for (let enchName of charData.selections.inherent[category][item]) {
+                inherent.push({category: category, item: item, enchName: enchName});
+            }
+        }
+    }
+
+    charData.saveFile.positional = positional;
+    charData.saveFile.inherent   = inherent;
+    charData.saveFile.collapsed  = {
+        item: Array.from(charData.collapsed.item),
+        slot: Array.from(charData.collapsed.slot),
+        color: Array.from(charData.collapsed.color)
+    };
 }
 
 function getTimestamp() {
@@ -699,7 +671,7 @@ document.getElementById('loadFile').onchange = function () {
 
     let fr    = new FileReader();
     fr.onload = function (e) {
-        incomingFile = JSON.parse(e.target.result);
+        let incomingFile = JSON.parse(e.target.result);
 
         let fileName = String(files[0].name);
         if (!incomingFile.charName) {
@@ -707,11 +679,7 @@ document.getElementById('loadFile').onchange = function () {
         }
 
         if (!incomingFile.charLevel) {
-            if (charData.enchFilter.characterLevel) {
-                incomingFile.charLevel = charData.enchFilter.characterLevel;
-            } else {
-                incomingFile.charLevel = getLevelFromOldFilename(fileName);
-            }
+            incomingFile.charLevel = getLevelFromOldFilename(fileName);
         }
 
         handleLoad(incomingFile);
@@ -737,59 +705,37 @@ function getLevelFromOldFilename(fileName){
 
 function handleLoad(incomingFile) {
     // Need to start with a clean slate to avoid merging loaded data with whatever is on screen.
-    for (let i = 0; i < charData.itemOptions.length; i++) {
-        charData.itemOptions[i].enchState.selected = false;
-        charData.itemOptions[i].enchState.blocked = false;
-        charData.itemOptions[i].enchState.handledBy = -1;
-        charData.itemOptions[i].enchState.duplicate = false;
-        charData.itemOptions[i].enchState.collapsed = 0;
-    }
+    charData.selections.positional = {};
+    charData.selections.inherent   = {};
+    charData.collapsed.item.clear();
+    charData.collapsed.slot.clear();
+    charData.collapsed.color.clear();
 
     document.getElementById('characterName').value = incomingFile.charName;
     handleRename(true);
     document.getElementById("characterLevel").value = incomingFile.charLevel;
     charData.saveFile.charLevel                     = incomingFile.charLevel;
 
-    if(incomingFile.version > 1.25) {
-        for (let i = 0; i < charData.itemOptions.length; i++) {
-            for (let j = 0; j < incomingFile.enchantments.length; j++) {
-                if (charData.itemOptions[i].itemOptionItem === incomingFile.enchantments[j].itemOptionItem &&
-                    charData.itemOptions[i].itemOptionSlot === incomingFile.enchantments[j].itemOptionSlot &&
-                    charData.itemOptions[i].enchName === incomingFile.enchantments[j].enchName) {
-                    if(incomingFile.enchantments[j].selected) {
-                        enchClick(i, false, true);
-                    }
-                    charData.itemOptions[i].enchState.collapsed = incomingFile.enchantments[j].collapsed;
-                    break;
-                }
-            }
-        }
-    } else if(incomingFile.version > 1.15) {
-        for (let i = 0; i < charData.itemOptions.length; i++) {
-            for (let j = 0; j < incomingFile.enchantments.length; j++) {
-                if (charData.itemOptions[i].itemOptionItem === incomingFile.enchantments[j].itemOptionItem &&
-                    charData.itemOptions[i].itemOptionSlot === incomingFile.enchantments[j].itemOptionSlot &&
-                    charData.itemOptions[i].enchName === incomingFile.enchantments[j].enchName) {
-                    enchClick(i, false, true);
-                    break;
-                }
-            }
-        }
-    } else {
-        for (let i = 0; i < charData.itemOptions.length; i++) {
-            for (let j = 0; j < incomingFile.itemOptions.length; j++) {
-                if (charData.itemOptions[i].itemOptionItem === incomingFile.itemOptions[j].itemOptionItem &&
-                    charData.itemOptions[i].itemOptionSlot === incomingFile.itemOptions[j].itemOptionSlot &&
-                    charData.itemOptions[i].enchName === incomingFile.itemOptions[j].enchName) {
-                    if(incomingFile.itemOptions[j].enchState.selected) {
-                        enchClick(i, false, true);
-                    }
-                    charData.itemOptions[i].enchState.collapsed = incomingFile.itemOptions[j].enchState.collapsed;
-                    break;
-                }
-            }
+    // Save format is not backward compatible with pre-rewrite files (version < 2.0) - the old
+    //   format has no equivalent of a flat "enchantments" array to translate from; a save made
+    //   before this rewrite will silently load as an empty build rather than erroring.
+    for (let entry of (incomingFile.positional || [])) {
+        if (entry.enchName in charData.enchantments) {
+            setOccupant(entry.item, entry.slot, entry.enchName, entry.color);
         }
     }
+    for (let entry of (incomingFile.inherent || [])) {
+        if (entry.enchName in charData.enchantments) {
+            if (!(entry.category in charData.selections.inherent)) { charData.selections.inherent[entry.category] = {}; }
+            if (!(entry.item in charData.selections.inherent[entry.category])) { charData.selections.inherent[entry.category][entry.item] = new Set(); }
+            charData.selections.inherent[entry.category][entry.item].add(entry.enchName);
+        }
+    }
+
+    let incomingCollapsed = incomingFile.collapsed || {item: [], slot: [], color: []};
+    charData.collapsed.item  = new Set(incomingCollapsed.item || []);
+    charData.collapsed.slot  = new Set(incomingCollapsed.slot || []);
+    charData.collapsed.color = new Set(incomingCollapsed.color || []);
 }
 
 
@@ -811,29 +757,23 @@ function handleFilterCheckbox(checkbox) {
 }
 
 function handleFilterLevel() {
-    let previousLevel               = charData.saveFile.charLevel;
-    charData.saveFile.charLevel     = document.getElementById("characterLevel").value;
+    let previousLevel           = charData.saveFile.charLevel;
+    charData.saveFile.charLevel = document.getElementById("characterLevel").value;
 
-    let lostEnchantments = "";
-    for (let i = 0; i < charData.itemOptions.length; i++) {
-        if (charData.itemOptions[i].enchState.selected) {
-            if (!minLevelAllowed(i)) {
-                if (lostEnchantments === "") {
-                    lostEnchantments += charData.itemOptions[i].enchName;
-                } else {
-                    lostEnchantments += ", " + charData.itemOptions[i].enchName
-                }
+    let toDeselect = [];
+    for (let item of Object.keys(charData.selections.positional)) {
+        for (let slot of Object.keys(charData.selections.positional[item])) {
+            let enchName = charData.selections.positional[item][slot].enchName;
+            if (!minLevelAllowed(item, slot, enchName)) {
+                toDeselect.push({item: item, slot: slot, enchName: enchName});
             }
         }
     }
 
-    if (lostEnchantments !== "") {
+    if (toDeselect.length > 0) {
+        let lostEnchantments = toDeselect.map(e => e.enchName).join(", ");
         if (confirm("This will deselect the following enchantments. Click OK to proceed.\n\n" + lostEnchantments)) {
-            for (let i = 0; i < charData.itemOptions.length; i++) {
-                if(charData.itemOptions[i].enchState.selected && !minLevelAllowed(i)) {
-                    enchClick(i, false);
-                }
-            }
+            for (let e of toDeselect) { clearOccupant(e.item, e.slot); }
             renderEnchantmentOptions();
             renderResult();
         } else {
@@ -859,5 +799,3 @@ window.onclick = function (event) {
         dialogAbout.style.display = "none";
     }
 };
-
-
