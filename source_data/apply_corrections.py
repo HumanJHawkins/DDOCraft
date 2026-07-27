@@ -145,6 +145,93 @@ print(f"vAllEnchantment after category split: {cur.fetchone()[0]} rows (expect 3
 cur.execute("SELECT itemOptionCategory, itemOptionItem FROM vAllEnchantment LIMIT 1")
 print("Sample row itemOptionCategory/itemOptionItem:", cur.fetchone())
 
+# Now that itemOptionItem exists and distinguishes concrete items within a category, add the
+# correctly-scoped uniqueness: one row per (item, slot, enchantment) - not per (category, slot,
+# enchantment), which would incorrectly forbid two different items in the same category from
+# both declaring, say, an Augment 1 Blue slot.
+cur.execute("CREATE UNIQUE INDEX idx_itemOption_unique ON itemOption(itemOptionItem, itemOptionSlot, itemOptionEnchantment)")
+
+# --- Step 4: re-add Tourney Armor, properly normalized ---
+# Augment slots: just two declaration rows (which color each slot has). The shared 'Augment'
+# pseudo-item catalog does the rest via the same join every Cannith item already uses - no
+# duplicated candidate rows needed, unlike the flat-file version shipped this week.
+cur.executemany(
+    "INSERT INTO itemOption (itemOptionSortOrder, itemOptionCategory, itemOptionItem, itemOptionSlot, itemOptionEnchantment) "
+    "VALUES (?, 'Armor', 'Tourney Armor', ?, ?)",
+    [
+        (9000, "Augment 1", "Blue"),
+        (9001, "Augment 2", "Colorless"),
+    ]
+)
+
+# New enchantment rows only for effects genuinely not in the existing catalog. Sheltering,
+# Protection, and Parrying are NOT duplicated here - Tourney Armor's itemOption rows below
+# reference the existing enchantment definitions by name, same as any Cannith item would.
+# Note: because these are now genuinely shared, Tourney Armor's Sheltering/Protection/Parrying
+# use whatever enchCannithMinLevel the shared definition already has (0/0/10) rather than the
+# level-4 placeholder the flat-file version had - that placeholder can't coexist with sharing
+# the same underlying definition Cannith Goggles etc. also use. Proper per-item level display
+# is TODO step 16 (magnitude/description lookup table), not something to fake here.
+weight_fields = ["allEnch","basic","nonscaling","forMeleeDmg","forRangedDmg","forACDefence",
+    "forResistDefence","forHitPoints","forAlchemist","forArtificer","forBarbarian","forBard",
+    "forCleric","forDruid","forFavoredSoul","forFighter","forMonk","forPaladin","forRanger",
+    "forRogue","forSorcerer","forWarlock","forWizard"]
+
+def new_enchantment_row(enchSortOrder, enchName, enchBonusType, enchEffect, enchCannithMinLevel,
+                         enchAugmentMinLevel, enchDesc, weights):
+    row = dict.fromkeys(weight_fields, 0)
+    row.update(weights)
+    assert set(row.keys()) == set(weight_fields), f"unexpected weight key in {weights}"
+    return (enchSortOrder, "Named Item", enchName, enchBonusType, enchEffect, enchCannithMinLevel,
+            enchAugmentMinLevel, enchDesc, *[row[w] for w in weight_fields])
+
+new_enchantments = [
+    new_enchantment_row(90000, "Damage Reduction (Adamantine)", "Untyped", "Damage Reduction (Adamantine)",
+        4, 0, "TEMP/TEST DATA - real min level TBD. Damage Reduction 5, bypassed by Adamantine. "
+        "New effect type, not currently offered by Cannith crafting.",
+        {"allEnch": 1, "nonscaling": 1, "forHitPoints": 5}),
+    new_enchantment_row(90001, "Superior Nimbleness", "Untyped", "Nimbleness",
+        4, 0, "TEMP/TEST DATA - real min level TBD. Superior Nimbleness. "
+        "New effect type, not currently offered by Cannith crafting.",
+        {"allEnch": 1, "nonscaling": 1, "forACDefence": 4}),
+    new_enchantment_row(90002, "Tourney Armor Extras", None, None,
+        4, 0, "Plate mail as light armor, mithril, increased max dex bonus, decreased spell failure.",
+        {"allEnch": 1}),
+]
+cur.executemany(
+    "INSERT INTO enchantment (enchSortOrder, enchGroup, enchName, enchBonusType, enchEffect, "
+    "enchCannithMinLevel, enchAugmentMinLevel, enchDesc, " + ",".join(weight_fields) + ") VALUES "
+    "(" + ",".join(["?"] * (8 + len(weight_fields))) + ")",
+    new_enchantments
+)
+
+cur.executemany(
+    "INSERT INTO itemOption (itemOptionSortOrder, itemOptionCategory, itemOptionItem, itemOptionSlot, itemOptionEnchantment) "
+    "VALUES (?, 'Armor', 'Tourney Armor', 'Named Item Effects', ?)",
+    [
+        (9002, "Sheltering"),
+        (9003, "Protection"),
+        (9004, "Parrying"),
+        (9005, "Damage Reduction (Adamantine)"),
+        (9006, "Superior Nimbleness"),
+        (9007, "Tourney Armor Extras"),
+    ]
+)
+
+cur.execute("SELECT COUNT(*) FROM vAllEnchantment WHERE itemOptionItem = 'Tourney Armor'")
+tourney_count = cur.fetchone()[0]
+cur.execute("SELECT itemOptionSlot, augmentColor, itemOptionEnchantment, enchEffectType FROM vAllEnchantment "
+            "WHERE itemOptionItem = 'Tourney Armor' AND itemOptionSlot = 'Augment 1' ORDER BY itemOptionEnchantment")
+aug1 = cur.fetchall()
+cur.execute("SELECT itemOptionSlot, augmentColor, itemOptionEnchantment FROM vAllEnchantment "
+            "WHERE itemOptionItem = 'Tourney Armor' AND itemOptionSlot = 'Named Item Effects'")
+effects = cur.fetchall()
+print(f"Tourney Armor total rows: {tourney_count}")
+print(f"  Augment 1 candidates: {len(aug1)} (expect 16, all Blue)")
+print(f"  Named Item Effects: {len(effects)} (expect 6)")
+for row in effects:
+    print("   ", row)
+
 conn.commit()
 conn.close()
 print("Corrections applied.")

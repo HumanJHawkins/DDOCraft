@@ -60,9 +60,12 @@ CREATE TABLE itemOption (
   itemOptionSortOrder INTEGER,
   itemOptionItem TEXT NOT NULL DEFAULT 'Untitled',
   itemOptionSlot TEXT NOT NULL DEFAULT 'Untitled',
-  itemOptionEnchantment TEXT NOT NULL DEFAULT 'Untitled',
-  UNIQUE(itemOptionItem, itemOptionSlot, itemOptionEnchantment)
+  itemOptionEnchantment TEXT NOT NULL DEFAULT 'Untitled'
 );
+-- Note: no UNIQUE constraint on load - the recovered schema's original uniqueness was scoped
+-- per-category (itemOptionItem here, before the step-3 rename), which only worked because there
+-- was exactly one item per category. apply_corrections.py adds the correctly-scoped constraint
+-- once the category/item split exists (see step 3).
 """)
 
 def clean(v):
