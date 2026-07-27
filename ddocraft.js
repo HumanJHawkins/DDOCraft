@@ -7,12 +7,46 @@
 // TO DO:
 // Do a better job of highlighting collapsed items? (Standard chevrons?)
 
+// TO DO: Move to SQLite as the real source of truth. Delete each as it's completed.
+// The original MySQL data (recovered, in source_data/) is more trustworthy and far easier to
+//   maintain than hand-patching ddocraft.json directly, which is how this file has been edited
+//   all week. Once this lands, ddocraft.json becomes a pure generated build output - nobody
+//   (including Claude) hand-edits it again; edit the SQLite database and regenerate instead.
+//
+// 1. Build the real SQLite file from the recovered CSVs (not in-memory), matching the recovered
+//    schema (enchantment + itemOption tables, vAugmentOption/vItemOption/vAllEnchantment views).
+//    Commit the .sqlite file itself to git - it's the backed-up source of truth now, diffability
+//    is a secondary concern to not losing this data again.
+// 2. Add a data-quality status column (e.g. enchantment.dataStatus) and mark Resist/Insightful
+//    Resist (Light/Negative/Poison) and the six per-stat "Insightful Ability" augments as
+//    'questionable' rather than deleting outright - believed to not actually exist in-game, but
+//    kept on record rather than erased in case memory is wrong. Excluded from the exported JSON.
+// 3. Move the Cannith/category split into the schema itself, instead of the post-hoc rename
+//    script used on the flat file this week.
+// 4. Re-add Tourney Armor as normalized source rows - reference the existing enchantment rows
+//    for Sheltering/Protection/Parrying by name (no duplicate definitions needed), add new
+//    enchantment rows only for the genuinely new effects (DR/Adamantine, Superior Nimbleness),
+//    and model its augment slots via the schema's existing shared 'Augment' pseudo-item pattern
+//    instead of duplicating candidate rows the way the flat-file version currently does.
+// 5. Bump the level-32 defaults to 36 (current level cap; was 32 when this was built) - the
+//    default characterLevel value in ddocraft.php and charData.saveFile.charLevel in ddocraft.js.
+// 6. Build the export script (Python + sqlite3) running the vAllEnchantment-equivalent query
+//    against the new schema to produce ddocraft.json.
+// 7. Regenerate and verify: replace the committed ddocraft.json, re-run the full verification
+//    pass (render, stacking, category dropdown, Tourney Armor, confirm the 12 questionable rows
+//    are gone, confirm level default is 36).
+// 8. Commit the new .sqlite file, export script, and regenerated JSON. Decide whether the
+//    transitional CSVs in source_data/ stay as a historical snapshot or get removed once the
+//    database is verified solid.
+
 // TO DO: Named item support - remaining steps. Delete each as it's completed.
 // Done so far: prepend "Cannith " to itemOptionItem values; add itemOptionCategory field;
 //   key item grouping off itemOptionCategory and add per-category dropdown; add Tourney Armor
 //   test record (corrected so its rows don't fork the catalog by magnitude); track the active
 //   itemOptionItem per category in charData.categoryChoice (dropdown updates it, not yet wired
 //   to rendering or selection).
+// Note: once the SQLite migration above lands, step 12 below (bringing in the real dataset)
+//   happens via that pipeline rather than more hand-patching.
 //
 // 5. Wire the actual swap: rendering for a category shows only the active itemOptionItem's rows.
 // 6. Build a magnitude/description lookup table, keyed by Character Level and itemOptionItem,
