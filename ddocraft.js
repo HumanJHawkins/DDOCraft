@@ -96,9 +96,26 @@
 // 4. (Future, explicitly out of scope for this phase) Optional prepopulated dropdown of popular
 //    named items layered on top of the custom-item mechanism, for convenience - full manual
 //    entry is the complete solution for now.
-// 5. ASSUMPTION TO CONFIRM: WEAPON_CATEGORIES (Melee1/Melee2/Ranged) drives whether a custom
-//    item's "+ Add Augment" offers Orange/Purple (weapon) or Green (non-weapon) combo colors -
-//    correct that list if Shield/Rune Arm/Orb should also count as weapons for this purpose.
+// 5. TO CHECK (not a known bug, just unverified - explicitly do not change until confirmed):
+//    WEAPON_CATEGORIES (Melee1/Melee2/Ranged) drives whether a custom item's "+ Add Augment"
+//    offers Orange/Purple/Red (weapon) or Green (non-weapon). Shield, Rune Arm, and Orb (Orb is
+//    apparently a shield subtype internally at SSG) are specifically unresolved - could go either
+//    way, need real confirmation before changing WEAPON_CATEGORIES.
+
+// FIXED (2026-07-27): Two corrections to the refinements immediately below this note.
+//   (1) The rose-suppression/header-warning treatment was too broad - it had applied to a custom
+//   item's augment picks as well as its inherent effects. Augments are always a live, changeable
+//   choice even on a real named item (you still pick what goes in the slot), so they keep the
+//   ordinary individual rose "duplicate" treatment exactly like a Cannith pick - reverted
+//   getButton() to plain isDuplicate logic, no custom-item special case. Only inherent effects
+//   (fixed, non-slot, can't be changed short of using a different item) get the suppressed-button/
+//   header-warning treatment - computeSelectionIndex()'s customCategoryOverlap now only considers
+//   inherent selections, not augment ones.
+//   (2) "Red" was showing in the "+ Add Augment" dropdown for non-weapon categories (e.g.
+//   Bracers) - it's folded into Orange/Purple and shouldn't be offered on its own outside weapon
+//   categories, same gating as those two now applies to it directly.
+//   Also noted, not yet acted on: Shield/Rune Arm/Orb's weapon-or-not status is unconfirmed (see
+//   PHASE 3 step 5 above) - explicitly left WEAPON_CATEGORIES unchanged pending confirmation.
 
 // DONE (2026-07-27): Four more refinements from testing the custom-item feature.
 //   (1) Removed the Cannith item dropdown from the category caption entirely (getCategoryDropdownHtml/
@@ -429,7 +446,12 @@ function categoryOfCustomItemKey(item) {
 function computeSelectionIndex() {
     let effectTypeCounts    = {};   // enchEffectType -> how many selections share it
     let selectedNamesByItem = {};   // item -> Set(enchName) - for enchSupercededBy wildcard matches
-    let activeCustom        = [];   // {category, enchName} for every active custom-item selection
+    let activeInherent      = [];   // {category, enchName} for every active INHERENT selection only -
+                                     //   augments are a live, changeable choice even on a named item
+                                     //   (you still pick what goes in the slot), so they keep the
+                                     //   ordinary individual rose treatment via getButton() and don't
+                                     //   feed the category-level warning below. Only an item's fixed,
+                                     //   non-slot effects (inherent) get that treatment.
 
     function account(item, enchName) {
         let ench = charData.enchantments[enchName];
@@ -448,9 +470,7 @@ function computeSelectionIndex() {
         if (owningCategory && (charData.categoryMode[owningCategory] || "cannith") !== "custom") { continue; }
 
         for (let slot of Object.keys(charData.selections.positional[item])) {
-            let enchName = charData.selections.positional[item][slot].enchName;
-            account(item, enchName);
-            if (owningCategory) { activeCustom.push({category: owningCategory, enchName: enchName}); }
+            account(item, charData.selections.positional[item][slot].enchName);
         }
     }
     for (let category of Object.keys(charData.selections.inherent)) {
@@ -458,17 +478,17 @@ function computeSelectionIndex() {
         for (let item of Object.keys(charData.selections.inherent[category])) {
             for (let enchName of charData.selections.inherent[category][item]) {
                 account(item, enchName);
-                activeCustom.push({category: category, enchName: enchName});
+                activeInherent.push({category: category, enchName: enchName});
             }
         }
     }
 
-    // A custom item's own effects are treated as fixed once picked - they never get the individual
-    //   rose "duplicate" treatment a Cannith pick does (see getButton()/getInherentButton()).
-    //   Instead, the category as a whole gets one text warning if ANY of its active selections
-    //   overlap with anything - a second pass, since it needs effectTypeCounts fully totalled first.
+    // An item's inherent effects are treated as fixed once picked - they never get the individual
+    //   rose "duplicate" treatment (see getInherentButton()). Instead, the category as a whole gets
+    //   one text warning if ANY of its inherent selections overlap with anything - a second pass,
+    //   since it needs effectTypeCounts fully totalled first.
     let customCategoryOverlap = {};
-    for (let entry of activeCustom) {
+    for (let entry of activeInherent) {
         let ench = charData.enchantments[entry.enchName];
         if (ench && (effectTypeCounts[ench.enchEffectType] || 0) > 1) {
             customCategoryOverlap[entry.category] = true;
@@ -576,11 +596,15 @@ function getAddAugmentControlHtml(category) {
     }
 
     // Green/Orange/Purple are combo slots (see realColorsForSlot()) - which ones are offered
-    //   depends on whether the category is a weapon. ASSUMPTION pending confirmation: weapon
+    //   depends on whether the category is a weapon, and base Red is weapon-only too (folded into
+    //   Orange/Purple, not offered on its own elsewhere). ASSUMPTION pending confirmation: weapon
     //   categories are exactly Melee1/Melee2/Ranged - everything else (including Shield, Rune Arm,
     //   Orb) is treated as non-weapon. Correct WEAPON_CATEGORIES below if that's wrong.
-    let isWeapon = WEAPON_CATEGORIES.indexOf(category) > -1;
-    let colors   = Object.keys(charData.augmentOptionsByColor).concat(isWeapon ? ["Orange", "Purple"] : ["Green"]);
+    let isWeapon   = WEAPON_CATEGORIES.indexOf(category) > -1;
+    let baseColors = Object.keys(charData.augmentOptionsByColor).filter(function (c) {
+        return c !== "Red" || isWeapon;
+    });
+    let colors = baseColors.concat(isWeapon ? ["Orange", "Purple"] : ["Green"]);
 
     let colorOptions = colors.map(function (c) {
         return "<option value=\"" + escHtml(c) + "\">" + escHtml(c) + "</option>";
@@ -805,13 +829,12 @@ function getButton(item, slot, color, enchName, idx) {
     let btn;
 
     if (isSelectedHere) {
-        // A custom item's own selection never gets the individual rose treatment, even if it
-        //   overlaps with something - that's a category-level text warning instead (see
-        //   renderEnchantmentOptions()/computeSelectionIndex()). The item's effects are being
-        //   treated as fixed once picked; a rose button would read as "this is still a mistake to
-        //   fix," which isn't the point once it's a real named item's actual effect.
-        let showDuplicate = isDuplicate && !categoryOfCustomItemKey(item);
-        btn = "<button class='" + (showDuplicate ? "duplicate" : "selected") + "' title=\"" + title + "\" ";
+        // Augments (custom or Cannith alike) are always a live, changeable choice - even on a
+        //   named item, you choose what to socket into its augment slot - so they keep the normal
+        //   individual rose "duplicate" treatment. Only an item's INHERENT effects (fixed, can't be
+        //   changed short of using a different item) get the suppressed/header-warning treatment -
+        //   see getInherentButton() and computeSelectionIndex()'s customCategoryOverlap.
+        btn = "<button class='" + (isDuplicate ? "duplicate" : "selected") + "' title=\"" + title + "\" ";
         enchValue = 1;  // Display all selected enchantments regardless of filter.
     } else if (isHandled) {
         // Discouraged, not disabled: the same effect is already selected elsewhere, but taking
