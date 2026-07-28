@@ -21,6 +21,39 @@
 //   Enhancement-type version) would generate a false-positive overlap warning against something
 //   that genuinely stacks in-game. No fix proposed yet - needs more thought once it's clear how
 //   big a problem this actually is in practice.
+// - Some enchBonusType values in the recovered source data are not real bonus types - they're
+//   the effect's own name/effect text, dumped into the bonusType column because the original
+//   curator didn't know the real bonus type for that row. Confirmed instances: 'Blindness'
+//   (enchantmentID 2560, Blindness Immunity), 'Regeneration' (Regeneration/HP Regen), 'Vitality'
+//   (Vitality/HP Bonus) - all three have bonusType == the effect's own name, and two other rows
+//   (Bashing, Shield Spikes) already use a literal 'Unknown' bonusType, confirming this is a
+//   known original-data gap pattern rather than a one-off. Low priority - these rows will just
+//   never correctly suppress/flag overlaps against their real bonus type family until fixed, and
+//   they're rare (5 rows found so far). Fix later by looking up the correct real bonus type per
+//   row and correcting bonusType/enchBonusType directly; no schema change needed.
+// - effectEquivalencyGroup/effectEquivalencyMember (db/ddocraft_schema.sql) - Jeff isn't sold on
+//   this design (replacing the old single enchSupercededBy name-pointer with a group+member table
+//   plus a per-member qualityScore), but has no better alternative yet either, so it's deferred
+//   rather than decided. Revisit once real supercedence data forces the question - don't assume
+//   the current shape is final.
+// - effectMagnitudeByLevel (populated 2026-07-28 from Jeff's Effects.csv/Aug_Cannith_Effects.csv)
+//   only stores a plain numeric magnitude - there's no column for "unit"/die type. Five effects
+//   (Bashing, Bane (all 24 creature types), Damage (all 16 types) via Cannith+Augment, Shield
+//   Spikes, Vampirism) are actually dice-based (e.g. Bashing's "magnitude 3" really means 3d6) -
+//   the die size is documented only in this comment, not in the schema. Revisit if magnitude ever
+//   needs to drive real damage math instead of just display/comparison.
+// - Insightful Ability (Charisma/Constitution/Dexterity/Intelligence/Strength/Wisdom) are excluded
+//   from the effect table as dataStatus='questionable' (PHASE 1 decision, believed not to exist
+//   in-game). Effects.csv has a real, populated "Ins. Ability" curve (values starting at level 10,
+//   same shape as every other real Insightful effect) - this is evidence worth weighing against
+//   that exclusion, not yet acted on. Nothing currently references this curve since there's no
+//   effect row to attach it to.
+// - Fear Immunity's enchAugmentMinLevel is 100 (the "not augmentable" sentinel used on ~181 rows),
+//   but Aug_Cannith_Effects.csv shows it as augment-available at level 8 - same shape as its
+//   sibling Blindness Immunity, which DOES correctly show augment-available at level 8 in both the
+//   recovered data and the CSV. Looks like a gap in the original recovered data, not a CSV error,
+//   but not corrected yet - needs a decision, not silently fixed.
+
 
 // TO DO: Full staged plan, three merged streams (SQLite migration, render/state architecture
 //   rewrite, named item feature). One continuous numbering - delete each step as it's completed,

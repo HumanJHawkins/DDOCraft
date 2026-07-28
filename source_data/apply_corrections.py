@@ -228,6 +228,46 @@ for row in named_item_effects:
 if len(named_item_effects) != 3:
     raise SystemExit(f"MISMATCH: expected 3 named-item-only enchantment rows, got {len(named_item_effects)}")
 
+# --- Step 5: fix enchBonusType values that are effect-name leakage or invented placeholders,
+# not real DDO bonus types (Jeff, 2026-07-28 - see KNOWN ISSUES in ddocraft.js for the general
+# pattern). All of these become 'Untyped' - a real bonus type meaning "no type, always stacks" -
+# rather than the effect's own name or a made-up bucket:
+#   - Blindness Immunity: no stacking possibility at all, so no real type applies.
+#   - Regeneration, and the two rows already using the literal placeholder 'Unknown' (Bashing,
+#     Shield Spikes): genuinely untyped effects, not specifically identified as such originally.
+#   - Adamantine (Armor), and the whole 'Material' bucket (Adamantine (Weapon), Byeshk, Cold Iron,
+#     Metalline, Silver, Mithril, Everbright): material-based DR-bypass properties. Their
+#     historical bonuses are non-numerical, or where numeric (DR), untyped in DDO's system -
+#     'Adamantine'/'Material' were placeholder guesses, not real bonus types.
+UNTYPED_CORRECTIONS = [
+    "Blindness Immunity", "Regeneration", "Bashing", "Shield Spikes",
+    "Adamantine (Armor)", "Adamantine (Weapon)", "Byeshk", "Cold Iron", "Metalline",
+    "Silver", "Mithril", "Everbright",
+]
+cur.executemany(
+    "UPDATE enchantment SET enchBonusType = 'Untyped' WHERE enchName = ?",
+    [(n,) for n in UNTYPED_CORRECTIONS]
+)
+cur.execute(
+    "SELECT COUNT(*) FROM enchantment WHERE enchName IN (" +
+    ",".join(["?"] * len(UNTYPED_CORRECTIONS)) + ") AND enchBonusType = 'Untyped'",
+    UNTYPED_CORRECTIONS
+)
+untyped_count = cur.fetchone()[0]
+print(f"Corrected {untyped_count} rows to bonusType 'Untyped' (expect {len(UNTYPED_CORRECTIONS)})")
+if untyped_count != len(UNTYPED_CORRECTIONS):
+    raise SystemExit(f"MISMATCH: expected {len(UNTYPED_CORRECTIONS)} rows corrected to Untyped, got {untyped_count}")
+
+# --- Step 6: normalize the 'Competance'/'Competancy' misspellings to 'Competence' in the raw
+# data itself (previously this merge only existed in the MariaDB bonusType seed list, which was
+# an oversight - the underlying enchBonusType values here still had the misspellings).
+cur.execute("UPDATE enchantment SET enchBonusType = 'Competence' WHERE enchBonusType IN ('Competance', 'Competancy')")
+cur.execute("SELECT COUNT(*) FROM enchantment WHERE enchBonusType = 'Competence'")
+competence_count = cur.fetchone()[0]
+print(f"Normalized to bonusType 'Competence': {competence_count} rows (expect 4)")
+if competence_count != 4:
+    raise SystemExit(f"MISMATCH: expected 4 rows with bonusType 'Competence', got {competence_count}")
+
 conn.commit()
 conn.close()
 print("Corrections applied.")
