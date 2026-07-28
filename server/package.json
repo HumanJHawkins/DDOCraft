@@ -1,0 +1,24 @@
+{
+  "name": "ddocraft-server",
+  "version": "0.1.0",
+  "description": "DDOCraft API server - serves the app from the MariaDB backend using the ddocraft_web account.",
+  "private": true,
+  "engines": {
+    "node": ">=16 <18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mysql2": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^16.18.108",
+    "typescript": "^5.5.4"
+  }
+}

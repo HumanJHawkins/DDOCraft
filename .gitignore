@@ -5,3 +5,7 @@
 
 # Local-only test harness, created/deleted during development sessions.
 ddocraft_preview.html
+
+# Node.js server build output/dependencies - installed/built on demand, not tracked.
+server/node_modules/
+server/dist/
