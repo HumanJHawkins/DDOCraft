@@ -268,6 +268,24 @@ print(f"Normalized to bonusType 'Competence': {competence_count} rows (expect 4)
 if competence_count != 4:
     raise SystemExit(f"MISMATCH: expected 4 rows with bonusType 'Competence', got {competence_count}")
 
+# --- Step 7: remove Orb's Red augment-slot declaration (Jeff, 2026-07-28 - real-game knowledge:
+# Orbs don't get a Red/weapon-style augment slot, contrary to what the recovered itemOption data
+# said). The two rows were internally well-formed (not an obvious copy-paste artifact - Orb's own
+# Prefix/Suffix/Extra options are all genuinely caster-implement-flavored), so this looks like an
+# error made by whoever originally curated the source Access DB, not a data-recovery bug.
+cur.execute("""
+    DELETE FROM itemOption
+    WHERE itemOptionCategory = 'Orb' AND itemOptionSlot LIKE 'Augment%' AND itemOptionEnchantment = 'Red'
+""")
+cur.execute("""
+    SELECT COUNT(*) FROM itemOption
+    WHERE itemOptionCategory = 'Orb' AND itemOptionSlot LIKE 'Augment%' AND itemOptionEnchantment = 'Red'
+""")
+orb_red_remaining = cur.fetchone()[0]
+print(f"Orb Red augment-slot rows removed (expect 0 remaining): {orb_red_remaining}")
+if orb_red_remaining != 0:
+    raise SystemExit(f"MISMATCH: expected 0 Orb/Red augment rows remaining, got {orb_red_remaining}")
+
 conn.commit()
 conn.close()
 print("Corrections applied.")
