@@ -1,0 +1,7 @@
+# Local secrets - never commit. See db/ for what these hold. (.env.example is the safe template,
+# intentionally still tracked.)
+.env
+.env.local
+
+# Local-only test harness, created/deleted during development sessions.
+ddocraft_preview.html

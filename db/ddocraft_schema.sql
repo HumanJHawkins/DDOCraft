@@ -1,0 +1,228 @@
+-- DDOCraft database schema (MariaDB).
+--
+-- Conventions:
+--   - Every table's primary key is <tableName>Id, INT AUTO_INCREMENT.
+--   - Every table has createBy/createDate/updateBy/updateDate. createBy/updateBy are plain
+--     VARCHAR identifiers for now, not an FK to an accounts table - no account system exists yet.
+--   - Table names are singular (itemCategory, not itemCategories) so "<tableName> + Id" reads
+--     naturally as the PK name.
+--
+-- This is a first pass, not yet run against a live database - no credentials exist for this
+-- session yet. Two things in here are explicitly provisional:
+--   - effectMagnitudeByLevel is a best guess at Jeff's level-scaling chart, to be revised once
+--     the actual data arrives.
+--   - effect.effectKey/bonusTypeId nullability, and the exact 0-5 rating scale on the class/
+--     purpose columns, are open until real data forces the question.
+
+SET NAMES utf8mb4;
+
+-- ---------------------------------------------------------------------------------------------
+-- bonusType: DDO's fixed set of bonus types (Enhancement, Insightful, Artifact, Alchemical,
+--   Competence, etc.) as a real lookup table, not a free-text column. This matters because "same
+--   bonus type doesn't stack, different bonus types do" is the actual DDO rule the app's overlap/
+--   duplicate detection is built on - a typo'd or inconsistent bonus type string would silently
+--   break that, which a lookup table (referenced by FK, not retyped per row) prevents.
+CREATE TABLE bonusType (
+    bonusTypeId   INT AUTO_INCREMENT PRIMARY KEY,
+    bonusTypeName VARCHAR(50)  NOT NULL UNIQUE,
+    createBy      VARCHAR(100) NOT NULL,
+    createDate    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updateBy      VARCHAR(100) NOT NULL,
+    updateDate    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------------------------
+-- effect: the master pool of every effect the app knows about. Not every effect is really an
+--   "enchantment" (some are intrinsic material/item properties like Mithril) - hence the rename
+--   from the old SQLite schema's "enchantment" table.
+--
+--   effectKey (nullable) is the canonical/semantic identity used together with bonusTypeId to
+--   decide whether two selections stack - distinct from effectName, which is just display text
+--   and can be reworded without touching stacking logic. Both are nullable because a handful of
+--   old rows (e.g. "Tourney Armor Extras") never had a real bonus type or stacking key at all -
+--   they're flavor-only entries, not a bug to fix by forcing a value here.
+--
+--   forBarbarian..forWizard and basic/nonscaling/forMeleeDmg/etc. are NOT membership flags - per
+--   Jeff, they're a manually-curated usefulness rating (a small numeric scale, e.g. 0-5) of the
+--   effect from that class/build-purpose's perspective, likely to stay hand-edited indefinitely
+--   rather than backed by empirical usage data. Kept as columns on this table rather than a
+--   junction table specifically because they're editorial judgment calls needing easy one-place
+--   manual editing, not a relational fact that's simply true or false. nonscaling in particular is
+--   an inherent trait of the effect itself, not a rating, but lives here for the same reason.
+--   allEnch is effectively always populated/true across real rows - kept only for continuity with
+--   the existing "sum of active filter weights" recommendation-highlight mechanism.
+CREATE TABLE effect (
+    effectId          INT AUTO_INCREMENT PRIMARY KEY,
+    effectName        VARCHAR(150) NOT NULL UNIQUE,
+    effectKey         VARCHAR(150) NULL,
+    bonusTypeId       INT NULL,
+    effectGroup       VARCHAR(100) NULL,   -- loose classification (Damage, Ability, Skill, ...) - descriptive only, not load-bearing
+    effectDescription VARCHAR(500) NULL,
+    sortOrder         INT NULL,
+    minLevelCannith   TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    minLevelAugment   TINYINT UNSIGNED NOT NULL DEFAULT 0,
+
+    -- Editorial usefulness ratings (small scale, e.g. 0-5; NULL = not yet rated). All manually
+    --   curated, all deliberately flat columns on this table - see note above.
+    allEnch           TINYINT UNSIGNED NULL,
+    basic             TINYINT UNSIGNED NULL,
+    nonscaling        TINYINT UNSIGNED NULL,
+    forMeleeDmg       TINYINT UNSIGNED NULL,
+    forRangedDmg      TINYINT UNSIGNED NULL,
+    forACDefence      TINYINT UNSIGNED NULL,
+    forResistDefence  TINYINT UNSIGNED NULL,
+    forHitPoints      TINYINT UNSIGNED NULL,
+    forAlchemist      TINYINT UNSIGNED NULL,
+    forArtificer      TINYINT UNSIGNED NULL,
+    forBarbarian      TINYINT UNSIGNED NULL,
+    forBard           TINYINT UNSIGNED NULL,
+    forCleric         TINYINT UNSIGNED NULL,
+    forDruid          TINYINT UNSIGNED NULL,
+    forFavoredSoul    TINYINT UNSIGNED NULL,
+    forFighter        TINYINT UNSIGNED NULL,
+    forMonk           TINYINT UNSIGNED NULL,
+    forPaladin        TINYINT UNSIGNED NULL,
+    forRanger         TINYINT UNSIGNED NULL,
+    forRogue          TINYINT UNSIGNED NULL,
+    forSorcerer       TINYINT UNSIGNED NULL,
+    forWarlock        TINYINT UNSIGNED NULL,
+    forWizard         TINYINT UNSIGNED NULL,
+
+    createBy          VARCHAR(100) NOT NULL,
+    createDate        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updateBy          VARCHAR(100) NOT NULL,
+    updateDate        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_effect_bonusType FOREIGN KEY (bonusTypeId) REFERENCES bonusType(bonusTypeId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE INDEX idx_effect_effectKey ON effect(effectKey);
+
+-- ---------------------------------------------------------------------------------------------
+-- effectEquivalencyGroup / effectEquivalencyMember: replaces the old single enchSupercededBy
+--   name-pointer (a fragile string match against enchName) with a proper grouping. Several
+--   effects can be "the same thing from the same source" (e.g. the specific Alignments vs. the
+--   universal "Aligned"), and per Jeff, we eventually want to rank quality within a group (the
+--   universal option is usually strictly better than one specific case it covers) rather than
+--   just flag them as interchangeable - qualityScore is that hook, left NULL until assessed.
+--   Deliberately minimal: supercededBy was barely used in the old data, so most effects will
+--   never have a row here at all, and this shouldn't grow more complex than it needs to.
+CREATE TABLE effectEquivalencyGroup (
+    effectEquivalencyGroupId INT AUTO_INCREMENT PRIMARY KEY,
+    groupLabel               VARCHAR(150) NULL,  -- optional human-readable label, e.g. "Alignment"
+    createBy                 VARCHAR(100) NOT NULL,
+    createDate               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updateBy                 VARCHAR(100) NOT NULL,
+    updateDate               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE effectEquivalencyMember (
+    effectEquivalencyMemberId INT AUTO_INCREMENT PRIMARY KEY,
+    effectEquivalencyGroupId  INT NOT NULL,
+    effectId                  INT NOT NULL,
+    qualityScore              DECIMAL(6,2) NULL,  -- relative quality within the group, once assessed - not yet populated
+    createBy                  VARCHAR(100) NOT NULL,
+    createDate                DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updateBy                  VARCHAR(100) NOT NULL,
+    updateDate                DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_eem_group  FOREIGN KEY (effectEquivalencyGroupId) REFERENCES effectEquivalencyGroup(effectEquivalencyGroupId),
+    CONSTRAINT fk_eem_effect FOREIGN KEY (effectId) REFERENCES effect(effectId),
+    CONSTRAINT uq_eem_group_effect UNIQUE (effectEquivalencyGroupId, effectId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------------------------
+-- effectMagnitudeByLevel: PROVISIONAL - modeled from Jeff's description (two rows per covered
+--   effect, one Cannith and one Augment, one column per level 1-32 stating maximized strength at
+--   that level) before seeing the actual chart. Normalized here as a "long" table - one row per
+--   effect+deliveryType+level - rather than 32 level columns, since not every effect will have
+--   magnitude data and not every level is relevant once min-level gating already excludes some.
+--   Expect to revise once the real chart arrives.
+CREATE TABLE effectMagnitudeByLevel (
+    effectMagnitudeByLevelId INT AUTO_INCREMENT PRIMARY KEY,
+    effectId                 INT NOT NULL,
+    deliveryType             ENUM('Cannith','Augment') NOT NULL,
+    level                    TINYINT UNSIGNED NOT NULL,
+    magnitude                DECIMAL(10,2) NOT NULL,
+    createBy                 VARCHAR(100) NOT NULL,
+    createDate               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updateBy                 VARCHAR(100) NOT NULL,
+    updateDate               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_embl_effect FOREIGN KEY (effectId) REFERENCES effect(effectId),
+    CONSTRAINT uq_embl_effect_delivery_level UNIQUE (effectId, deliveryType, level)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------------------------
+-- itemCategory: one row per equipment category (Goggles, Helm, Armor, Melee1, ...). No "item"
+--   table exists - a Cannith item is always "Cannith " + itemCategoryName, purely formulaic, and
+--   a named/custom item has zero DB backing by design (the app has no knowledge of any specific
+--   named item - see ddocraft.js's PIVOT note). No augmentSlotCount column either: real Cannith
+--   blanks vary 0-2 augment slots per the specific in-game item, not per category, so "up to 2" is
+--   an app-level rendering assumption, not data this table can actually own. No allowsColorless
+--   either - every augment slot accepts colorless universally, so the flag would carry zero
+--   information; that's handled as a constant at the app layer instead.
+CREATE TABLE itemCategory (
+    itemCategoryId   INT AUTO_INCREMENT PRIMARY KEY,
+    itemCategoryName VARCHAR(50) NOT NULL UNIQUE,
+    allowsBlue       BOOLEAN NOT NULL DEFAULT FALSE,
+    allowsYellow     BOOLEAN NOT NULL DEFAULT FALSE,
+    allowsRed        BOOLEAN NOT NULL DEFAULT FALSE,  -- also drives Orange/Purple eligibility (Red+Yellow / Red+Blue) at the app layer
+    createBy         VARCHAR(100) NOT NULL,
+    createDate       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updateBy         VARCHAR(100) NOT NULL,
+    updateDate       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------------------------
+-- augmentColor: the real base augment colors only. Green/Orange/Purple are NOT rows here - they
+--   are derived combinations (Green=Blue+Yellow, Orange=Red+Yellow, Purple=Red+Blue), resolved at
+--   the app layer from itemCategory's allowsX flags, never stored as their own entity. Colorless
+--   IS a row here even though itemCategory has no matching "allows" flag - effects still need to
+--   link to it via augmentOption, it's just that every category is eligible for it, so there's
+--   nothing to gate per-category.
+CREATE TABLE augmentColor (
+    augmentColorId   INT AUTO_INCREMENT PRIMARY KEY,
+    augmentColorName VARCHAR(20) NOT NULL UNIQUE,
+    createBy         VARCHAR(100) NOT NULL,
+    createDate       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updateBy         VARCHAR(100) NOT NULL,
+    updateDate       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------------------------
+-- augmentOption: links an effect to the augment color(s) it's eligible for. Global and item-
+--   independent - the same list applies to every item's augment slot of that color, whether it's
+--   a Cannith blank or a user-defined custom item's slot.
+CREATE TABLE augmentOption (
+    augmentOptionId INT AUTO_INCREMENT PRIMARY KEY,
+    effectId        INT NOT NULL,
+    augmentColorId  INT NOT NULL,
+    createBy        VARCHAR(100) NOT NULL,
+    createDate      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updateBy        VARCHAR(100) NOT NULL,
+    updateDate      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_ao_effect       FOREIGN KEY (effectId) REFERENCES effect(effectId),
+    CONSTRAINT fk_ao_augmentColor FOREIGN KEY (augmentColorId) REFERENCES augmentColor(augmentColorId),
+    CONSTRAINT uq_ao_effect_color UNIQUE (effectId, augmentColorId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------------------------
+-- cannithCategoryOption: links a category's non-augment slot (Prefix, Suffix, Extra) to the
+--   effects craftable there. Augment slots never appear here - they're handled entirely through
+--   itemCategory's allowsX flags plus augmentOption.
+CREATE TABLE cannithCategoryOption (
+    cannithCategoryOptionId INT AUTO_INCREMENT PRIMARY KEY,
+    itemCategoryId          INT NOT NULL,
+    slotType                ENUM('Prefix','Suffix','Extra') NOT NULL,
+    effectId                INT NOT NULL,
+    createBy                VARCHAR(100) NOT NULL,
+    createDate              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updateBy                VARCHAR(100) NOT NULL,
+    updateDate              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_cco_itemCategory FOREIGN KEY (itemCategoryId) REFERENCES itemCategory(itemCategoryId),
+    CONSTRAINT fk_cco_effect       FOREIGN KEY (effectId) REFERENCES effect(effectId),
+    CONSTRAINT uq_cco_category_slot_effect UNIQUE (itemCategoryId, slotType, effectId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
