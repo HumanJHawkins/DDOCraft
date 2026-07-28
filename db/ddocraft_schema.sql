@@ -54,7 +54,7 @@ CREATE TABLE effect (
     bonusTypeId       INT NULL,
     effectGroup       VARCHAR(100) NULL,   -- loose classification (Damage, Ability, Skill, ...) - descriptive only, not load-bearing
     effectDescription VARCHAR(500) NULL,
-    sortOrder         INT NULL,
+    effectSortOrder   INT NULL,
     minLevelCannith   TINYINT UNSIGNED NOT NULL DEFAULT 0,
     minLevelAugment   TINYINT UNSIGNED NOT NULL DEFAULT 0,
 
@@ -158,15 +158,16 @@ CREATE TABLE effectBonusByLevel (
 --   either - every augment slot accepts colorless universally, so the flag would carry zero
 --   information; that's handled as a constant at the app layer instead.
 CREATE TABLE itemCategory (
-    itemCategoryId   INT AUTO_INCREMENT PRIMARY KEY,
-    itemCategoryName VARCHAR(50) NOT NULL UNIQUE,
-    allowsBlue       BOOLEAN NOT NULL DEFAULT FALSE,
-    allowsYellow     BOOLEAN NOT NULL DEFAULT FALSE,
-    allowsRed        BOOLEAN NOT NULL DEFAULT FALSE,  -- also drives Orange/Purple eligibility (Red+Yellow / Red+Blue) at the app layer
-    createBy         VARCHAR(100) NOT NULL,
-    createDate       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updateBy         VARCHAR(100) NOT NULL,
-    updateDate       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    itemCategoryId        INT AUTO_INCREMENT PRIMARY KEY,
+    itemCategoryName      VARCHAR(50) NOT NULL UNIQUE,
+    itemCategorySortOrder INT NULL,  -- display order (Goggles, Helm, Necklace, ... Orb) - matches the original recovered data's implied category order
+    allowsBlue            BOOLEAN NOT NULL DEFAULT FALSE,
+    allowsYellow          BOOLEAN NOT NULL DEFAULT FALSE,
+    allowsRed             BOOLEAN NOT NULL DEFAULT FALSE,  -- also drives Orange/Purple eligibility (Red+Yellow / Red+Blue) at the app layer
+    createBy              VARCHAR(100) NOT NULL,
+    createDate            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updateBy              VARCHAR(100) NOT NULL,
+    updateDate            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------------------------------------------
@@ -190,13 +191,14 @@ CREATE TABLE augmentColor (
 --   independent - the same list applies to every item's augment slot of that color, whether it's
 --   a Cannith blank or a user-defined custom item's slot.
 CREATE TABLE augmentOption (
-    augmentOptionId INT AUTO_INCREMENT PRIMARY KEY,
-    effectId        INT NOT NULL,
-    augmentColorId  INT NOT NULL,
-    createBy        VARCHAR(100) NOT NULL,
-    createDate      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updateBy        VARCHAR(100) NOT NULL,
-    updateDate      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    augmentOptionId       INT AUTO_INCREMENT PRIMARY KEY,
+    effectId              INT NOT NULL,
+    augmentColorId        INT NOT NULL,
+    augmentOptionSortOrder INT NULL,  -- display order within a color, inherited from the recovered data's itemOptionSortOrder
+    createBy              VARCHAR(100) NOT NULL,
+    createDate            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updateBy              VARCHAR(100) NOT NULL,
+    updateDate            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_ao_effect       FOREIGN KEY (effectId) REFERENCES effect(effectId),
     CONSTRAINT fk_ao_augmentColor FOREIGN KEY (augmentColorId) REFERENCES augmentColor(augmentColorId),
@@ -208,14 +210,15 @@ CREATE TABLE augmentOption (
 --   effects craftable there. Augment slots never appear here - they're handled entirely through
 --   itemCategory's allowsX flags plus augmentOption.
 CREATE TABLE cannithCategoryOption (
-    cannithCategoryOptionId INT AUTO_INCREMENT PRIMARY KEY,
-    itemCategoryId          INT NOT NULL,
-    slotType                ENUM('Prefix','Suffix','Extra') NOT NULL,
-    effectId                INT NOT NULL,
-    createBy                VARCHAR(100) NOT NULL,
-    createDate              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updateBy                VARCHAR(100) NOT NULL,
-    updateDate              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    cannithCategoryOptionId          INT AUTO_INCREMENT PRIMARY KEY,
+    itemCategoryId                   INT NOT NULL,
+    slotType                         ENUM('Prefix','Suffix','Extra') NOT NULL,
+    effectId                         INT NOT NULL,
+    cannithCategoryOptionSortOrder   INT NULL,  -- display order within a category+slot, inherited from the recovered data's itemOptionSortOrder
+    createBy                         VARCHAR(100) NOT NULL,
+    createDate                       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updateBy                         VARCHAR(100) NOT NULL,
+    updateDate                       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_cco_itemCategory FOREIGN KEY (itemCategoryId) REFERENCES itemCategory(itemCategoryId),
     CONSTRAINT fk_cco_effect       FOREIGN KEY (effectId) REFERENCES effect(effectId),

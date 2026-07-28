@@ -10,7 +10,7 @@ effectsRouter.get("/", async (_req, res, next) => {
               e.minLevelCannith, e.minLevelAugment, bt.bonusTypeName
        FROM effect e
        LEFT JOIN bonusType bt ON bt.bonusTypeId = e.bonusTypeId
-       ORDER BY e.sortOrder, e.effectName`
+       ORDER BY e.effectSortOrder, e.effectName`
     );
     res.json(rows);
   } catch (err) {

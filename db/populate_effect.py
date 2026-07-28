@@ -67,7 +67,7 @@ def main():
     assert not unmapped, f"unmapped bonus types, update BONUS_TYPE_ID: {unmapped}"
 
     cols = (["effectName", "effectKey", "bonusTypeId", "effectGroup", "effectDescription",
-             "sortOrder", "minLevelCannith", "minLevelAugment"] + WEIGHT_COLS
+             "effectSortOrder", "minLevelCannith", "minLevelAugment"] + WEIGHT_COLS
             + ["createBy", "updateBy"])
 
     lines = []
