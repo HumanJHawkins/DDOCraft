@@ -1,7 +1,26 @@
 // TO DO:
 // Do a better job of highlighting collapsed items? (Standard chevrons?)
-// Examine and clean up the 12 excluded/flagged data-discrepancy rows (see PHASE 1 below) - very
-//   low priority, current dataset is believed correct, but it should stay on the list to check.
+
+// KNOWN ISSUES (tracked, not urgent, not necessarily wrong - revisit when there's reason to):
+//
+// - The 12 enchantment rows flagged/excluded in PHASE 1 (dataStatus='questionable') - current
+//   dataset is believed correct, but never independently re-verified. See PHASE 1 note below.
+// - WEAPON_CATEGORIES (Melee1/Melee2/Ranged) drives whether a custom item's "+ Add Augment"
+//   offers Orange/Purple/Red (weapon) or Green (non-weapon). Shield, Rune Arm, and Orb (Orb is
+//   apparently a shield subtype internally at SSG) are specifically unresolved - could go either
+//   way, need confirmation before changing WEAPON_CATEGORIES.
+// - Named items often carry an effect under an exotic bonus type (Artifact, Alchemical,
+//   Competence, etc.) specifically so it stacks with a character's normal crafted gear - DDO's
+//   real stacking rule is "same bonus type doesn't stack, different bonus types do" (~99% true,
+//   rare odd exceptions), and enchEffectType already bakes bonus type + effect together, so this
+//   is handled correctly wherever the data has the right bonus type recorded. The real gap: the
+//   master enchantment table was built from recovered CANNITH CRAFTING data, so it may be missing
+//   entries for (effect, exotic-bonus-type) combinations that only ever show up on named items -
+//   if a real named item's actual bonus type isn't in the table, the inherent-effects picker has
+//   no way to offer the correct one, and picking the closest-named match (usually the ordinary
+//   Enhancement-type version) would generate a false-positive overlap warning against something
+//   that genuinely stacks in-game. No fix proposed yet - needs more thought once it's clear how
+//   big a problem this actually is in practice.
 
 // TO DO: Full staged plan, three merged streams (SQLite migration, render/state architecture
 //   rewrite, named item feature). One continuous numbering - delete each step as it's completed,
@@ -96,11 +115,6 @@
 // 4. (Future, explicitly out of scope for this phase) Optional prepopulated dropdown of popular
 //    named items layered on top of the custom-item mechanism, for convenience - full manual
 //    entry is the complete solution for now.
-// 5. TO CHECK (not a known bug, just unverified - explicitly do not change until confirmed):
-//    WEAPON_CATEGORIES (Melee1/Melee2/Ranged) drives whether a custom item's "+ Add Augment"
-//    offers Orange/Purple/Red (weapon) or Green (non-weapon). Shield, Rune Arm, and Orb (Orb is
-//    apparently a shield subtype internally at SSG) are specifically unresolved - could go either
-//    way, need real confirmation before changing WEAPON_CATEGORIES.
 
 // FIXED (2026-07-27): Two corrections to the refinements immediately below this note.
 //   (1) The rose-suppression/header-warning treatment was too broad - it had applied to a custom
@@ -115,7 +129,7 @@
 //   Bracers) - it's folded into Orange/Purple and shouldn't be offered on its own outside weapon
 //   categories, same gating as those two now applies to it directly.
 //   Also noted, not yet acted on: Shield/Rune Arm/Orb's weapon-or-not status is unconfirmed (see
-//   PHASE 3 step 5 above) - explicitly left WEAPON_CATEGORIES unchanged pending confirmation.
+//   KNOWN ISSUES above) - explicitly left WEAPON_CATEGORIES unchanged pending confirmation.
 
 // DONE (2026-07-27): Four more refinements from testing the custom-item feature.
 //   (1) Removed the Cannith item dropdown from the category caption entirely (getCategoryDropdownHtml/
