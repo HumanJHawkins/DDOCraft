@@ -96,6 +96,37 @@
 // 4. (Future, explicitly out of scope for this phase) Optional prepopulated dropdown of popular
 //    named items layered on top of the custom-item mechanism, for convenience - full manual
 //    entry is the complete solution for now.
+// 5. ASSUMPTION TO CONFIRM: WEAPON_CATEGORIES (Melee1/Melee2/Ranged) drives whether a custom
+//    item's "+ Add Augment" offers Orange/Purple (weapon) or Green (non-weapon) combo colors -
+//    correct that list if Shield/Rune Arm/Orb should also count as weapons for this purpose.
+
+// DONE (2026-07-27): Four more refinements from testing the custom-item feature.
+//   (1) Removed the Cannith item dropdown from the category caption entirely (getCategoryDropdownHtml/
+//   handleCategoryChange deleted) - it only ever had one real option since the named-item pivot, and
+//   if item choice ever comes back it'll need a different UI anyway, not this leftover one.
+//   (2) A custom item's own selected buttons (augment or inherent) no longer get the individual rose
+//   "duplicate" treatment even when they overlap with something - the item's effects are being
+//   treated as fixed once picked, and a rose button reads as "still needs fixing," which isn't the
+//   point once it's a real named item's actual effect. Instead, computeSelectionIndex() now also
+//   computes a per-category overlap flag, and the category header shows one rose text warning
+//   ("Effect overlaps detected") when any of that item's active selections overlap with anything -
+//   Cannith buttons on the other side of the same overlap are unaffected, still rose exactly as before.
+//   (3) Moved the "+ Add Augment" control from its own row below the augment list up into the
+//   category header bar, next to the Named/Custom checkbox - saves vertical space, which matters
+//   more once small-screen layout is a concern.
+//   (4) Custom augment slots now support the full real color model instead of just the four base
+//   colors: Green (Blue+Yellow, non-weapon categories), Orange (Red+Yellow) and Purple (Red+Blue)
+//   (both weapon categories) as combo slots - one slot, one selection, but candidates drawn from
+//   multiple color pools, rendered with the same color sub-headers Cannith slots already use. Also:
+//   every non-Colorless slot now always additionally includes the Colorless pool (a colorless
+//   augment fits any slot), while a Colorless slot shows only colorless candidates - this needed no
+//   new data, augmentOptionsByColor already had everything, just needed resolving through the new
+//   realColorsForSlot() helper instead of a 1:1 color-to-pool lookup.
+//   Verified: dropdown gone; overlap warning shows/clears correctly on both the positional-augment
+//   and inherent-effect paths while the Cannith side keeps its own rose warning; add-augment control
+//   renders in the header with category-appropriate combo colors; a Green slot correctly shows
+//   Blue/Yellow/Colorless sub-groups, a plain Yellow slot shows Yellow/Colorless, a Colorless slot
+//   shows only Colorless; all of the above survives a toggle-off/toggle-on round-trip.
 
 // FIXED (2026-07-27): Two bugs Jeff found testing the custom-item feature.
 //   (1) There was no way back to Cannith mode once a category switched to custom - the old
@@ -344,11 +375,6 @@ function initCategoryChoice() {
     }
 }
 
-function handleCategoryChange(selectElement, category) {
-    charData.categoryChoice[category] = selectElement.value;
-    // Cosmetic only until PHASE 3 step 3 wires this to actually swap rendered rows.
-}
-
 function initFilter() {
     charData.saveFile.charLevel             = document.getElementById('characterLevel').value;
     charData.enchFilter['allEnch']          = document.getElementById('allEnch').checked;
@@ -401,8 +427,9 @@ function categoryOfCustomItemKey(item) {
 // One pass over current selections, computing everything getButton() needs to decide every
 //   candidate's appearance without re-scanning the selections store per-button.
 function computeSelectionIndex() {
-    let effectTypeCounts   = {};   // enchEffectType -> how many selections share it
-    let selectedNamesByItem = {};  // item -> Set(enchName) - for enchSupercededBy wildcard matches
+    let effectTypeCounts    = {};   // enchEffectType -> how many selections share it
+    let selectedNamesByItem = {};   // item -> Set(enchName) - for enchSupercededBy wildcard matches
+    let activeCustom        = [];   // {category, enchName} for every active custom-item selection
 
     function account(item, enchName) {
         let ench = charData.enchantments[enchName];
@@ -421,7 +448,9 @@ function computeSelectionIndex() {
         if (owningCategory && (charData.categoryMode[owningCategory] || "cannith") !== "custom") { continue; }
 
         for (let slot of Object.keys(charData.selections.positional[item])) {
-            account(item, charData.selections.positional[item][slot].enchName);
+            let enchName = charData.selections.positional[item][slot].enchName;
+            account(item, enchName);
+            if (owningCategory) { activeCustom.push({category: owningCategory, enchName: enchName}); }
         }
     }
     for (let category of Object.keys(charData.selections.inherent)) {
@@ -429,11 +458,25 @@ function computeSelectionIndex() {
         for (let item of Object.keys(charData.selections.inherent[category])) {
             for (let enchName of charData.selections.inherent[category][item]) {
                 account(item, enchName);
+                activeCustom.push({category: category, enchName: enchName});
             }
         }
     }
 
-    return {effectTypeCounts: effectTypeCounts, selectedNamesByItem: selectedNamesByItem};
+    // A custom item's own effects are treated as fixed once picked - they never get the individual
+    //   rose "duplicate" treatment a Cannith pick does (see getButton()/getInherentButton()).
+    //   Instead, the category as a whole gets one text warning if ANY of its active selections
+    //   overlap with anything - a second pass, since it needs effectTypeCounts fully totalled first.
+    let customCategoryOverlap = {};
+    for (let entry of activeCustom) {
+        let ench = charData.enchantments[entry.enchName];
+        if (ench && (effectTypeCounts[ench.enchEffectType] || 0) > 1) {
+            customCategoryOverlap[entry.category] = true;
+        }
+    }
+
+    return {effectTypeCounts: effectTypeCounts, selectedNamesByItem: selectedNamesByItem,
+        customCategoryOverlap: customCategoryOverlap};
 }
 
 function renderEnchantmentOptions() {
@@ -453,6 +496,9 @@ function renderEnchantmentOptions() {
             "')\">&#9661; " + escHtml(category) + " " + getCategoryModeToggleHtml(category);
 
         if (mode === "custom") {
+            if (idx.customCategoryOverlap[category]) {
+                html += " <span class='overlapWarning'>Effect overlaps detected</span>";
+            }
             html += "</caption>" + renderCustomItemBody(category, idx) + "</table>";
             continue;
         }
@@ -461,7 +507,7 @@ function renderEnchantmentOptions() {
         if (!item) { html += "</caption></table>"; continue; }
         let itemNode = charData.catalog[category][item];
 
-        html += " " + getCategoryDropdownHtml(category) + "</caption>";
+        html += "</caption>";
 
         for (let slot of Object.keys(itemNode)) {
             if (slot === "Extra" && charData.saveFile.charLevel < extraSlotMinLevel) { continue; }
@@ -511,9 +557,36 @@ function renderEnchantmentOptions() {
 
 function getCategoryModeToggleHtml(category) {
     let checked = charData.categoryMode[category] === "custom" ? " checked" : "";
-    return "<label class='customToggle' onclick='event.stopPropagation()'>" +
+    let html = "<label class='customToggle' onclick='event.stopPropagation()'>" +
         "<input type='checkbox' onclick='event.stopPropagation()' onchange=\"handleCategoryModeToggle(this,'" +
         escJs(category) + "')\"" + checked + " /> Named or Custom Item</label>";
+
+    if (charData.categoryMode[category] === "custom") {
+        html += getAddAugmentControlHtml(category);
+    }
+    return html;
+}
+
+function getAddAugmentControlHtml(category) {
+    let custom = charData.customItems[category];
+    if (!custom) { return ""; }
+
+    if (custom.augments.length >= AUGMENT_SLOT_CAP) {
+        return " <em>(max " + AUGMENT_SLOT_CAP + " augments)</em>";
+    }
+
+    // Green/Orange/Purple are combo slots (see realColorsForSlot()) - which ones are offered
+    //   depends on whether the category is a weapon. ASSUMPTION pending confirmation: weapon
+    //   categories are exactly Melee1/Melee2/Ranged - everything else (including Shield, Rune Arm,
+    //   Orb) is treated as non-weapon. Correct WEAPON_CATEGORIES below if that's wrong.
+    let isWeapon = WEAPON_CATEGORIES.indexOf(category) > -1;
+    let colors   = Object.keys(charData.augmentOptionsByColor).concat(isWeapon ? ["Orange", "Purple"] : ["Green"]);
+
+    let colorOptions = colors.map(function (c) {
+        return "<option value=\"" + escHtml(c) + "\">" + escHtml(c) + "</option>";
+    }).join("");
+    return " <select class='addAugmentSelect' onclick='event.stopPropagation()' onchange=\"handleAddAugmentSelect(this,'" +
+        escJs(category) + "')\"><option value=''>+ Add Augment...</option>" + colorOptions + "</select>";
 }
 
 function customItemKey(category) {
@@ -524,6 +597,27 @@ function customItemKey(category) {
 }
 
 let AUGMENT_SLOT_CAP = 7;
+
+// Combo augment colors - a single slot, single selection, but candidates drawn from more than one
+//   real color pool. Cannith rendering needs none of this: its augment slots are "universal" in
+//   the source data already (every color shown together), this only matters for a custom item's
+//   slot, which is deliberately restricted to what a real named item's slot would actually take.
+let AUGMENT_COMBO_COLORS = {
+    "Green": ["Blue", "Yellow"],
+    "Orange": ["Red", "Yellow"],
+    "Purple": ["Red", "Blue"]
+};
+
+let WEAPON_CATEGORIES = ["Melee1", "Melee2", "Ranged"];
+
+function realColorsForSlot(slotColor) {
+    // Colorless is special in both directions: a Colorless slot accepts ONLY colorless augments,
+    //   but every other slot additionally accepts colorless on top of whatever else it takes
+    //   (colorless augments fit any slot color).
+    let colors = (AUGMENT_COMBO_COLORS[slotColor] || [slotColor]).slice();
+    if (slotColor !== "Colorless" && colors.indexOf("Colorless") === -1) { colors.push("Colorless"); }
+    return colors;
+}
 
 function renderCustomItemBody(category, idx) {
     let custom = charData.customItems[category] || {name: "", augments: [], nextAugmentId: 1};
@@ -538,6 +632,7 @@ function renderCustomItemBody(category, idx) {
                                                   //   existing augment-vs-cannith min-level check.
         let displayLabel = "Augment " + (position + 1) + " (" + aug.color + ")";
         let slotKey      = item + "|" + slot;
+        let realColors   = realColorsForSlot(aug.color);
 
         html += "<tr><td class='slot'>" +
             "<span onclick=\"toggleCollapsed('slot','" + escJs(slotKey) + "')\">" + escHtml(displayLabel) + "</span> " +
@@ -547,27 +642,22 @@ function renderCustomItemBody(category, idx) {
         if (charData.collapsed.slot.has(slotKey)) {
             html += "&nbsp;";
         } else {
-            html += "<div class='ench'> ";
-            for (let enchName of (charData.augmentOptionsByColor[aug.color] || [])) {
-                html += getButton(item, slot, aug.color, enchName, idx);
+            for (let c = 0; c < realColors.length; c++) {
+                let realColor = realColors[c];
+                if (realColors.length > 1) {
+                    if (c > 0) { html += "<br />"; }
+                    html += "<div class='color'>&nbsp;" + escHtml(realColor) + ":</div>&nbsp;";
+                }
+                html += "<div class='ench'> ";
+                for (let enchName of (charData.augmentOptionsByColor[realColor] || [])) {
+                    html += getButton(item, slot, realColor, enchName, idx);
+                }
+                html += "</div>";
             }
-            html += "</div>";
         }
 
         html += "</td></tr>";
     });
-
-    html += "<tr><td class='slot'></td><td class='options'>";
-    if (custom.augments.length < AUGMENT_SLOT_CAP) {
-        let colorOptions = Object.keys(charData.augmentOptionsByColor).map(function (c) {
-            return "<option value=\"" + escHtml(c) + "\">" + escHtml(c) + "</option>";
-        }).join("");
-        html += "<select class='addAugmentSelect' onchange=\"handleAddAugmentSelect(this,'" + escJs(category) + "')\">" +
-            "<option value=''>+ Add Augment...</option>" + colorOptions + "</select>";
-    } else {
-        html += "<em>Maximum " + AUGMENT_SLOT_CAP + " augment slots</em>";
-    }
-    html += "</td></tr>";
 
     html += renderInherentPicker(category, idx);
 
@@ -605,7 +695,6 @@ function getInherentButton(category, item, enchName, idx) {
     let selectedSet = (charData.selections.inherent[category] || {})[item];
     let isSelected  = !!selectedSet && selectedSet.has(enchName);
     let effectCount = idx.effectTypeCounts[ench.enchEffectType] || 0;
-    let isDuplicate = isSelected && effectCount > 1;
     let isHandled   = !isSelected && (
         effectCount > 0 ||
         (idx.selectedNamesByItem[item] && idx.selectedNamesByItem[item].has(ench.enchSupercededBy))
@@ -617,7 +706,9 @@ function getInherentButton(category, item, enchName, idx) {
     let btn;
 
     if (isSelected) {
-        btn = "<button class='" + (isDuplicate ? "duplicate" : "selected") + "' title=\"" + title + "\" ";
+        // Inherent effects are always a custom item's own - never the individual rose treatment,
+        //   same reasoning as getButton(). See computeSelectionIndex()'s customCategoryOverlap.
+        btn = "<button class='selected' title=\"" + title + "\" ";
         enchValue = 1;
     } else if (isHandled) {
         btn = "<button class='handled' title=\"" + title + "\" ";
@@ -691,21 +782,6 @@ function handleRemoveCustomAugment(category, augId) {
     renderResult();
 }
 
-function getCategoryDropdownHtml(category) {
-    // Selection is tracked in charData.categoryChoice, but doesn't yet affect rendering beyond
-    //   which item's rows are walked above - see PHASE 3 step 3.
-    let items = Object.keys(charData.catalog[category]);
-
-    let html = "<select class='categorySelect' onclick='event.stopPropagation()' onchange=\"handleCategoryChange(this, '" +
-        escJs(category) + "')\">";
-    for (let item of items) {
-        let selected = item === charData.categoryChoice[category] ? " selected" : "";
-        html += "<option value=\"" + escHtml(item) + "\"" + selected + ">" + escHtml(item) + "</option>";
-    }
-    html += "</select>";
-    return html;
-}
-
 function getButton(item, slot, color, enchName, idx) {
     let ench = charData.enchantments[enchName];
     let isAugment = slot.substring(0, 3) === "Aug";
@@ -729,7 +805,13 @@ function getButton(item, slot, color, enchName, idx) {
     let btn;
 
     if (isSelectedHere) {
-        btn = "<button class='" + (isDuplicate ? "duplicate" : "selected") + "' title=\"" + title + "\" ";
+        // A custom item's own selection never gets the individual rose treatment, even if it
+        //   overlaps with something - that's a category-level text warning instead (see
+        //   renderEnchantmentOptions()/computeSelectionIndex()). The item's effects are being
+        //   treated as fixed once picked; a rose button would read as "this is still a mistake to
+        //   fix," which isn't the point once it's a real named item's actual effect.
+        let showDuplicate = isDuplicate && !categoryOfCustomItemKey(item);
+        btn = "<button class='" + (showDuplicate ? "duplicate" : "selected") + "' title=\"" + title + "\" ";
         enchValue = 1;  // Display all selected enchantments regardless of filter.
     } else if (isHandled) {
         // Discouraged, not disabled: the same effect is already selected elsewhere, but taking

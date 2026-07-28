@@ -269,6 +269,13 @@ img {
     color: #fff;
 }
 
+.overlapWarning {
+    color: #d55181;
+    font-weight: bold;
+    font-size: calc(4px + .5vw);
+    margin-left: .5vw;
+}
+
 .color {
     font-size: calc(4px + .5vw);
     padding: 0;
