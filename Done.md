@@ -1,0 +1,14 @@
+# Done
+
+- Duplicate-effect handling: selecting an effect already selected elsewhere no longer blocks the click — both instances render with a warning state instead. Button states: selected, duplicate warning, discouraged-but-clickable (occupied slot / taken elsewhere), filter-recommended.
+- Client-side render/state architecture rewrite: catalog (category → item → slot → color → candidates) built once at load, separate from a selections store (positional + inherent), replacing the old flat-array/boundary-flag model. Save format bumped to v2.0 — **not backward-compatible** with older save files.
+- Named/custom item feature: replaced the earlier plan to hand-curate a handful of named items with data. Instead, any category can be switched to "Custom," which provides:
+  - Real augment slots (same color-eligibility rules as Cannith augments), added via a "+ Add Augment" control, capped at 7 per item, individually removable.
+  - A flat, alphabetical inherent-effects picker covering every known effect, deliberately unfiltered by category and with no level gating.
+  - A per-category overlap warning banner for a custom item's own selections, instead of the individual per-button duplicate highlight Cannith picks get.
+  - Switching a category's mode never deletes its data — toggling back and forth preserves whatever was entered.
+- Removed the old Cannith item-choice dropdown from category headers (dead code since the custom-item pivot — there was never more than one real option).
+- Data pipeline: `source_data/equipDDO.sqlite` is the source of truth; `ddocraft.json` is generated from it via `build_db.py` → `apply_corrections.py` → `export_ddocraft_json.py`. **Never hand-edit `ddocraft.json` directly** — edit the SQLite data and regenerate.
+- Corrected several bonus-type data-entry errors in the recovered source data: effect-name leakage into the bonus-type column (Blindness Immunity, Regeneration, the material-bypass family, plus two rows already using a literal "Unknown" placeholder — all normalized to "Untyped"), and a `Competance`/`Competancy` spelling split merged to `Competence`. Vitality was checked and confirmed to be a real, distinct bonus type — left as-is.
+- Stood up a MariaDB backend on a dedicated dev/QA VM. Populated so far: `bonusType`, `augmentColor` (reference tables), `effect` (283 rows, migrated from the recovered enchantment data via `db/populate_effect.py`), `effectMagnitudeByLevel` (7,359 rows, from two reference CSVs via `db/populate_effect_magnitude.py` — that script's docstring documents every name-mapping judgment call made). Still empty: `itemCategory`, `augmentOption`, `cannithCategoryOption` (see To Do).
+- The one-off "Tourney Armor" stand-in item used during early named-item design has been fully removed from the data pipeline — it was never itself important, just an example.
