@@ -7,12 +7,8 @@
 --   - Table names are singular (itemCategory, not itemCategories) so "<tableName> + Id" reads
 --     naturally as the PK name.
 --
--- This is a first pass, not yet run against a live database - no credentials exist for this
--- session yet. Two things in here are explicitly provisional:
---   - effectMagnitudeByLevel is a best guess at Jeff's level-scaling chart, to be revised once
---     the actual data arrives.
---   - effect.effectKey/bonusTypeId nullability, and the exact 0-5 rating scale on the class/
---     purpose columns, are open until real data forces the question.
+-- Still provisional: effect.effectKey/bonusTypeId nullability, and the exact 0-5 rating scale on
+-- the class/purpose columns, are open until real data forces the question.
 
 SET NAMES utf8mb4;
 
@@ -132,25 +128,24 @@ CREATE TABLE effectEquivalencyMember (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------------------------------------------
--- effectMagnitudeByLevel: PROVISIONAL - modeled from Jeff's description (two rows per covered
---   effect, one Cannith and one Augment, one column per level 1-32 stating maximized strength at
---   that level) before seeing the actual chart. Normalized here as a "long" table - one row per
---   effect+deliveryType+level - rather than 32 level columns, since not every effect will have
---   magnitude data and not every level is relevant once min-level gating already excludes some.
---   Expect to revise once the real chart arrives.
-CREATE TABLE effectMagnitudeByLevel (
-    effectMagnitudeByLevelId INT AUTO_INCREMENT PRIMARY KEY,
-    effectId                 INT NOT NULL,
-    deliveryType             ENUM('Cannith','Augment') NOT NULL,
-    level                    TINYINT UNSIGNED NOT NULL,
-    magnitude                DECIMAL(10,2) NOT NULL,
-    createBy                 VARCHAR(100) NOT NULL,
-    createDate               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updateBy                 VARCHAR(100) NOT NULL,
-    updateDate               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+-- effectBonusByLevel: one row per effect+deliveryType+level, giving the numeric bonus that
+--   delivery type grants at that level - "bonus" per the existing bonusType naming (a bonus type
+--   applies to a bonus; magnitude wasn't the right word). Populated 2026-07-28 from Jeff's
+--   Effects.csv/Aug_Cannith_Effects.csv (see db/populate_effect_bonus.py) - not every effect has
+--   data, and not every level is relevant once min-level gating already excludes some.
+CREATE TABLE effectBonusByLevel (
+    effectBonusByLevelId INT AUTO_INCREMENT PRIMARY KEY,
+    effectId             INT NOT NULL,
+    deliveryType         ENUM('Cannith','Augment') NOT NULL,
+    level                TINYINT UNSIGNED NOT NULL,
+    bonus                DECIMAL(10,2) NOT NULL,
+    createBy             VARCHAR(100) NOT NULL,
+    createDate           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updateBy             VARCHAR(100) NOT NULL,
+    updateDate           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_embl_effect FOREIGN KEY (effectId) REFERENCES effect(effectId),
-    CONSTRAINT uq_embl_effect_delivery_level UNIQUE (effectId, deliveryType, level)
+    CONSTRAINT fk_ebbl_effect FOREIGN KEY (effectId) REFERENCES effect(effectId),
+    CONSTRAINT uq_ebbl_effect_delivery_level UNIQUE (effectId, deliveryType, level)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------------------------------------------

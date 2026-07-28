@@ -1,6 +1,6 @@
 """
-Generates a SQL script that populates effectMagnitudeByLevel from Jeff's two reference CSVs:
-  source_data/Effects.csv - Cannith-crafting min-level -> magnitude chart, levels 1-30, one row
+Generates a SQL script that populates effectBonusByLevel from Jeff's two reference CSVs:
+  source_data/Effects.csv - Cannith-crafting min-level -> bonus chart, levels 1-30, one row
     per effect. Confirmed (by cross-checking against Aug_Cannith_Effects.csv's Cannith columns at
     every level they share, see RECONCILE note below) to be the Cannith deliveryType chart.
   source_data/Aug_Cannith_Effects.csv - Augment vs Cannith comparison at levels 0,4,8,12,16,20,24,
@@ -16,15 +16,15 @@ in scratchpad, or just re-derive it) before trusting new Cannith rows blindly.
 Name mapping (CSV label -> effectName rows) is deliberately explicit rather than fuzzy-matched -
 many CSV rows are generic categories covering several effectName rows sharing one curve (e.g.
 "Ability" -> the 6 per-stat Ability (X) rows), and a few are outright NOT the same effect despite
-matching text (see the Stunning / "Vertigo/Stunning/Shatter" comment below - a real magnitude
+matching text (see the Stunning / "Vertigo/Stunning/Shatter" comment below - a real bonus-curve
 conflict, not a naming coincidence).
 
-Known NOT mapped (no destination effect, or destination is excluded/conflicting - see KNOWN ISSUES
-in ddocraft.js for the two flagged as open questions):
+Known NOT mapped (no destination effect, or destination is excluded/conflicting - see Known Issues
+in TO DO.md for the two flagged as open questions):
   Enhance bonus*, Weapon dice mult*, Spellcasting implement* - describe underlying crafting-system
     scaling formulas, not a specific listed effect.
   Ins. Ability / Ability (Insightful) - target is Insightful Ability (X), excluded from `effect` as
-    dataStatus='questionable'. CSV has real per-level data for it - flagged in ddocraft.js as
+    dataStatus='questionable'. CSV has real per-level data for it - flagged in TO DO.md as
     evidence worth weighing against that exclusion.
   Ability (Exceptional - All), Ability (Festive Int/Wis/Dex/Cha), All Experience, PRR and MRR -
     no corresponding effect exists in the recovered catalog at all.
@@ -35,21 +35,21 @@ in ddocraft.js for the two flagged as open questions):
   Boolean Y-flag augment rows (Silver, Bysh/Byeshk, Adamantine, Cold Iron, Ghost Touch, Chaotic/
     Lawful/Evil, Good, Feather Fall, Blindness Immunity, Death Ward, Underwater Action, Fear
     Immunity) - these are level-gating facts already captured by minLevelAugment, not a scaling
-    magnitude. Cross-checked against minLevelAugment separately (all matched except Fear Immunity -
-    see the KNOWN ISSUES note in ddocraft.js) rather than inserted here.
+    bonus. Cross-checked against minLevelAugment separately (all matched except Fear Immunity -
+    see Known Issues in TO DO.md) rather than inserted here.
 
 Dice-based effects (Bashing d6, Bane d10, Damage(X)/"Effect (dmg)" d6, Shield Spikes d6, Vampirism
-d2) store only the numeric die COUNT - effectMagnitudeByLevel has no die-type column. See the
-KNOWN ISSUES note in ddocraft.js.
+d2) store only the numeric die COUNT - effectBonusByLevel has no die-type column. See Known Issues
+in TO DO.md.
 
 Usage:
-    python db/populate_effect_magnitude.py > /tmp/insert_magnitude.sql
+    python db/populate_effect_bonus.py <effect_ids.tsv> > /tmp/insert_bonus.sql
     ssh -i ~/.ssh/ddocraft_claude claude@192.168.1.153 \\
         "mysql -u ddocraft_admin -p'<password>' -h 127.0.0.1 --default-character-set=utf8mb4 ddocraft" \\
-        < /tmp/insert_magnitude.sql
+        < /tmp/insert_bonus.sql
 Requires the live `effect` table to already be populated (db/populate_effect.py) and an up-to-date
-effectId lookup - this script queries equipDDO.sqlite only, so it needs the effectId values passed
-in via EFFECT_ID_TSV (a `SELECT effectId, effectName FROM effect` dump, tab-separated with header).
+effectId lookup - this script queries the CSVs only, so it needs the effectId values passed in via
+the tsv argument (a `SELECT effectId, effectName FROM effect` dump, tab-separated with header).
 """
 import csv
 import os
@@ -61,8 +61,8 @@ EFFECTS_CSV = os.path.join(HERE, "..", "source_data", "Effects.csv")
 AUG_CANNITH_CSV = os.path.join(HERE, "..", "source_data", "Aug_Cannith_Effects.csv")
 
 
-def parse_magnitude(val):
-    """Extract the leading numeric magnitude from values like '1d6', '3**', '20 (lvl 11)', '15?'."""
+def parse_bonus(val):
+    """Extract the leading numeric bonus from values like '1d6', '3**', '20 (lvl 11)', '15?'."""
     m = re.match(r"\s*(-?\d+(?:\.\d+)?)", val.strip())
     return float(m.group(1)) if m else None
 
@@ -278,7 +278,7 @@ def esc_str(v):
 
 def main():
     if len(sys.argv) != 2:
-        print("Usage: python populate_effect_magnitude.py <effect_ids.tsv>", file=sys.stderr)
+        print("Usage: python populate_effect_bonus.py <effect_ids.tsv>", file=sys.stderr)
         print("  (a tab-separated `SELECT effectId, effectName FROM effect` dump, with header)", file=sys.stderr)
         sys.exit(1)
     effect_ids = load_effect_ids(sys.argv[1])
@@ -289,7 +289,7 @@ def main():
     for e in aug_entries:
         aug_by_name_source.setdefault((e["name"], e["source"]), e)
 
-    rows = []  # (effectId, deliveryType, level, magnitude)
+    rows = []  # (effectId, deliveryType, level, bonus)
     seen = set()
 
     for csv_name, targets in CANNITH_MAP.items():
@@ -297,14 +297,14 @@ def main():
         for target in targets:
             eid = effect_ids[target]
             for lvl, val in by_level.items():
-                mag = parse_magnitude(val)
-                if mag is None:
+                bonus = parse_bonus(val)
+                if bonus is None:
                     continue
                 key = (eid, "Cannith", lvl)
                 if key in seen:
                     continue
                 seen.add(key)
-                rows.append((eid, "Cannith", lvl, mag))
+                rows.append((eid, "Cannith", lvl, bonus))
 
     for csv_name, targets in AUGMENT_MAP.items():
         src_entry = None
@@ -320,19 +320,19 @@ def main():
                 val = val.strip()
                 if val in ("", "-"):
                     continue
-                mag = parse_magnitude(val)
-                if mag is None:
+                bonus = parse_bonus(val)
+                if bonus is None:
                     continue
                 key = (eid, "Augment", lvl)
                 if key in seen:
                     continue
                 seen.add(key)
-                rows.append((eid, "Augment", lvl, mag))
+                rows.append((eid, "Augment", lvl, bonus))
 
-    lines = [f"({eid},{esc_str(dt)},{lvl},{mag},'claude-migration','claude-migration')"
-             for eid, dt, lvl, mag in rows]
+    lines = [f"({eid},{esc_str(dt)},{lvl},{bonus},'claude-migration','claude-migration')"
+             for eid, dt, lvl, bonus in rows]
     print(f"-- {len(lines)} rows generated from Effects.csv / Aug_Cannith_Effects.csv")
-    print("INSERT INTO effectMagnitudeByLevel (effectId, deliveryType, level, magnitude, createBy, updateBy) VALUES")
+    print("INSERT INTO effectBonusByLevel (effectId, deliveryType, level, bonus, createBy, updateBy) VALUES")
     print(",\n".join(lines) + ";")
 
 
