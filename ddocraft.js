@@ -1223,45 +1223,68 @@ function downloadJSON(content, fileName, contentType) {
 //   from the old local-file Save/Open at the bottom of the page (still there for now, untouched).
 //   First pass, Markdown only - full layout/format (maybe PDF later) is still an open design
 //   question, so this deliberately stays simple rather than guessing at a polish level.
+//
+// Compact by design: a Cannith item's Prefix/Suffix/Extra collapse into one "X of Y with Z"
+//   sentence (how DDO players already describe crafted gear), a named/custom item's inherent
+//   effects collapse into one comma list, and augments (either kind of item) get one further
+//   "Color: Effect" comma list - never one bullet per effect. Categories with nothing selected at
+//   all are skipped entirely.
 function buildMarkdownReport() {
     let charName  = charData.saveFile.charName || "Unnamed";
     let charLevel = charData.saveFile.charLevel;
-    let itemLines = {};
+    let className = charData.saveFile.className;
 
-    function addLine(item, line) {
-        if (!itemLines[item]) { itemLines[item] = []; }
-        itemLines[item].push(line);
+    let md         = "# " + charName + ", Level " + charLevel + (className ? " " + className : "") + "\n";
+    let anySection = false;
+
+    for (let category of charData.categoryOrder) {
+        let mode = charData.categoryMode[category] || "cannith";
+        let item = mode === "custom" ? customItemKey(category) : charData.categoryChoice[category];
+        if (!item) { continue; }
+
+        let lines = mode === "custom" ? buildCustomReportLines(category, item) : buildCannithReportLines(item);
+        if (lines.length === 0) { continue; }
+
+        let headerName = mode === "custom" ? ((charData.customItems[category] && charData.customItems[category].name) || "") : "";
+        md += "\n## " + category + ": " + headerName + "\n" + lines.join("\n") + "\n";
+        anySection = true;
     }
 
-    for (let item of Object.keys(charData.selections.positional)) {
-        for (let slot of Object.keys(charData.selections.positional[item])) {
-            let occupant  = charData.selections.positional[item][slot];
-            let isAugment = slot.substring(0, 3) === "Aug";
-            let augColor  = isAugment && occupant.color ? occupant.color + " " : "";
-            addLine(item, "- **" + slot + "**: " + augColor + occupant.enchName);
-        }
-    }
-
-    for (let category of Object.keys(charData.selections.inherent)) {
-        for (let item of Object.keys(charData.selections.inherent[category])) {
-            for (let enchName of charData.selections.inherent[category][item]) {
-                addLine(item, "- **Inherent**: " + enchName);
-            }
-        }
-    }
-
-    let md = "# " + charName + "\n\n**Level:** " + charLevel + "\n";
-
-    let items = Object.keys(itemLines);
-    if (items.length === 0) {
-        md += "\nNo selections yet.\n";
-    } else {
-        for (let item of items) {
-            md += "\n## " + displayItemName(item) + "\n" + itemLines[item].join("\n") + "\n";
-        }
-    }
+    if (!anySection) { md += "\nNo selections yet.\n"; }
 
     return md;
+}
+
+function reportAugmentLines(positional) {
+    let augments = [];
+    for (let slot of Object.keys(positional)) {
+        if (slot.substring(0, 3) === "Aug") {
+            let occupant = positional[slot];
+            augments.push(occupant.color + ": " + occupant.enchName);
+        }
+    }
+    return augments.length > 0 ? ["- **Augments**: " + augments.join(", ")] : [];
+}
+
+function buildCannithReportLines(item) {
+    let positional = charData.selections.positional[item] || {};
+
+    let sentence = "";
+    if (positional["Prefix"]) { sentence = positional["Prefix"].enchName; }
+    if (positional["Suffix"]) { sentence = sentence ? sentence + " of " + positional["Suffix"].enchName : positional["Suffix"].enchName; }
+    if (positional["Extra"]) { sentence = sentence ? sentence + " with " + positional["Extra"].enchName : positional["Extra"].enchName; }
+
+    let lines = sentence ? ["- " + sentence] : [];
+    return lines.concat(reportAugmentLines(positional));
+}
+
+function buildCustomReportLines(category, item) {
+    let inherentSet   = (charData.selections.inherent[category] || {})[item];
+    let inherentNames = inherentSet ? Array.from(inherentSet).sort() : [];
+    let positional    = charData.selections.positional[item] || {};
+
+    let lines = inherentNames.length > 0 ? ["- " + inherentNames.join(", ")] : [];
+    return lines.concat(reportAugmentLines(positional));
 }
 
 function handleDownloadReport() {
