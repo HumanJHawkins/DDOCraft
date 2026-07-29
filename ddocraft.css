@@ -493,7 +493,8 @@ button[disabled] {
 /* Same specificity as button:disabled (element + one class/pseudo-class) - placed
    after it so it wins the tie once these buttons stop carrying the disabled attribute. */
 button.handled, button.blocked {
-    color: #555;
+    color: #8a8a80;  /* was #555 - too dark to read comfortably against #141413; the reversed
+                        recommendation scale's better light/dark contrast made this stand out */
     background-color: #141413;
     font-style: italic;
 }

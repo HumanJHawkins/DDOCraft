@@ -12,13 +12,18 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(HERE, "equipDDO.sqlite")
 OUT_PATH = os.path.join(HERE, "..", "ddocraft_from_sqlite.json")
 
+# The 15 per-class fields (forBarbarian..forWizard) were dropped from this export 2026-07-30 -
+#   rating an effect's usefulness "for Barbarian" etc. baked in an assumption about how that class
+#   is supposed to be played, which doesn't hold (DDO players build the same class many different
+#   ways). The build-purpose fields below (forACDefence, forMeleeDmg, ...) are what's actually
+#   useful - pick your playstyle goal directly. The raw recovered SQLite data still carries these
+#   columns internally (source_data/equipDDO.sqlite), just unused - nothing is lost, this export
+#   just stops emitting them.
 FIELD_ORDER = ["itemOptionSortOrder", "enchSortOrder", "itemOptionItem", "itemOptionCategory",
     "itemOptionSlot", "augmentColor", "itemOptionEnchantment", "enchName", "enchEffectType",
     "enchCannithMinLevel", "enchAugmentMinLevel", "enchDesc", "enchSupercededBy", "allEnch",
     "basic", "nonscaling", "forMeleeDmg", "forRangedDmg", "forACDefence", "forResistDefence",
-    "forHitPoints", "forAlchemist", "forArtificer", "forBarbarian", "forBard", "forCleric",
-    "forDruid", "forFavoredSoul", "forFighter", "forMonk", "forPaladin", "forRanger", "forRogue",
-    "forSorcerer", "forWarlock", "forWizard"]
+    "forHitPoints"]
 
 conn = sqlite3.connect(DB_PATH)
 conn.row_factory = sqlite3.Row

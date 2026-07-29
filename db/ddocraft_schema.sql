@@ -38,15 +38,26 @@ CREATE TABLE bonusType (
 --   old rows (e.g. "Tourney Armor Extras") never had a real bonus type or stacking key at all -
 --   they're flavor-only entries, not a bug to fix by forcing a value here.
 --
---   forBarbarian..forWizard and basic/nonscaling/forMeleeDmg/etc. are NOT membership flags - per
---   Jeff, they're a manually-curated usefulness rating (a small numeric scale, e.g. 0-5) of the
---   effect from that class/build-purpose's perspective, likely to stay hand-edited indefinitely
---   rather than backed by empirical usage data. Kept as columns on this table rather than a
---   junction table specifically because they're editorial judgment calls needing easy one-place
---   manual editing, not a relational fact that's simply true or false. nonscaling in particular is
---   an inherent trait of the effect itself, not a rating, but lives here for the same reason.
---   allEnch is effectively always populated/true across real rows - kept only for continuity with
---   the existing "sum of active filter weights" recommendation-highlight mechanism.
+--   basic/nonscaling/forMeleeDmg/forRangedDmg/forACDefence/forResistDefence/forHitPoints are NOT
+--   membership flags - per Jeff, they're a manually-curated usefulness rating (a small numeric
+--   scale) of the effect from that build-purpose's perspective, likely to stay hand-edited
+--   indefinitely rather than backed by empirical usage data. Kept as columns on this table rather
+--   than a junction table specifically because they're editorial judgment calls needing easy
+--   one-place manual editing, not a relational fact that's simply true or false. nonscaling in
+--   particular is an inherent trait of the effect itself, not a rating, but lives here for the
+--   same reason. allEnch is effectively always populated/true across real rows - kept only for
+--   continuity with the existing "sum of active filter weights" recommendation-highlight
+--   mechanism.
+--
+--   A parallel set of 15 per-class columns (forBarbarian..forWizard) existed here until
+--   2026-07-30 and was removed - rating an effect's usefulness "for Barbarian" (etc.) baked in an
+--   assumption about how that class is supposed to be played (e.g. treating melee damage as
+--   inherently more "for Barbarian" than AC or ranged options), which doesn't hold - DDO players
+--   build the same class many different ways. The build-purpose columns above (forACDefence,
+--   forMeleeDmg, ...) are what's actually useful: pick your playstyle goal directly instead of
+--   inferring it from a class stereotype. The removed data isn't lost - the raw recovered SQLite
+--   data (source_data/equipDDO.sqlite) still carries these columns internally, just unused; see
+--   Done.md for the full removal.
 CREATE TABLE effect (
     effectId          INT AUTO_INCREMENT PRIMARY KEY,
     effectName        VARCHAR(150) NOT NULL UNIQUE,
@@ -58,8 +69,8 @@ CREATE TABLE effect (
     minLevelCannith   TINYINT UNSIGNED NOT NULL DEFAULT 0,
     minLevelAugment   TINYINT UNSIGNED NOT NULL DEFAULT 0,
 
-    -- Editorial usefulness ratings (small scale, e.g. 0-5; NULL = not yet rated). All manually
-    --   curated, all deliberately flat columns on this table - see note above.
+    -- Editorial usefulness ratings (small scale; NULL = not yet rated). All manually curated, all
+    --   deliberately flat columns on this table - see note above.
     allEnch           TINYINT UNSIGNED NULL,
     basic             TINYINT UNSIGNED NULL,
     nonscaling        TINYINT UNSIGNED NULL,
@@ -68,21 +79,6 @@ CREATE TABLE effect (
     forACDefence      TINYINT UNSIGNED NULL,
     forResistDefence  TINYINT UNSIGNED NULL,
     forHitPoints      TINYINT UNSIGNED NULL,
-    forAlchemist      TINYINT UNSIGNED NULL,
-    forArtificer      TINYINT UNSIGNED NULL,
-    forBarbarian      TINYINT UNSIGNED NULL,
-    forBard           TINYINT UNSIGNED NULL,
-    forCleric         TINYINT UNSIGNED NULL,
-    forDruid          TINYINT UNSIGNED NULL,
-    forFavoredSoul    TINYINT UNSIGNED NULL,
-    forFighter        TINYINT UNSIGNED NULL,
-    forMonk           TINYINT UNSIGNED NULL,
-    forPaladin        TINYINT UNSIGNED NULL,
-    forRanger         TINYINT UNSIGNED NULL,
-    forRogue          TINYINT UNSIGNED NULL,
-    forSorcerer       TINYINT UNSIGNED NULL,
-    forWarlock        TINYINT UNSIGNED NULL,
-    forWizard         TINYINT UNSIGNED NULL,
 
     createBy          VARCHAR(100) NOT NULL,
     createDate        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,

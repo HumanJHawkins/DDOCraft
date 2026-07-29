@@ -151,13 +151,7 @@ function buildCatalog(flatRows) {
                 allEnch: row.allEnch, basic: row.basic, nonscaling: row.nonscaling,
                 forMeleeDmg: row.forMeleeDmg, forRangedDmg: row.forRangedDmg,
                 forACDefence: row.forACDefence, forResistDefence: row.forResistDefence,
-                forHitPoints: row.forHitPoints, forAlchemist: row.forAlchemist,
-                forArtificer: row.forArtificer, forBarbarian: row.forBarbarian,
-                forBard: row.forBard, forCleric: row.forCleric, forDruid: row.forDruid,
-                forFavoredSoul: row.forFavoredSoul, forFighter: row.forFighter,
-                forMonk: row.forMonk, forPaladin: row.forPaladin, forRanger: row.forRanger,
-                forRogue: row.forRogue, forSorcerer: row.forSorcerer, forWarlock: row.forWarlock,
-                forWizard: row.forWizard
+                forHitPoints: row.forHitPoints
             };
         }
 
@@ -211,21 +205,6 @@ function initFilter() {
     charData.enchFilter['forACDefence']     = document.getElementById('forACDefence').checked;
     charData.enchFilter['forResistDefence'] = document.getElementById('forResistDefence').checked;
     charData.enchFilter['forHitPoints']     = document.getElementById('forHitPoints').checked;
-    charData.enchFilter['forBarbarian']     = document.getElementById('forBarbarian').checked;
-    charData.enchFilter['forFighter']       = document.getElementById('forFighter').checked;
-    charData.enchFilter['forPaladin']       = document.getElementById('forPaladin').checked;
-    charData.enchFilter['forRanger']        = document.getElementById('forRanger').checked;
-    charData.enchFilter['forAlchemist']     = document.getElementById('forAlchemist').checked;
-    charData.enchFilter['forArtificer']     = document.getElementById('forArtificer').checked;
-    charData.enchFilter['forBard']          = document.getElementById('forBard').checked;
-    charData.enchFilter['forRogue']         = document.getElementById('forRogue').checked;
-    charData.enchFilter['forMonk']          = document.getElementById('forMonk').checked;
-    charData.enchFilter['forCleric']        = document.getElementById('forCleric').checked;
-    charData.enchFilter['forDruid']         = document.getElementById('forDruid').checked;
-    charData.enchFilter['forFavoredSoul']   = document.getElementById('forFavoredSoul').checked;
-    charData.enchFilter['forSorcerer']      = document.getElementById('forSorcerer').checked;
-    charData.enchFilter['forWarlock']       = document.getElementById('forWarlock').checked;
-    charData.enchFilter['forWizard']        = document.getElementById('forWizard').checked;
 }
 
 // ---- Selections store accessors ----
@@ -1030,21 +1009,6 @@ function getEnchFilterValue(enchName) {
     if (charData.enchFilter.forACDefence) { enchValue += ench.forACDefence; }
     if (charData.enchFilter.forResistDefence) { enchValue += ench.forResistDefence; }
     if (charData.enchFilter.forHitPoints) { enchValue += ench.forHitPoints; }
-    if (charData.enchFilter.forAlchemist) { enchValue += ench.forAlchemist; }
-    if (charData.enchFilter.forArtificer) { enchValue += ench.forArtificer; }
-    if (charData.enchFilter.forBarbarian) { enchValue += ench.forBarbarian; }
-    if (charData.enchFilter.forBard) { enchValue += ench.forBard; }
-    if (charData.enchFilter.forCleric) { enchValue += ench.forCleric; }
-    if (charData.enchFilter.forDruid) { enchValue += ench.forDruid; }
-    if (charData.enchFilter.forFavoredSoul) { enchValue += ench.forFavoredSoul; }
-    if (charData.enchFilter.forFighter) { enchValue += ench.forFighter; }
-    if (charData.enchFilter.forMonk) { enchValue += ench.forMonk; }
-    if (charData.enchFilter.forPaladin) { enchValue += ench.forPaladin; }
-    if (charData.enchFilter.forRanger) { enchValue += ench.forRanger; }
-    if (charData.enchFilter.forRogue) { enchValue += ench.forRogue; }
-    if (charData.enchFilter.forSorcerer) { enchValue += ench.forSorcerer; }
-    if (charData.enchFilter.forWarlock) { enchValue += ench.forWarlock; }
-    if (charData.enchFilter.forWizard) { enchValue += ench.forWizard; }
 
     return enchValue;
 }

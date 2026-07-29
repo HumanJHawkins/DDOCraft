@@ -32,10 +32,10 @@ BONUS_TYPE_ID = {
     "Resistance": 15, "Sacred": 16, "Untyped": 18, "Vitality": 19,
 }
 
+# The 15 per-class columns (forBarbarian..forWizard) were removed 2026-07-30 - see the effect
+#   table's schema comment in db/ddocraft_schema.sql for why.
 WEIGHT_COLS = ["allEnch", "basic", "nonscaling", "forMeleeDmg", "forRangedDmg", "forACDefence",
-    "forResistDefence", "forHitPoints", "forAlchemist", "forArtificer", "forBarbarian", "forBard",
-    "forCleric", "forDruid", "forFavoredSoul", "forFighter", "forMonk", "forPaladin", "forRanger",
-    "forRogue", "forSorcerer", "forWarlock", "forWizard"]
+    "forResistDefence", "forHitPoints"]
 
 
 def esc(v):
