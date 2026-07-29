@@ -332,6 +332,14 @@ updateCounter();
     <button onclick="document.getElementById('loadFile').click()" class="loadSaveBtn"> Open...</button>
     <input type='file' id="loadFile" style="display:none">
 </div>
+<div id="loadSaveServer" class="loadSave">
+    <em>Server save/open - temporary test harness, not the real per-user feature yet:</em><br />
+    <label for="testUserId">Test User ID:</label>
+    <input type="number" id="testUserId" value="1" min="1" style="width:4em;">&nbsp;
+    <button onclick="handleSaveToServer()" class="loadSaveBtn"> Save to Server...</button>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <button onclick="handleLoadFromServer()" class="loadSaveBtn"> Open from Server...</button>
+</div>
 
 
 <?php

@@ -1247,6 +1247,76 @@ function handleLoad(incomingFile) {
     charData.collapsed.color = new Set(incomingCollapsed.color || []);
 }
 
+// ---- Server save/open (temporary test harness) ----
+//
+// Phase 1 has no real accounts - there's no session to identify who's saving, so a plain "Test
+//   User ID" field stands in for it, letting anyone testing this pick any integer and see that
+//   builds really are scoped per-id (a different id sees a different, empty list). This whole
+//   section gets replaced once GateIron.com's real accounts exist and userId comes from an
+//   authenticated session instead of a text box - not extended, just swapped out.
+
+const CHARACTER_BUILD_API_BASE = "/api/character-builds";
+
+function getTestUserId() {
+    let value = Number(document.getElementById("testUserId").value);
+    return Number.isInteger(value) && value > 0 ? value : 1;
+}
+
+function handleSaveToServer() {
+    handleRename(true);
+    updateSave();
+
+    let payload = {
+        userId: getTestUserId(),
+        charName: charData.saveFile.charName,
+        charLevel: charData.saveFile.charLevel,
+        description: null,  // no character-level description field in the client yet (planned, not built)
+        appVersion: String(charData.saveFile.version),
+        buildData: charData.saveFile
+    };
+
+    fetch(CHARACTER_BUILD_API_BASE, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+    })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("status " + r.status)); })
+        .then(function (data) { alert("Saved to server as build #" + data.characterBuildId + "."); })
+        .catch(function (err) { alert("Save to server failed: " + err.message); });
+}
+
+function handleLoadFromServer() {
+    let userId = getTestUserId();
+
+    fetch(CHARACTER_BUILD_API_BASE + "?userId=" + userId)
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("status " + r.status)); })
+        .then(function (list) {
+            if (list.length === 0) {
+                alert("No server saves found for test user " + userId + ".");
+                return;
+            }
+            let lines = list.map(function (b, i) {
+                return (i + 1) + ". " + b.charName + " (Lvl " + b.charLevel + ") - " + b.updateDate;
+            });
+            let choice = prompt("Pick a build to load (enter a number):\n" + lines.join("\n"));
+            let index  = Number(choice) - 1;
+            if (!(index >= 0 && index < list.length)) { return; }
+            loadCharacterBuildFromServer(list[index].characterBuildId, userId);
+        })
+        .catch(function (err) { alert("Load from server failed: " + err.message); });
+}
+
+function loadCharacterBuildFromServer(characterBuildId, userId) {
+    fetch(CHARACTER_BUILD_API_BASE + "/" + characterBuildId + "?userId=" + userId)
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("status " + r.status)); })
+        .then(function (build) {
+            handleLoad(build.buildData);
+            renderEnchantmentOptions();
+            renderResult();
+        })
+        .catch(function (err) { alert("Load from server failed: " + err.message); });
+}
+
 
 function showPreferences() {
     dialogPreferences.style.display = 'block';
