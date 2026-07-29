@@ -226,6 +226,9 @@ img {
 }
 
 .characterInfo {
+    clear: both;  /* the title row's <h1>s are float:left/float:right with nothing else to clear
+                     them - without this, this box starts at the top of that same floated area
+                     instead of below it, overlapping the title. */
     margin: .3vw 0 .8vw 0;
     padding: .3vw .8vw;
     background-color: #1c160e;
