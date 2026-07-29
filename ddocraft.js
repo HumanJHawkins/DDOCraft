@@ -1157,6 +1157,58 @@ function downloadJSON(content, fileName, contentType) {
     a.click();
 }
 
+// Download-to-read, not download-to-reopen: a compact, human-readable summary of the current
+//   build, distinct from the server save/open above (which is now the real save mechanism) and
+//   from the old local-file Save/Open at the bottom of the page (still there for now, untouched).
+//   First pass, Markdown only - full layout/format (maybe PDF later) is still an open design
+//   question, so this deliberately stays simple rather than guessing at a polish level.
+function buildMarkdownReport() {
+    let charName  = charData.saveFile.charName || "Unnamed";
+    let charLevel = charData.saveFile.charLevel;
+    let itemLines = {};
+
+    function addLine(item, line) {
+        if (!itemLines[item]) { itemLines[item] = []; }
+        itemLines[item].push(line);
+    }
+
+    for (let item of Object.keys(charData.selections.positional)) {
+        for (let slot of Object.keys(charData.selections.positional[item])) {
+            let occupant  = charData.selections.positional[item][slot];
+            let isAugment = slot.substring(0, 3) === "Aug";
+            let augColor  = isAugment && occupant.color ? occupant.color + " " : "";
+            addLine(item, "- **" + slot + "**: " + augColor + occupant.enchName);
+        }
+    }
+
+    for (let category of Object.keys(charData.selections.inherent)) {
+        for (let item of Object.keys(charData.selections.inherent[category])) {
+            for (let enchName of charData.selections.inherent[category][item]) {
+                addLine(item, "- **Inherent**: " + enchName);
+            }
+        }
+    }
+
+    let md = "# " + charName + "\n\n**Level:** " + charLevel + "\n";
+
+    let items = Object.keys(itemLines);
+    if (items.length === 0) {
+        md += "\nNo selections yet.\n";
+    } else {
+        for (let item of items) {
+            md += "\n## " + displayItemName(item) + "\n" + itemLines[item].join("\n") + "\n";
+        }
+    }
+
+    return md;
+}
+
+function handleDownloadReport() {
+    handleRename(true);
+    let charName = charData.saveFile.charName || "Unnamed";
+    downloadJSON(buildMarkdownReport(), charName + "_build.md", "text/markdown");
+}
+
 // File Loading
 document.getElementById('loadFile').onchange = function () {
     let files = document.getElementById('loadFile').files;

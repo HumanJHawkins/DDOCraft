@@ -338,6 +338,10 @@ updateCounter();
                                                                                          alt=""
                                                                                          class="iconButtonSpacer"/>
     <img src="image/blank.png" alt="" class="iconButtonSpacer"/>
+    <img src="image/save.svg" alt="Save" onClick="handleSaveToServer()" class="iconButtonImage"/>
+    <img src="image/open.svg" alt="Open" onClick="handleLoadFromServer()" class="iconButtonImage"/>
+    <img src="image/download.svg" alt="Download" onClick="handleDownloadReport()" class="iconButtonImage"/>
+    <img src="image/blank.png" alt="" class="iconButtonSpacer"/>
     <img src="image/preferences.png" alt="Preferences" onClick="showPreferences()" class="iconButtonImage"/>
     <img src="image/help.png" alt="Help" onClick="showHelp()" class="iconButtonImage"/>
     <img src="image/about.png" alt="About" onClick="showAbout()" class="iconButtonImage"/>
