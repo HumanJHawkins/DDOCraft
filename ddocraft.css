@@ -231,14 +231,18 @@ img {
     font-size: calc(5px + .75vw);
     margin: .2vw 0;
     padding: .2vw;
-    display: flex;
-    align-items: center;
+}
+
+.itemheader input[type='checkbox'],
+.itemheader select,
+.itemheader label,
+.itemheader .customToggle {
+    vertical-align: middle;
 }
 
 .customToggle {
     margin-left: 1vw;
     padding-left: .3vw;
-    vertical-align: middle;
 }
 
 .addAugmentSelect {
