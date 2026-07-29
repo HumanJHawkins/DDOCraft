@@ -302,80 +302,150 @@ function computeSelectionIndex() {
         customCategoryOverlap: customCategoryOverlap};
 }
 
+// ---- Collapse/prune helpers ----
+//
+// Collapse no longer just hides a whole subtree - it PRUNES it, everywhere, the same way: only
+//   selected options survive; everything unselected disappears. The exact node the user directly
+//   collapsed always keeps its own header/label visible (as a button to re-expand), even if
+//   there's nothing selected inside it at all - otherwise there'd be no way back in. A deeper
+//   node that merely INHERITS pruning from a collapsed ancestor (rather than being the thing
+//   directly clicked) disappears completely if it has nothing selected - no header, nothing -
+//   since it's not the re-expand target itself.
+//
+// pruneMode threads down through every render call below: it starts false, becomes true the
+//   moment any ancestor (or the node itself) is directly collapsed, and once true stays true for
+//   everything nested inside - "slots with options collapse as slots do" applies automatically,
+//   without needing their own collapse flag set.
+
+function slotHasSelection(item, slot) {
+    return !!getOccupant(item, slot);
+}
+
+function colorHasSelection(item, slot, color) {
+    let occupant = getOccupant(item, slot);
+    return !!occupant && occupant.color === color;
+}
+
+function inherentHasSelection(category, item) {
+    let set = (charData.selections.inherent[category] || {})[item];
+    return !!set && set.size > 0;
+}
+
+function itemHasAnySelection(item) {
+    let slots = charData.selections.positional[item];
+    return !!slots && Object.keys(slots).length > 0;
+}
+
 function renderEnchantmentOptions() {
     let idx  = computeSelectionIndex();
     let html = "";
 
     for (let category of charData.categoryOrder) {
-        let mode = charData.categoryMode[category] || "cannith";
+        let mode              = charData.categoryMode[category] || "cannith";
+        let categoryCollapsed = charData.collapsed.item.has(category);
+        let pruneMode         = categoryCollapsed;
 
-        if (charData.collapsed.item.has(category)) {
+        let item, categoryHasSelection;
+        if (mode === "custom") {
+            item = customItemKey(category);
+            categoryHasSelection = itemHasAnySelection(item) || inherentHasSelection(category, item);
+        } else {
+            item = charData.categoryChoice[category];
+            categoryHasSelection = item ? itemHasAnySelection(item) : false;
+        }
+
+        if (categoryCollapsed && !categoryHasSelection) {
             html += "<table><caption class='itemheader collapsed' onclick=\"toggleCollapsed('item','" +
                 escJs(category) + "')\">&#9655; " + escHtml(category) + "</caption></table>";
             continue;
         }
 
-        html += "<table><caption class='itemheader' onclick=\"toggleCollapsed('item','" + escJs(category) +
-            "')\">&#9661; " + escHtml(category) + " " + getCategoryModeToggleHtml(category);
+        let triangle = categoryCollapsed ? "&#9655;" : "&#9661;";
+        html += "<table><caption class='itemheader" + (categoryCollapsed ? " collapsed" : "") +
+            "' onclick=\"toggleCollapsed('item','" + escJs(category) + "')\">" + triangle + " " +
+            escHtml(category) + " " + getCategoryModeToggleHtml(category);
 
         if (mode === "custom") {
             if (idx.customCategoryOverlap[category]) {
                 html += " <span class='overlapWarning'>Effect overlaps detected</span>";
             }
-            html += "</caption>" + renderCustomItemBody(category, idx) + "</table>";
+            html += "</caption>" + renderCustomItemBody(category, idx, pruneMode) + "</table>";
             continue;
         }
 
-        let item = charData.categoryChoice[category];
         if (!item) { html += "</caption></table>"; continue; }
         let itemNode = charData.catalog[category][item];
 
         html += "</caption>";
-
         for (let slot of Object.keys(itemNode)) {
             if (slot === "Extra" && charData.saveFile.charLevel < extraSlotMinLevel) { continue; }
-
-            let slotKey = item + "|" + slot;
-            if (charData.collapsed.slot.has(slotKey)) {
-                html += "<tr class='collapsed'><td class='slot' onclick=\"toggleCollapsed('slot','" +
-                    escJs(slotKey) + "')\">" + escHtml(slot) + "<td>&nbsp;</td></tr>";
-                continue;
-            }
-
-            html += "<tr><td class='slot' onclick=\"toggleCollapsed('slot','" + escJs(slotKey) +
-                "')\">" + escHtml(slot) + "</td><td class='options'>";
-
-            let isAugment = slot.substring(0, 3) === "Aug";
-            let colors    = Object.keys(itemNode[slot]);
-            for (let c = 0; c < colors.length; c++) {
-                let color    = colors[c];
-                let colorKey = slotKey + "|" + color;
-
-                if (isAugment) {
-                    if (c > 0) { html += "<br />"; }
-                    if (charData.collapsed.color.has(colorKey)) {
-                        html += "<div class='color collapsed' onclick=\"toggleCollapsed('color','" +
-                            escJs(colorKey) + "')\">&nbsp;" + escHtml(color) + "&nbsp;</div>&nbsp;";
-                        continue;
-                    }
-                    html += "<div class='color' onclick=\"toggleCollapsed('color','" + escJs(colorKey) +
-                        "')\">&nbsp;" + escHtml(color) + ":</div>&nbsp;";
-                }
-
-                html += "<div class='ench'> ";
-                for (let enchName of itemNode[slot][color]) {
-                    html += getButton(item, slot, color, enchName, idx);
-                }
-                html += "</div>";
-            }
-
-            html += "</td></tr>";
+            html += renderSlotRow(item, slot, itemNode[slot], pruneMode, idx);
         }
-
         html += "</table>";
     }
 
     document.getElementById("enchantmentOptions").innerHTML = html;
+}
+
+function renderSlotRow(item, slot, colorMap, pruneModeInherited, idx) {
+    let slotKey           = item + "|" + slot;
+    let directlyCollapsed = charData.collapsed.slot.has(slotKey);
+    let pruneMode         = pruneModeInherited || directlyCollapsed;
+    let hasSelection      = slotHasSelection(item, slot);
+
+    if (pruneMode && !hasSelection) {
+        if (!directlyCollapsed) { return ""; }  // inherited prune, nothing selected - vanish entirely
+        return "<tr class='collapsed'><td class='slot' onclick=\"toggleCollapsed('slot','" +
+            escJs(slotKey) + "')\">" + escHtml(slot) + "</td><td>&nbsp;</td></tr>";
+    }
+
+    let trClass = directlyCollapsed ? " class='collapsed'" : "";
+    let html    = "<tr" + trClass + "><td class='slot' onclick=\"toggleCollapsed('slot','" +
+        escJs(slotKey) + "')\">" + escHtml(slot) + "</td><td class='options'>";
+
+    let isAugment  = slot.substring(0, 3) === "Aug";
+    let firstShown = true;
+    for (let color of Object.keys(colorMap)) {
+        let colorHtml = renderColorGroup(item, slot, color, colorMap[color], isAugment, pruneMode, idx);
+        if (!colorHtml) { continue; }
+        if (!firstShown && isAugment) { html += "<br />"; }
+        html += colorHtml;
+        firstShown = false;
+    }
+
+    html += "</td></tr>";
+    return html;
+}
+
+function renderColorGroup(item, slot, color, enchNames, isAugment, pruneModeInherited, idx) {
+    let slotKey           = item + "|" + slot;
+    let colorKey          = slotKey + "|" + color;
+    let directlyCollapsed = isAugment && charData.collapsed.color.has(colorKey);
+    let pruneMode         = pruneModeInherited || directlyCollapsed;
+    let hasSelection      = colorHasSelection(item, slot, color);
+
+    if (pruneMode && !hasSelection) {
+        if (!directlyCollapsed) { return ""; }  // inherited prune, nothing selected - vanish entirely
+        return "<div class='color collapsed' onclick=\"toggleCollapsed('color','" + escJs(colorKey) +
+            "')\">&nbsp;" + escHtml(color) + "&nbsp;</div>&nbsp;";
+    }
+
+    let html = "";
+    if (isAugment) {
+        let collapsedClass = directlyCollapsed ? " collapsed" : "";
+        html += "<div class='color" + collapsedClass + "' onclick=\"toggleCollapsed('color','" +
+            escJs(colorKey) + "')\">&nbsp;" + escHtml(color) + ":</div>&nbsp;";
+    }
+
+    let occupant = getOccupant(item, slot);
+    html += "<div class='ench'> ";
+    for (let enchName of enchNames) {
+        let isSelectedHere = !!occupant && occupant.enchName === enchName && occupant.color === color;
+        if (pruneMode && !isSelectedHere) { continue; }
+        html += getButton(item, slot, color, enchName, idx);
+    }
+    html += "</div>";
+    return html;
 }
 
 function getCategoryModeToggleHtml(category) {
@@ -441,137 +511,129 @@ function realColorsForSlot(slotColor) {
     return colors;
 }
 
-function renderCustomItemBody(category, idx) {
-    let custom = charData.customItems[category] || {name: "", augments: [], nextAugmentId: 1, done: false, description: ""};
+function renderCustomItemBody(category, idx, pruneMode) {
+    let custom = charData.customItems[category] || {name: "", augments: [], nextAugmentId: 1, description: ""};
     let item   = customItemKey(category);
-
-    if (custom.done) {
-        return renderCustomItemSummary(category, custom, item);
-    }
 
     let html   = "<tr><td class='slot'>Name</td><td class='options'>" +
         "<input type='text' class='customItemName' value=\"" + escHtml(custom.name) +
         "\" onchange=\"handleCustomItemName(this,'" + escJs(category) + "')\" />" +
         getAddAugmentControlHtml(category) +
-        " " + getMarkDoneControlHtml(category) +
         "</td></tr>";
 
     custom.augments.forEach(function (aug, position) {
-        let slot         = "Augment#" + aug.id;  // stable key - "Aug" prefix reuses getButton's
-                                                  //   existing augment-vs-cannith min-level check.
-        let displayLabel = "Augment " + (position + 1) + " (" + aug.color + ")";
-        let slotKey      = item + "|" + slot;
-        let realColors   = realColorsForSlot(aug.color);
-
-        html += "<tr><td class='slot'>" +
-            "<span onclick=\"toggleCollapsed('slot','" + escJs(slotKey) + "')\">" + escHtml(displayLabel) + "</span> " +
-            "<span class='removeAugment' title='Remove this augment slot' onclick=\"handleRemoveCustomAugment('" +
-            escJs(category) + "'," + aug.id + ")\">&#10005;</span></td><td class='options'>";
-
-        if (charData.collapsed.slot.has(slotKey)) {
-            html += "&nbsp;";
-        } else {
-            for (let c = 0; c < realColors.length; c++) {
-                let realColor = realColors[c];
-                let colorKey  = slotKey + "|" + realColor;
-
-                if (realColors.length > 1) {
-                    if (c > 0) { html += "<br />"; }
-                    if (charData.collapsed.color.has(colorKey)) {
-                        html += "<div class='color collapsed' onclick=\"toggleCollapsed('color','" +
-                            escJs(colorKey) + "')\">&nbsp;" + escHtml(realColor) + "&nbsp;</div>&nbsp;";
-                        continue;
-                    }
-                    html += "<div class='color' onclick=\"toggleCollapsed('color','" + escJs(colorKey) +
-                        "')\">&nbsp;" + escHtml(realColor) + ":</div>&nbsp;";
-                }
-                html += "<div class='ench'> ";
-                for (let enchName of (charData.augmentOptionsByColor[realColor] || [])) {
-                    html += getButton(item, slot, realColor, enchName, idx);
-                }
-                html += "</div>";
-            }
-        }
-
-        html += "</td></tr>";
+        html += renderCustomAugmentSlotRow(category, item, aug, position, pruneMode, idx);
     });
 
-    html += renderInherentPicker(category, idx);
-    html += renderCustomItemDescription(category, custom);
+    html += renderInherentPicker(category, idx, pruneMode);
+    html += renderCustomItemDescription(category, custom, pruneMode);
 
     return html;
 }
 
-function renderCustomItemSummary(category, custom, item) {
-    // Read-only recap once an item is marked done - drops every unselected augment slot and the
-    //   full inherent-effects picker, showing only what was actually chosen.
-    let html = "<tr><td class='slot'>Name</td><td class='options'>" +
-        "<strong>" + escHtml(custom.name || "(unnamed)") + "</strong> " +
-        getMarkDoneControlHtml(category) +
-        "</td></tr>";
+function renderCustomAugmentSlotRow(category, item, aug, position, pruneModeInherited, idx) {
+    let slot              = "Augment#" + aug.id;  // stable key - "Aug" prefix reuses getButton's
+                                                   //   existing augment-vs-cannith min-level check.
+    let displayLabel      = "Augment " + (position + 1) + " (" + aug.color + ")";
+    let slotKey           = item + "|" + slot;
+    let realColors        = realColorsForSlot(aug.color);
+    let directlyCollapsed = charData.collapsed.slot.has(slotKey);
+    let pruneMode         = pruneModeInherited || directlyCollapsed;
+    let hasSelection      = slotHasSelection(item, slot);
 
-    custom.augments.forEach(function (aug, position) {
-        let occupant = getOccupant(item, "Augment#" + aug.id);
-        if (!occupant) { return; }
-        let displayLabel = "Augment " + (position + 1) + " (" + aug.color + ")";
-        html += "<tr><td class='slot'>" + escHtml(displayLabel) + "</td><td class='options'>" +
-            escHtml(occupant.enchName) + "</td></tr>";
-    });
+    let removeControl = "<span class='removeAugment' title='Remove this augment slot' onclick=\"handleRemoveCustomAugment('" +
+        escJs(category) + "'," + aug.id + ")\">&#10005;</span>";
+    let labelHtml = "<span onclick=\"toggleCollapsed('slot','" + escJs(slotKey) + "')\">" +
+        escHtml(displayLabel) + "</span> " + removeControl;
 
-    let selectedInherent = Array.from(((charData.selections.inherent[category] || {})[item]) || []);
-    if (selectedInherent.length > 0) {
-        html += "<tr><td class='slot'>Inherent Effects</td><td class='options'>" +
-            selectedInherent.map(escHtml).join(", ") + "</td></tr>";
+    if (pruneMode && !hasSelection) {
+        if (!directlyCollapsed) { return ""; }  // inherited prune, nothing selected - vanish entirely
+        return "<tr class='collapsed'><td class='slot'>" + labelHtml + "</td><td>&nbsp;</td></tr>";
     }
 
-    if (custom.description) {
-        html += "<tr><td class='slot'>Description</td><td class='options'>" + escHtml(custom.description) + "</td></tr>";
+    let trClass = directlyCollapsed ? " class='collapsed'" : "";
+    let html    = "<tr" + trClass + "><td class='slot'>" + labelHtml + "</td><td class='options'>";
+
+    let firstShown = true;
+    for (let realColor of realColors) {
+        let colorHtml = renderCustomColorGroup(item, slot, realColor, realColors.length > 1, pruneMode, idx);
+        if (!colorHtml) { continue; }
+        if (!firstShown) { html += "<br />"; }
+        html += colorHtml;
+        firstShown = false;
     }
 
+    html += "</td></tr>";
     return html;
 }
 
-function getMarkDoneControlHtml(category) {
-    let custom = charData.customItems[category];
-    let isDone = !!(custom && custom.done);
-    return "<span class='markDone' onclick=\"handleToggleCustomItemDone('" + escJs(category) +
-        "')\">" + (isDone ? "Unmark Done" : "Mark Done") + "</span>";
+function renderCustomColorGroup(item, slot, realColor, showColorHeader, pruneModeInherited, idx) {
+    let slotKey           = item + "|" + slot;
+    let colorKey          = slotKey + "|" + realColor;
+    let directlyCollapsed = charData.collapsed.color.has(colorKey);
+    let pruneMode         = pruneModeInherited || directlyCollapsed;
+    let hasSelection      = colorHasSelection(item, slot, realColor);
+
+    if (pruneMode && !hasSelection) {
+        if (!directlyCollapsed) { return ""; }  // inherited prune, nothing selected - vanish entirely
+        return "<div class='color collapsed' onclick=\"toggleCollapsed('color','" + escJs(colorKey) +
+            "')\">&nbsp;" + escHtml(realColor) + "&nbsp;</div>&nbsp;";
+    }
+
+    let html = "";
+    if (showColorHeader) {
+        let collapsedClass = directlyCollapsed ? " collapsed" : "";
+        html += "<div class='color" + collapsedClass + "' onclick=\"toggleCollapsed('color','" +
+            escJs(colorKey) + "')\">&nbsp;" + escHtml(realColor) + ":</div>&nbsp;";
+    }
+
+    let occupant = getOccupant(item, slot);
+    html += "<div class='ench'> ";
+    for (let enchName of (charData.augmentOptionsByColor[realColor] || [])) {
+        let isSelectedHere = !!occupant && occupant.enchName === enchName && occupant.color === realColor;
+        if (pruneMode && !isSelectedHere) { continue; }
+        html += getButton(item, slot, realColor, enchName, idx);
+    }
+    html += "</div>";
+    return html;
 }
 
-function handleToggleCustomItemDone(category) {
-    let custom = charData.customItems[category];
-    if (!custom) { return; }
-    custom.done = !custom.done;
-    renderEnchantmentOptions();
-    renderResult();
-}
-
-function renderCustomItemDescription(category, custom) {
+function renderCustomItemDescription(category, custom, pruneMode) {
+    if (pruneMode && !custom.description) { return ""; }  // disappears if empty while collapsed
+    let disabledAttr = pruneMode ? " disabled" : "";
     return "<tr><td class='slot'>Description</td><td class='options'>" +
         "<textarea class='customItemDescription' onchange=\"handleCustomItemDescription(this,'" +
-        escJs(category) + "')\">" + escHtml(custom.description || "") + "</textarea></td></tr>";
+        escJs(category) + "')\"" + disabledAttr + ">" + escHtml(custom.description || "") + "</textarea></td></tr>";
 }
 
 function handleCustomItemDescription(textarea, category) {
     charData.customItems[category].description = textarea.value;
 }
 
-function renderInherentPicker(category, idx) {
+function renderInherentPicker(category, idx, pruneModeInherited) {
     // Deliberately unscoped by category (see PIVOT note) - a named item's whole appeal can be an
     //   effect normal Cannith crafting could never produce for that category. Deliberately flat and
     //   alphabetical rather than grouped/filtered - relies on the browser's own search, same as the
     //   existing ~1500-row Cannith lists already do.
-    let item    = customItemKey(category);
-    let slotKey = item + "|InherentEffects";
+    let item              = customItemKey(category);
+    let slotKey           = item + "|InherentEffects";
+    let directlyCollapsed = charData.collapsed.slot.has(slotKey);
+    let pruneMode         = pruneModeInherited || directlyCollapsed;
+    let hasSelection      = inherentHasSelection(category, item);
 
-    if (charData.collapsed.slot.has(slotKey)) {
+    if (pruneMode && !hasSelection) {
+        if (!directlyCollapsed) { return ""; }  // inherited prune, nothing selected - vanish entirely
         return "<tr class='collapsed'><td class='slot' onclick=\"toggleCollapsed('slot','" +
-            escJs(slotKey) + "')\">Inherent Effects<td>&nbsp;</td></tr>";
+            escJs(slotKey) + "')\">Inherent Effects</td><td>&nbsp;</td></tr>";
     }
 
-    let html = "<tr><td class='slot' onclick=\"toggleCollapsed('slot','" + escJs(slotKey) +
+    let trClass = directlyCollapsed ? " class='collapsed'" : "";
+    let html = "<tr" + trClass + "><td class='slot' onclick=\"toggleCollapsed('slot','" + escJs(slotKey) +
         "')\">Inherent Effects</td><td class='options'><div class='ench'> ";
+    let selectedSet = (charData.selections.inherent[category] || {})[item];
     for (let enchName of Object.keys(charData.enchantments).sort()) {
+        let isSelected = !!selectedSet && selectedSet.has(enchName);
+        if (pruneMode && !isSelected) { continue; }
         html += getInherentButton(category, item, enchName, idx);
     }
     html += "</div></td></tr>";
@@ -635,7 +697,7 @@ function handleCategoryModeToggle(checkbox, category) {
     //   custom mode picks up right where it was. No confirm needed here, because nothing is lost.
     charData.categoryMode[category] = checkbox.checked ? "custom" : "cannith";
     if (checkbox.checked && !charData.customItems[category]) {
-        charData.customItems[category] = {name: "", augments: [], nextAugmentId: 1, done: false, description: ""};
+        charData.customItems[category] = {name: "", augments: [], nextAugmentId: 1, description: ""};
     }
 
     renderEnchantmentOptions();
@@ -1016,7 +1078,6 @@ function handleLoad(incomingFile) {
             name: saved.name || "",
             augments: (saved.augments || []).map(function (a) { return {id: a.id, color: a.color}; }),
             nextAugmentId: saved.nextAugmentId || 1,
-            done: saved.done || false,
             description: saved.description || ""
         };
     }
