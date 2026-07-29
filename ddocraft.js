@@ -1269,7 +1269,9 @@ function handleSaveToServer() {
     let payload = {
         userId: getTestUserId(),
         charName: charData.saveFile.charName,
-        charLevel: charData.saveFile.charLevel,
+        charLevel: Number(charData.saveFile.charLevel),  // saveFile.charLevel is a string (straight
+                                                           //   from the <input>'s .value) - the API
+                                                           //   requires a real integer.
         description: null,  // no character-level description field in the client yet (planned, not built)
         appVersion: String(charData.saveFile.version),
         buildData: charData.saveFile
@@ -1280,16 +1282,23 @@ function handleSaveToServer() {
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(payload)
     })
-        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("status " + r.status)); })
+        .then(function (r) { return rejectIfNotOk(r); })
         .then(function (data) { alert("Saved to server as build #" + data.characterBuildId + "."); })
         .catch(function (err) { alert("Save to server failed: " + err.message); });
+}
+
+function rejectIfNotOk(response) {
+    if (response.ok) { return response.json(); }
+    return response.json()
+        .catch(function () { return {}; })
+        .then(function (body) { throw new Error(body.error || ("status " + response.status)); });
 }
 
 function handleLoadFromServer() {
     let userId = getTestUserId();
 
     fetch(CHARACTER_BUILD_API_BASE + "?userId=" + userId)
-        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("status " + r.status)); })
+        .then(function (r) { return rejectIfNotOk(r); })
         .then(function (list) {
             if (list.length === 0) {
                 alert("No server saves found for test user " + userId + ".");
@@ -1308,7 +1317,7 @@ function handleLoadFromServer() {
 
 function loadCharacterBuildFromServer(characterBuildId, userId) {
     fetch(CHARACTER_BUILD_API_BASE + "/" + characterBuildId + "?userId=" + userId)
-        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("status " + r.status)); })
+        .then(function (r) { return rejectIfNotOk(r); })
         .then(function (build) {
             handleLoad(build.buildData);
             renderEnchantmentOptions();
