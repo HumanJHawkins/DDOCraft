@@ -443,3 +443,52 @@ button.handled, button.blocked {
     width:240px;
     height:30px;
 }
+
+.openBuildEmpty {
+    color: #888;
+}
+
+.openBuildListWrap {
+    max-height: 50vh;
+    overflow-y: auto;
+    margin: 1vw 0;
+}
+
+.openBuildTable {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+}
+
+.openBuildTable th, .openBuildTable td {
+    text-align: left;
+    padding: .4vw .8vw;
+    border-bottom: 1px solid #444;
+}
+
+.openBuildTable th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.openBuildTable th.sortable:hover {
+    background-color: #444;
+}
+
+.openBuildColOpen {
+    width: 1%;
+    white-space: nowrap;
+}
+
+.openBuildOpenLink {
+    display: inline-block;
+    padding: .2vw .8vw;
+    background-color: #1a1a19;
+    color: #c3c2b7;
+    text-decoration: none;
+    border: 1px solid #444;
+}
+
+.openBuildOpenLink:hover {
+    background-color: #333333;
+}

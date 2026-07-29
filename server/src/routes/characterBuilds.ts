@@ -104,10 +104,38 @@ characterBuildsRouter.post("/", async (req, res, next) => {
     return;
   }
 
-  const characterBuildId = randomUUID();
   const buildChecksum = computeBuildChecksum(charLevel, buildData);
 
   try {
+    // buildChecksum alone deliberately ignores charName (see its schema comment - it's meant to
+    //   recognize the same BUILD regardless of who made it or what they called it, e.g. across
+    //   different users). But for "did the user just click Save again with nothing new to say,"
+    //   charName has to count too - a mechanically-identical build saved under a different name is
+    //   a deliberate second save (e.g. "Backup" vs "PvP Loadout"), not a duplicate re-save of the
+    //   same one. So this match composes both: same owner, same name, same build content.
+    const [existing] = await pool.query<RowDataPacket[]>(
+      `SELECT characterBuildId FROM characterBuild
+       WHERE userId = ? AND charName = ? AND buildChecksum = ?
+       ORDER BY updateDate DESC LIMIT 1`,
+      [userId, charName, buildChecksum]
+    );
+
+    if (existing.length > 0) {
+      // Not a bare timestamp touch - description/appVersion can differ even when the build itself
+      //   (and its name) didn't, and those still need to be persisted rather than silently dropped.
+      const characterBuildId = existing[0].characterBuildId;
+      await pool.query<ResultSetHeader>(
+        `UPDATE characterBuild
+         SET description = ?, appVersion = ?, buildData = ?, buildChecksum = ?, updateBy = ?
+         WHERE characterBuildId = ?`,
+        [description ?? null, appVersion, JSON.stringify(buildData), buildChecksum,
+          SERVICE_IDENTITY, characterBuildId]
+      );
+      res.status(200).json({ characterBuildId, buildChecksum, created: false });
+      return;
+    }
+
+    const characterBuildId = randomUUID();
     await pool.query<ResultSetHeader>(
       `INSERT INTO characterBuild
          (characterBuildId, userId, charName, charLevel, description, appVersion, buildData,
@@ -116,7 +144,7 @@ characterBuildsRouter.post("/", async (req, res, next) => {
       [characterBuildId, userId, charName, charLevel, description ?? null, appVersion,
         JSON.stringify(buildData), buildChecksum, SERVICE_IDENTITY, SERVICE_IDENTITY]
     );
-    res.status(201).json({ characterBuildId, buildChecksum });
+    res.status(201).json({ characterBuildId, buildChecksum, created: true });
   } catch (err) {
     next(err);
   }

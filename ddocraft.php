@@ -308,6 +308,29 @@ updateCounter();
         </p>
     </div>
 </div>
+
+<!-- Modal: open a build saved on the server (temporary test harness). Hidden while not in use. -->
+<div id="openBuild" class="modal">
+    <div id="divOpenBuildDialog" class="modal-content">
+        <div id="btnCloseOpenBuild" class="modalClose" onClick="dialogOpenBuild.style.display='none'">&times;</div>
+        <h3 class="modalText modalHeading">Open Build</h3>
+        <div id="openBuildEmpty" class="openBuildEmpty indent helpText" style="display:none;">No server saves found for this test user.</div>
+        <div class="openBuildListWrap">
+            <table class="openBuildTable">
+                <thead>
+                    <tr>
+                        <th class="openBuildColOpen"></th>
+                        <th class="sortable" onclick="handleSortOpenBuildList('charName')">Name</th>
+                        <th class="sortable" onclick="handleSortOpenBuildList('charLevel')">Level</th>
+                        <th class="sortable" onclick="handleSortOpenBuildList('updateDate')">Updated</th>
+                    </tr>
+                </thead>
+                <tbody id="openBuildTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <!--<h3>ISSUE: Prior save files may lose their Character Level setting. Please reset that and re-save.<br /> </h3>-->
 <!--<h3><br /></h3>-->
 <h1 style="float:left">DDO Cannith Crafting Planner b0.98</h1>

@@ -9,6 +9,7 @@ let buttonCloseHelp;
 let dialogAbout;
 let buttonAbout;
 let buttonCloseAbout;
+let dialogOpenBuild;
 
 let extraSlotMinLevel = 10;
 
@@ -84,11 +85,13 @@ function initialize() {
     dialogAbout            = document.getElementById('about');
     buttonAbout            = document.getElementById("btnAbout");
     buttonCloseAbout       = document.getElementById("btnCloseAbout");
+    dialogOpenBuild        = document.getElementById('openBuild');
 
     renderEnchantmentOptions();
     renderResult();
     handleRename(); // Sets to "Unnamed" if not invalid.
     showPreferences();
+    loadCharacterBuildFromUrl();
 }
 
 function loadEnchantmentOptions() {
@@ -1283,7 +1286,12 @@ function handleSaveToServer() {
         body: JSON.stringify(payload)
     })
         .then(function (r) { return rejectIfNotOk(r); })
-        .then(function (data) { alert("Saved to server. Build id: " + data.characterBuildId); })
+        .then(function (data) {
+            let message = data.created
+                ? "Saved to server as a new build."
+                : "No changes since your last save under this name - updated the timestamp instead of creating a duplicate.";
+            alert(message + " Build id: " + data.characterBuildId);
+        })
         .catch(function (err) { alert("Save to server failed: " + err.message); });
 }
 
@@ -1294,25 +1302,79 @@ function rejectIfNotOk(response) {
         .then(function (body) { throw new Error(body.error || ("status " + response.status)); });
 }
 
+// ---- Open Build dialog ----
+//
+// Sortable table of the current test user's server saves. The "Open" control in each row is a
+//   real <a href> (not a JS-only button) specifically so the browser's own right-click "open in
+//   new tab" / middle-click / ctrl-click behavior works natively - clicking it plainly is
+//   intercepted for a fast in-page load, but nothing about that interception is required for the
+//   link to work; loadCharacterBuildFromUrl() is what makes a real navigation to that URL (in a
+//   new tab, or pasted/bookmarked) load the build on its own.
+
+let openBuildList       = [];
+let openBuildSortColumn = "updateDate";
+let openBuildSortAsc    = false;
+
 function handleLoadFromServer() {
     let userId = getTestUserId();
 
     fetch(CHARACTER_BUILD_API_BASE + "?userId=" + userId)
         .then(function (r) { return rejectIfNotOk(r); })
         .then(function (list) {
-            if (list.length === 0) {
-                alert("No server saves found for test user " + userId + ".");
-                return;
-            }
-            let lines = list.map(function (b, i) {
-                return (i + 1) + ". " + b.charName + " (Lvl " + b.charLevel + ") - " + b.updateDate;
-            });
-            let choice = prompt("Pick a build to load (enter a number):\n" + lines.join("\n"));
-            let index  = Number(choice) - 1;
-            if (!(index >= 0 && index < list.length)) { return; }
-            loadCharacterBuildFromServer(list[index].characterBuildId);
+            openBuildList = list;
+            sortOpenBuildList();
+            renderOpenBuildTableBody();
+            dialogOpenBuild.style.display = 'block';
         })
         .catch(function (err) { alert("Load from server failed: " + err.message); });
+}
+
+function handleSortOpenBuildList(column) {
+    openBuildSortAsc    = (openBuildSortColumn === column) ? !openBuildSortAsc : true;
+    openBuildSortColumn = column;
+    sortOpenBuildList();
+    renderOpenBuildTableBody();
+}
+
+function sortOpenBuildList() {
+    let column = openBuildSortColumn;
+    let dir    = openBuildSortAsc ? 1 : -1;
+    openBuildList.sort(function (a, b) {
+        if (a[column] < b[column]) { return -1 * dir; }
+        if (a[column] > b[column]) { return 1 * dir; }
+        return 0;
+    });
+}
+
+function renderOpenBuildTableBody() {
+    document.getElementById("openBuildEmpty").style.display = openBuildList.length === 0 ? "block" : "none";
+
+    let html = "";
+    for (let build of openBuildList) {
+        let url = "ddocraft.php?openBuild=" + encodeURIComponent(build.characterBuildId);
+        html += "<tr><td class='openBuildColOpen'><a class='openBuildOpenLink' href=\"" + escHtml(url) +
+            "\" onclick=\"return handleOpenBuildLinkClick(event,'" + escJs(build.characterBuildId) +
+            "')\">Open</a></td><td>" + escHtml(build.charName) + "</td><td>" + build.charLevel +
+            "</td><td>" + escHtml(formatBuildDate(build.updateDate)) + "</td></tr>";
+    }
+    document.getElementById("openBuildTableBody").innerHTML = html;
+}
+
+function formatBuildDate(isoString) {
+    let date = new Date(isoString);
+    return isNaN(date.getTime()) ? isoString : date.toLocaleString();
+}
+
+function handleOpenBuildLinkClick(event, characterBuildId) {
+    // Right-click and middle-click never reach this handler at all (the browser handles those
+    //   itself, straight off the real href) - only a plain or modified left-click does. A modified
+    //   click (ctrl/cmd/shift, opening a new tab/window) should fall through to that same native
+    //   navigation too; only a plain click gets the fast in-page path.
+    if (event.ctrlKey || event.metaKey || event.shiftKey || event.button !== 0) { return true; }
+    event.preventDefault();
+    loadCharacterBuildFromServer(characterBuildId);
+    dialogOpenBuild.style.display = 'none';
+    return false;
 }
 
 // No userId needed here - characterBuildId is a random, unguessable GUID, and knowing it is
@@ -1327,6 +1389,13 @@ function loadCharacterBuildFromServer(characterBuildId) {
             renderResult();
         })
         .catch(function (err) { alert("Load from server failed: " + err.message); });
+}
+
+// Lets a real navigation to ddocraft.php?openBuild=<guid> - a new tab, a bookmark, a pasted link -
+//   load that build on its own, without ever having gone through the Open Build dialog.
+function loadCharacterBuildFromUrl() {
+    let characterBuildId = new URLSearchParams(window.location.search).get("openBuild");
+    if (characterBuildId) { loadCharacterBuildFromServer(characterBuildId); }
 }
 
 
