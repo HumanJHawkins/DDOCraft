@@ -224,3 +224,40 @@ CREATE TABLE cannithCategoryOption (
     CONSTRAINT fk_cco_effect       FOREIGN KEY (effectId) REFERENCES effect(effectId),
     CONSTRAINT uq_cco_category_slot_effect UNIQUE (itemCategoryId, slotType, effectId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------------------------
+-- characterBuild: a user's saved DDOCraft build (what today's client-side JSON save/load feature
+--   downloads to a file). Lives in the ddocraft DB, not a shared GateIron.com DB - accounts are
+--   GateIron.com-wide (a separate DB, since MariaDB allows free cross-database joins on the same
+--   server - see the design discussion this table came out of), but each app owns its own domain
+--   data. userId is deliberately NOT a real FOREIGN KEY - MySQL/MariaDB can't enforce a constraint
+--   across two different databases, so this is an app-enforced reference to that other DB's
+--   user.id, not a DB-enforced one.
+--
+--   Phase 1 (this table, now): userId is a placeholder value - no real accounts/OAuth exist yet,
+--   so the API trusts whatever caller-supplied value it's given. Phase 2 (later): GateIron.com
+--   gets real accounts (Auth.js), and userId starts coming from an authenticated session instead -
+--   no schema change needed here, since the column was already shaped to hold a real user.id.
+--
+--   buildData is the app's full existing save-file payload (positional/inherent selections,
+--   categoryMode, customItems, collapsed state, enchFilter) stored as one opaque JSON blob rather
+--   than normalized into rows - the server never needs to understand its internal shape, only
+--   store and return it, so client-side save-format changes never require a server-side migration.
+--   charName/charLevel/description are pulled out as their own real columns specifically so a
+--   future "your saved builds" list view can query/sort/display them without deserializing every
+--   row's JSON.
+CREATE TABLE characterBuild (
+    characterBuildId INT AUTO_INCREMENT PRIMARY KEY,
+    userId            INT              NOT NULL,  -- see note above: app-enforced, not a real FK
+    charName          VARCHAR(100)     NOT NULL,
+    charLevel         TINYINT UNSIGNED NOT NULL,
+    description       TEXT             NULL,
+    appVersion        VARCHAR(20)      NOT NULL,
+    buildData         JSON             NOT NULL,
+    createBy          VARCHAR(100)     NOT NULL,
+    createDate        DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updateBy          VARCHAR(100)     NOT NULL,
+    updateDate        DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_characterBuild_userId (userId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
