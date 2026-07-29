@@ -343,31 +343,37 @@ function itemHasAnySelection(item) {
     return !!slots && Object.keys(slots).length > 0;
 }
 
-// Is this candidate visible at all right now (level-gated in, and passes the active filter)? -
-//   the same two checks getButton() uses to suppress a button entirely, factored out so the
-//   "X options available" count matches exactly what expanding the slot would actually show.
-function isOptionVisible(slot, enchName) {
+// Is this candidate a genuinely good pick right now - level-gated in, passes the active filter,
+//   AND wouldn't immediately show up as a discouraged "handled" duplicate (same effect type - or
+//   whatever it supersedes - already selected elsewhere)? Mirrors getButton()'s own suppression
+//   and isHandled checks, factored out so "N unused options available" only counts options that
+//   wouldn't trigger that warning, not merely whatever would render as a button at all.
+function isOptionGood(slot, enchName, idx) {
     let ench      = charData.enchantments[enchName];
     let isAugment = slot.substring(0, 3) === "Aug";
     let minLevel  = isAugment ? ench.enchAugmentMinLevel : ench.enchCannithMinLevel;
     if (charData.saveFile.charLevel < minLevel) { return false; }
-    return getEnchFilterValue(enchName) >= 1;
+    if (getEnchFilterValue(enchName) < 1) { return false; }
+    let effectCount = idx.effectTypeCounts[ench.enchEffectType] || 0;
+    if (effectCount > 0) { return false; }
+    if (idx.allSelectedNames.has(ench.enchSupercededBy)) { return false; }
+    return true;
 }
 
-function countAvailableInSlot(slot, colorMap) {
+function countAvailableInSlot(slot, colorMap, idx) {
     let count = 0;
     for (let color of Object.keys(colorMap)) {
         for (let enchName of colorMap[color]) {
-            if (isOptionVisible(slot, enchName)) { count++; }
+            if (isOptionGood(slot, enchName, idx)) { count++; }
         }
     }
     return count;
 }
 
 function describeAvailableCount(count) {
-    if (count === 0) { return "Unused. No options currently available."; }
-    if (count === 1) { return "Unused. 1 option available."; }
-    return "Unused. " + count + " options available.";
+    if (count === 0) { return "No unused options available."; }
+    if (count === 1) { return "1 unused option available."; }
+    return count + " unused options available.";
 }
 
 // ---- Collapse cascade: category <-> its slots <-> their colors ----
@@ -533,7 +539,7 @@ function renderSlotRow(category, item, slot, colorMap, idx) {
         // Stays visible even when empty - a slot fully disappearing risks hiding something still
         //   worth filling in - showing how many options are still pickable instead of the list.
         return "<tr class='collapsed'><td class='slot' " + onclickAttr + ">" + escHtml(slot) +
-            "</td><td class='options'>" + describeAvailableCount(countAvailableInSlot(slot, colorMap)) + "</td></tr>";
+            "</td><td class='options'>" + describeAvailableCount(countAvailableInSlot(slot, colorMap, idx)) + "</td></tr>";
     }
 
     let trClass = collapsed ? " class='collapsed'" : "";
@@ -689,7 +695,7 @@ function renderCustomAugmentSlotRow(category, item, aug, position, idx) {
         let colorMap = {};
         for (let realColor of realColors) { colorMap[realColor] = charData.augmentOptionsByColor[realColor] || []; }
         return "<tr class='collapsed'><td class='slot'>" + labelHtml + "</td><td class='options'>" +
-            describeAvailableCount(countAvailableInSlot(slot, colorMap)) + "</td></tr>";
+            describeAvailableCount(countAvailableInSlot(slot, colorMap, idx)) + "</td></tr>";
     }
 
     let trClass = collapsed ? " class='collapsed'" : "";
