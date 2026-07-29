@@ -304,20 +304,25 @@ function computeSelectionIndex() {
 
 // ---- Collapse/prune helpers ----
 //
-// Collapse no longer just hides a whole subtree - it PRUNES it, everywhere, the same way: only
-//   selected options survive; everything unselected disappears. The exact node the user directly
-//   collapsed always keeps its own header/label visible (as a button to re-expand), even if
-//   there's nothing selected inside it at all - otherwise there'd be no way back in. SLOTS (Cannith
-//   or custom, plus Inherent Effects) stay visible too when empty and merely inheriting prune from
-//   a collapsed ancestor - showing "Available" in place of the option list - since a slot fully
-//   disappearing risks hiding something still worth filling in. COLORS go further and vanish
-//   completely when empty-and-inherited (not the direct collapse target), since they're a denser,
-//   lower-level grouping within an already-visible slot, not something you'd lose track of.
+// Collapse is a real, independently-tracked flag on every node (category, slot, color) - not
+//   just an inherited render-time effect. "Collapse or expand of a thing collapses or expands
+//   everything inside it": toggling a category sets/clears every one of its slots (and their
+//   colors) to match; toggling a slot sets/clears its own colors to match. That cascade runs the
+//   moment you click, via setCategoryCollapsed()/setSlotCollapsed() below - rendering itself just
+//   checks each node's own flag, no inheritance needed.
 //
-// pruneMode threads down through every render call below: it starts false, becomes true the
-//   moment any ancestor (or the node itself) is directly collapsed, and once true stays true for
-//   everything nested inside - "slots with options collapse as slots do" applies automatically,
-//   without needing their own collapse flag set.
+// The reverse also holds, one level at a time: manually collapsing (or expanding) EVERY slot in a
+//   category syncs the category's own flag to match (syncCategoryFromSlots()); manually collapsing
+//   (or expanding) every color in a slot syncs the slot's flag the same way (syncSlotFromColors()),
+//   which can then cascade its own sync up to the category. Deliberately NOT done: toggling a
+//   single child doesn't touch the parent's flag at all - only full agreement across every child
+//   does. A mixed state just leaves the parent's flag as whatever it last was.
+//
+// Whatever a node's own flag says, rendering is the same everywhere: a collapsed node with nothing
+//   selected inside it still shows its own header (as a button to re-expand) - a SLOT (Cannith or
+//   custom, plus Inherent Effects) shows a count of what's still pickable there instead of the
+//   option list; a COLOR shows just its own name as a small button. A collapsed node WITH a
+//   selection shows only the selected option(s), hiding the rest.
 
 function slotHasSelection(item, slot) {
     return !!getOccupant(item, slot);
@@ -338,6 +343,136 @@ function itemHasAnySelection(item) {
     return !!slots && Object.keys(slots).length > 0;
 }
 
+// Is this candidate visible at all right now (level-gated in, and passes the active filter)? -
+//   the same two checks getButton() uses to suppress a button entirely, factored out so the
+//   "X options available" count matches exactly what expanding the slot would actually show.
+function isOptionVisible(slot, enchName) {
+    let ench      = charData.enchantments[enchName];
+    let isAugment = slot.substring(0, 3) === "Aug";
+    let minLevel  = isAugment ? ench.enchAugmentMinLevel : ench.enchCannithMinLevel;
+    if (charData.saveFile.charLevel < minLevel) { return false; }
+    return getEnchFilterValue(enchName) >= 1;
+}
+
+function countAvailableInSlot(slot, colorMap) {
+    let count = 0;
+    for (let color of Object.keys(colorMap)) {
+        for (let enchName of colorMap[color]) {
+            if (isOptionVisible(slot, enchName)) { count++; }
+        }
+    }
+    return count;
+}
+
+function describeAvailableCount(count) {
+    if (count === 0) { return "Unused. No options currently available."; }
+    if (count === 1) { return "Unused. 1 option available."; }
+    return "Unused. " + count + " options available.";
+}
+
+// ---- Collapse cascade: category <-> its slots <-> their colors ----
+
+function getSlotsForCategory(category) {
+    let mode = charData.categoryMode[category] || "cannith";
+    let item = mode === "custom" ? customItemKey(category) : charData.categoryChoice[category];
+    if (!item) { return []; }
+    if (mode === "custom") {
+        let custom = charData.customItems[category];
+        let slots  = ["InherentEffects"];
+        if (custom) {
+            custom.augments.forEach(function (aug) { slots.push("Augment#" + aug.id); });
+        }
+        return slots;
+    }
+    let itemNode = charData.catalog[category] && charData.catalog[category][item];
+    return itemNode ? Object.keys(itemNode) : [];
+}
+
+function getColorsForSlot(category, slot) {
+    let mode = charData.categoryMode[category] || "cannith";
+    if (mode === "custom") {
+        if (slot === "InherentEffects") { return []; }
+        let custom = charData.customItems[category];
+        if (!custom) { return []; }
+        let augId = parseInt(slot.slice("Augment#".length), 10);
+        let aug    = custom.augments.find(function (a) { return a.id === augId; });
+        return aug ? realColorsForSlot(aug.color) : [];
+    }
+    let item     = charData.categoryChoice[category];
+    let itemNode = item && charData.catalog[category] && charData.catalog[category][item];
+    let colorMap = itemNode && itemNode[slot];
+    return colorMap ? Object.keys(colorMap) : [];
+}
+
+function setSlotCollapsed(category, item, slot, collapsed) {
+    let slotKey = item + "|" + slot;
+    if (collapsed) { charData.collapsed.slot.add(slotKey); } else { charData.collapsed.slot.delete(slotKey); }
+    for (let color of getColorsForSlot(category, slot)) {
+        let colorKey = slotKey + "|" + color;
+        if (collapsed) { charData.collapsed.color.add(colorKey); } else { charData.collapsed.color.delete(colorKey); }
+    }
+}
+
+function setCategoryCollapsed(category, collapsed) {
+    if (collapsed) { charData.collapsed.item.add(category); } else { charData.collapsed.item.delete(category); }
+    let mode = charData.categoryMode[category] || "cannith";
+    let item = mode === "custom" ? customItemKey(category) : charData.categoryChoice[category];
+    if (!item) { return; }
+    for (let slot of getSlotsForCategory(category)) {
+        setSlotCollapsed(category, item, slot, collapsed);
+    }
+}
+
+function syncCategoryFromSlots(category) {
+    let mode = charData.categoryMode[category] || "cannith";
+    let item = mode === "custom" ? customItemKey(category) : charData.categoryChoice[category];
+    if (!item) { return; }
+    let slots = getSlotsForCategory(category);
+    if (slots.length === 0) { return; }
+    let slotKeys     = slots.map(function (s) { return item + "|" + s; });
+    let allCollapsed = slotKeys.every(function (k) { return charData.collapsed.slot.has(k); });
+    let allExpanded  = slotKeys.every(function (k) { return !charData.collapsed.slot.has(k); });
+    if (allCollapsed) { charData.collapsed.item.add(category); }
+    else if (allExpanded) { charData.collapsed.item.delete(category); }
+    // else mixed - leave the category's own flag as whatever it last was
+}
+
+function syncSlotFromColors(category, item, slot) {
+    let colors = getColorsForSlot(category, slot);
+    if (colors.length === 0) { return; }
+    let slotKey      = item + "|" + slot;
+    let colorKeys    = colors.map(function (c) { return slotKey + "|" + c; });
+    let allCollapsed = colorKeys.every(function (k) { return charData.collapsed.color.has(k); });
+    let allExpanded  = colorKeys.every(function (k) { return !charData.collapsed.color.has(k); });
+    if (allCollapsed) { charData.collapsed.slot.add(slotKey); }
+    else if (allExpanded) { charData.collapsed.slot.delete(slotKey); }
+    else { return; }  // mixed - don't touch the slot's flag, and nothing uniform to bubble up further
+    syncCategoryFromSlots(category);
+}
+
+function toggleCategory(category) {
+    setCategoryCollapsed(category, !charData.collapsed.item.has(category));
+    renderEnchantmentOptions();
+    renderResult();
+}
+
+function toggleSlot(category, item, slot) {
+    let slotKey = item + "|" + slot;
+    setSlotCollapsed(category, item, slot, !charData.collapsed.slot.has(slotKey));
+    syncCategoryFromSlots(category);
+    renderEnchantmentOptions();
+    renderResult();
+}
+
+function toggleColor(category, item, slot, color) {
+    let colorKey = item + "|" + slot + "|" + color;
+    if (charData.collapsed.color.has(colorKey)) { charData.collapsed.color.delete(colorKey); }
+    else { charData.collapsed.color.add(colorKey); }
+    syncSlotFromColors(category, item, slot);
+    renderEnchantmentOptions();
+    renderResult();
+}
+
 function renderEnchantmentOptions() {
     let idx  = computeSelectionIndex();
     let html = "";
@@ -345,7 +480,6 @@ function renderEnchantmentOptions() {
     for (let category of charData.categoryOrder) {
         let mode              = charData.categoryMode[category] || "cannith";
         let categoryCollapsed = charData.collapsed.item.has(category);
-        let pruneMode         = categoryCollapsed;
 
         let item, categoryHasSelection;
         if (mode === "custom") {
@@ -357,21 +491,21 @@ function renderEnchantmentOptions() {
         }
 
         if (categoryCollapsed && !categoryHasSelection) {
-            html += "<table><caption class='itemheader collapsed' onclick=\"toggleCollapsed('item','" +
+            html += "<table><caption class='itemheader collapsed' onclick=\"toggleCategory('" +
                 escJs(category) + "')\">&#9655; " + escHtml(category) + "</caption></table>";
             continue;
         }
 
         let triangle = categoryCollapsed ? "&#9655;" : "&#9661;";
         html += "<table><caption class='itemheader" + (categoryCollapsed ? " collapsed" : "") +
-            "' onclick=\"toggleCollapsed('item','" + escJs(category) + "')\">" + triangle + " " +
+            "' onclick=\"toggleCategory('" + escJs(category) + "')\">" + triangle + " " +
             escHtml(category) + " " + getCategoryModeToggleHtml(category);
 
         if (mode === "custom") {
             if (idx.customCategoryOverlap[category]) {
                 html += " <span class='overlapWarning'>Effect overlaps detected</span>";
             }
-            html += "</caption>" + renderCustomItemBody(category, idx, pruneMode) + "</table>";
+            html += "</caption>" + renderCustomItemBody(category, idx) + "</table>";
             continue;
         }
 
@@ -381,7 +515,7 @@ function renderEnchantmentOptions() {
         html += "</caption>";
         for (let slot of Object.keys(itemNode)) {
             if (slot === "Extra" && charData.saveFile.charLevel < extraSlotMinLevel) { continue; }
-            html += renderSlotRow(item, slot, itemNode[slot], pruneMode, idx);
+            html += renderSlotRow(category, item, slot, itemNode[slot], idx);
         }
         html += "</table>";
     }
@@ -389,27 +523,26 @@ function renderEnchantmentOptions() {
     document.getElementById("enchantmentOptions").innerHTML = html;
 }
 
-function renderSlotRow(item, slot, colorMap, pruneModeInherited, idx) {
-    let slotKey           = item + "|" + slot;
-    let directlyCollapsed = charData.collapsed.slot.has(slotKey);
-    let pruneMode         = pruneModeInherited || directlyCollapsed;
-    let hasSelection      = slotHasSelection(item, slot);
+function renderSlotRow(category, item, slot, colorMap, idx) {
+    let slotKey      = item + "|" + slot;
+    let collapsed    = charData.collapsed.slot.has(slotKey);
+    let hasSelection = slotHasSelection(item, slot);
+    let onclickAttr  = "onclick=\"toggleSlot('" + escJs(category) + "','" + escJs(item) + "','" + escJs(slot) + "')\"";
 
-    if (pruneMode && !hasSelection) {
-        // Slots stay visible even when empty and only cascade-pruned (not directly collapsed) -
-        //   an empty slot fully disappearing risks hiding something still worth filling in.
-        return "<tr class='collapsed'><td class='slot' onclick=\"toggleCollapsed('slot','" +
-            escJs(slotKey) + "')\">" + escHtml(slot) + "</td><td class='options'>Available</td></tr>";
+    if (collapsed && !hasSelection) {
+        // Stays visible even when empty - a slot fully disappearing risks hiding something still
+        //   worth filling in - showing how many options are still pickable instead of the list.
+        return "<tr class='collapsed'><td class='slot' " + onclickAttr + ">" + escHtml(slot) +
+            "</td><td class='options'>" + describeAvailableCount(countAvailableInSlot(slot, colorMap)) + "</td></tr>";
     }
 
-    let trClass = directlyCollapsed ? " class='collapsed'" : "";
-    let html    = "<tr" + trClass + "><td class='slot' onclick=\"toggleCollapsed('slot','" +
-        escJs(slotKey) + "')\">" + escHtml(slot) + "</td><td class='options'>";
+    let trClass = collapsed ? " class='collapsed'" : "";
+    let html    = "<tr" + trClass + "><td class='slot' " + onclickAttr + ">" + escHtml(slot) + "</td><td class='options'>";
 
     let isAugment  = slot.substring(0, 3) === "Aug";
     let firstShown = true;
     for (let color of Object.keys(colorMap)) {
-        let colorHtml = renderColorGroup(item, slot, color, colorMap[color], isAugment, pruneMode, idx);
+        let colorHtml = renderColorGroup(category, item, slot, color, colorMap[color], isAugment, idx);
         if (!colorHtml) { continue; }
         if (!firstShown && isAugment) { html += "<br />"; }
         html += colorHtml;
@@ -420,31 +553,29 @@ function renderSlotRow(item, slot, colorMap, pruneModeInherited, idx) {
     return html;
 }
 
-function renderColorGroup(item, slot, color, enchNames, isAugment, pruneModeInherited, idx) {
-    let slotKey           = item + "|" + slot;
-    let colorKey          = slotKey + "|" + color;
-    let directlyCollapsed = isAugment && charData.collapsed.color.has(colorKey);
-    let pruneMode         = pruneModeInherited || directlyCollapsed;
-    let hasSelection      = colorHasSelection(item, slot, color);
+function renderColorGroup(category, item, slot, color, enchNames, isAugment, idx) {
+    let slotKey      = item + "|" + slot;
+    let colorKey     = slotKey + "|" + color;
+    let collapsed    = isAugment && charData.collapsed.color.has(colorKey);
+    let hasSelection = colorHasSelection(item, slot, color);
+    let onclickAttr  = "onclick=\"toggleColor('" + escJs(category) + "','" + escJs(item) + "','" +
+        escJs(slot) + "','" + escJs(color) + "')\"";
 
-    if (pruneMode && !hasSelection) {
-        if (!directlyCollapsed) { return ""; }  // inherited prune, nothing selected - vanish entirely
-        return "<div class='color collapsed' onclick=\"toggleCollapsed('color','" + escJs(colorKey) +
-            "')\">&nbsp;" + escHtml(color) + "&nbsp;</div>&nbsp;";
+    if (collapsed && !hasSelection) {
+        return "<div class='color collapsed' " + onclickAttr + ">&nbsp;" + escHtml(color) + "&nbsp;</div>&nbsp;";
     }
 
     let html = "";
     if (isAugment) {
-        let collapsedClass = directlyCollapsed ? " collapsed" : "";
-        html += "<div class='color" + collapsedClass + "' onclick=\"toggleCollapsed('color','" +
-            escJs(colorKey) + "')\">&nbsp;" + escHtml(color) + ":</div>&nbsp;";
+        let collapsedClass = collapsed ? " collapsed" : "";
+        html += "<div class='color" + collapsedClass + "' " + onclickAttr + ">&nbsp;" + escHtml(color) + ":</div>&nbsp;";
     }
 
     let occupant = getOccupant(item, slot);
     html += "<div class='ench'> ";
     for (let enchName of enchNames) {
         let isSelectedHere = !!occupant && occupant.enchName === enchName && occupant.color === color;
-        if (pruneMode && !isSelectedHere) { continue; }
+        if (collapsed && !isSelectedHere) { continue; }
         html += getButton(item, slot, color, enchName, idx);
     }
     html += "</div>";
@@ -514,7 +645,7 @@ function realColorsForSlot(slotColor) {
     return colors;
 }
 
-function renderCustomItemBody(category, idx, pruneMode) {
+function renderCustomItemBody(category, idx) {
     let custom = charData.customItems[category] || {name: "", augments: [], nextAugmentId: 1, description: ""};
     let item   = customItemKey(category);
 
@@ -525,46 +656,48 @@ function renderCustomItemBody(category, idx, pruneMode) {
         "</td></tr>";
 
     custom.augments.forEach(function (aug, position) {
-        html += renderCustomAugmentSlotRow(category, item, aug, position, pruneMode, idx);
+        html += renderCustomAugmentSlotRow(category, item, aug, position, idx);
     });
 
-    html += renderInherentPicker(category, idx, pruneMode);
-    html += renderCustomItemDescription(category, custom, pruneMode);
+    html += renderInherentPicker(category, idx);
+    html += renderCustomItemDescription(category, custom);
 
     return html;
 }
 
-function renderCustomAugmentSlotRow(category, item, aug, position, pruneModeInherited, idx) {
-    let slot              = "Augment#" + aug.id;  // stable key - "Aug" prefix reuses getButton's
-                                                   //   existing augment-vs-cannith min-level check.
-    let displayLabel      = "Augment " + (position + 1);  // matches Cannith's plain "Augment 1"/"Augment 2"
-                                                            //   label - the color already shows via the
-                                                            //   color sub-header in column 2, so repeating
-                                                            //   it here was redundant and made collapsed
-                                                            //   rows taller than they needed to be.
-    let slotKey           = item + "|" + slot;
-    let realColors        = realColorsForSlot(aug.color);
-    let directlyCollapsed = charData.collapsed.slot.has(slotKey);
-    let pruneMode         = pruneModeInherited || directlyCollapsed;
-    let hasSelection      = slotHasSelection(item, slot);
+function renderCustomAugmentSlotRow(category, item, aug, position, idx) {
+    let slot         = "Augment#" + aug.id;  // stable key - "Aug" prefix reuses getButton's
+                                              //   existing augment-vs-cannith min-level check.
+    let displayLabel = "Augment " + (position + 1);  // matches Cannith's plain "Augment 1"/"Augment 2"
+                                                       //   label - the color already shows via the
+                                                       //   color sub-header in column 2, so repeating
+                                                       //   it here was redundant and made collapsed
+                                                       //   rows taller than they needed to be.
+    let slotKey      = item + "|" + slot;
+    let realColors   = realColorsForSlot(aug.color);
+    let collapsed    = charData.collapsed.slot.has(slotKey);
+    let hasSelection = slotHasSelection(item, slot);
 
     let removeControl = "<span class='removeAugment' title='Remove this augment slot' onclick=\"handleRemoveCustomAugment('" +
         escJs(category) + "'," + aug.id + ")\">&#10005;</span>";
-    let labelHtml = "<span onclick=\"toggleCollapsed('slot','" + escJs(slotKey) + "')\">" +
-        escHtml(displayLabel) + "</span> " + removeControl;
+    let labelHtml = "<span onclick=\"toggleSlot('" + escJs(category) + "','" + escJs(item) + "','" +
+        escJs(slot) + "')\">" + escHtml(displayLabel) + "</span> " + removeControl;
 
-    if (pruneMode && !hasSelection) {
-        // Slots stay visible even when empty and only cascade-pruned (not directly collapsed) -
-        //   an empty slot fully disappearing risks hiding something still worth filling in.
-        return "<tr class='collapsed'><td class='slot'>" + labelHtml + "</td><td class='options'>Available</td></tr>";
+    if (collapsed && !hasSelection) {
+        // Stays visible even when empty - a slot fully disappearing risks hiding something still
+        //   worth filling in - showing how many options are still pickable instead of the list.
+        let colorMap = {};
+        for (let realColor of realColors) { colorMap[realColor] = charData.augmentOptionsByColor[realColor] || []; }
+        return "<tr class='collapsed'><td class='slot'>" + labelHtml + "</td><td class='options'>" +
+            describeAvailableCount(countAvailableInSlot(slot, colorMap)) + "</td></tr>";
     }
 
-    let trClass = directlyCollapsed ? " class='collapsed'" : "";
+    let trClass = collapsed ? " class='collapsed'" : "";
     let html    = "<tr" + trClass + "><td class='slot'>" + labelHtml + "</td><td class='options'>";
 
     let firstShown = true;
     for (let realColor of realColors) {
-        let colorHtml = renderCustomColorGroup(item, slot, realColor, realColors.length > 1, pruneMode, idx);
+        let colorHtml = renderCustomColorGroup(category, item, slot, realColor, realColors.length > 1, idx);
         if (!colorHtml) { continue; }
         if (!firstShown) { html += "<br />"; }
         html += colorHtml;
@@ -575,40 +708,41 @@ function renderCustomAugmentSlotRow(category, item, aug, position, pruneModeInhe
     return html;
 }
 
-function renderCustomColorGroup(item, slot, realColor, showColorHeader, pruneModeInherited, idx) {
-    let slotKey           = item + "|" + slot;
-    let colorKey          = slotKey + "|" + realColor;
-    let directlyCollapsed = charData.collapsed.color.has(colorKey);
-    let pruneMode         = pruneModeInherited || directlyCollapsed;
-    let hasSelection      = colorHasSelection(item, slot, realColor);
+function renderCustomColorGroup(category, item, slot, realColor, showColorHeader, idx) {
+    let slotKey      = item + "|" + slot;
+    let colorKey     = slotKey + "|" + realColor;
+    let collapsed    = charData.collapsed.color.has(colorKey);
+    let hasSelection = colorHasSelection(item, slot, realColor);
+    let onclickAttr  = "onclick=\"toggleColor('" + escJs(category) + "','" + escJs(item) + "','" +
+        escJs(slot) + "','" + escJs(realColor) + "')\"";
 
-    if (pruneMode && !hasSelection) {
-        if (!directlyCollapsed) { return ""; }  // inherited prune, nothing selected - vanish entirely
-        return "<div class='color collapsed' onclick=\"toggleCollapsed('color','" + escJs(colorKey) +
-            "')\">&nbsp;" + escHtml(realColor) + "&nbsp;</div>&nbsp;";
+    if (collapsed && !hasSelection) {
+        return "<div class='color collapsed' " + onclickAttr + ">&nbsp;" + escHtml(realColor) + "&nbsp;</div>&nbsp;";
     }
 
     let html = "";
     if (showColorHeader) {
-        let collapsedClass = directlyCollapsed ? " collapsed" : "";
-        html += "<div class='color" + collapsedClass + "' onclick=\"toggleCollapsed('color','" +
-            escJs(colorKey) + "')\">&nbsp;" + escHtml(realColor) + ":</div>&nbsp;";
+        let collapsedClass = collapsed ? " collapsed" : "";
+        html += "<div class='color" + collapsedClass + "' " + onclickAttr + ">&nbsp;" + escHtml(realColor) + ":</div>&nbsp;";
     }
 
     let occupant = getOccupant(item, slot);
     html += "<div class='ench'> ";
     for (let enchName of (charData.augmentOptionsByColor[realColor] || [])) {
         let isSelectedHere = !!occupant && occupant.enchName === enchName && occupant.color === realColor;
-        if (pruneMode && !isSelectedHere) { continue; }
+        if (collapsed && !isSelectedHere) { continue; }
         html += getButton(item, slot, realColor, enchName, idx);
     }
     html += "</div>";
     return html;
 }
 
-function renderCustomItemDescription(category, custom, pruneMode) {
-    if (pruneMode && !custom.description) { return ""; }  // disappears if empty while collapsed
-    let disabledAttr = pruneMode ? " disabled" : "";
+function renderCustomItemDescription(category, custom) {
+    // No collapse toggle of its own - it just follows the category's own flag, same as every other
+    //   part of the category collapses/expands together when toggled at the category level.
+    let collapsed    = charData.collapsed.item.has(category);
+    if (collapsed && !custom.description) { return ""; }  // disappears if empty while collapsed
+    let disabledAttr = collapsed ? " disabled" : "";
     return "<tr><td class='slot'>Description</td><td class='options'>" +
         "<textarea class='customItemDescription' onchange=\"handleCustomItemDescription(this,'" +
         escJs(category) + "')\"" + disabledAttr + ">" + escHtml(custom.description || "") + "</textarea></td></tr>";
@@ -618,31 +752,31 @@ function handleCustomItemDescription(textarea, category) {
     charData.customItems[category].description = textarea.value;
 }
 
-function renderInherentPicker(category, idx, pruneModeInherited) {
+function renderInherentPicker(category, idx) {
     // Deliberately unscoped by category (see PIVOT note) - a named item's whole appeal can be an
     //   effect normal Cannith crafting could never produce for that category. Deliberately flat and
     //   alphabetical rather than grouped/filtered - relies on the browser's own search, same as the
     //   existing ~1500-row Cannith lists already do.
-    let item              = customItemKey(category);
-    let slotKey           = item + "|InherentEffects";
-    let directlyCollapsed = charData.collapsed.slot.has(slotKey);
-    let pruneMode         = pruneModeInherited || directlyCollapsed;
-    let hasSelection      = inherentHasSelection(category, item);
+    let item         = customItemKey(category);
+    let slotKey      = item + "|InherentEffects";
+    let collapsed    = charData.collapsed.slot.has(slotKey);
+    let hasSelection = inherentHasSelection(category, item);
+    let onclickAttr  = "onclick=\"toggleSlot('" + escJs(category) + "','" + escJs(item) + "','InherentEffects')\"";
 
-    if (pruneMode && !hasSelection) {
-        // Stays visible even when empty and only cascade-pruned (not directly collapsed) - an
-        //   empty slot fully disappearing risks hiding something still worth filling in.
-        return "<tr class='collapsed'><td class='slot' onclick=\"toggleCollapsed('slot','" +
-            escJs(slotKey) + "')\">Inherent Effects</td><td class='options'>Available</td></tr>";
+    if (collapsed && !hasSelection) {
+        // Stays visible even when empty - inherent effects aren't options to pick so much as
+        //   properties to identify, hence no count here (contrast with a real slot's "N available").
+        return "<tr class='collapsed'><td class='slot' " + onclickAttr +
+            ">Inherent Effects</td><td class='options'>No effects identified.</td></tr>";
     }
 
-    let trClass = directlyCollapsed ? " class='collapsed'" : "";
-    let html = "<tr" + trClass + "><td class='slot' onclick=\"toggleCollapsed('slot','" + escJs(slotKey) +
-        "')\">Inherent Effects</td><td class='options'><div class='ench'> ";
+    let trClass = collapsed ? " class='collapsed'" : "";
+    let html = "<tr" + trClass + "><td class='slot' " + onclickAttr +
+        ">Inherent Effects</td><td class='options'><div class='ench'> ";
     let selectedSet = (charData.selections.inherent[category] || {})[item];
     for (let enchName of Object.keys(charData.enchantments).sort()) {
         let isSelected = !!selectedSet && selectedSet.has(enchName);
-        if (pruneMode && !isSelected) { continue; }
+        if (collapsed && !isSelected) { continue; }
         html += getInherentButton(category, item, enchName, idx);
     }
     html += "</div></td></tr>";
@@ -930,12 +1064,6 @@ function minLevelAllowed(item, slot, enchName) {
     return charData.saveFile.charLevel >= ench.enchCannithMinLevel;
 }
 
-
-function toggleCollapsed(level, key) {
-    let set = charData.collapsed[level];
-    if (set.has(key)) { set.delete(key); } else { set.add(key); }
-    renderEnchantmentOptions();
-}
 
 
 function handleRename(fixBoth = false) {
