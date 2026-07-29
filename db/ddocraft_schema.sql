@@ -280,3 +280,33 @@ CREATE TABLE characterBuild (
     INDEX idx_characterBuild_userId (userId),
     INDEX idx_characterBuild_checksum (buildChecksum)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------------------------
+-- characterClass: DDO's playable classes, self-referencing so an Iconic Hero (a distinct class
+--   variant tied to a specific race/backstory - Bladeforged, Shadar-kai, etc.) can be modeled as
+--   its own row with parentClassId pointing at the base class it's a variant of, rather than a
+--   second table. NULL parentClassId means a true base class. Chosen over a fully separate
+--   "characterIconicHero" table specifically so a future effect-benefit rating (see TO DO.md) can
+--   reference either a base class or an Iconic Hero the same way, with no separate join path - an
+--   Iconic can get its own distinct ratings that differ from its parent's if/when that data
+--   exists, or just fall back to the parent's via a view, without restructuring anything here.
+--
+--   Seeded with the 15 base classes only, for now - taken directly from the existing forBarbarian-
+--   style filter checkboxes already in ddocraft.php/ddocraft.js (the authoritative source, since
+--   Jeff built that list from real game knowledge), not independently guessed. Iconic Hero rows
+--   are deliberately NOT seeded yet - the current roster needs confirming first (see TO DO.md).
+--
+--   Immediate use is cosmetic/informational only (2a: shows on the character info section and in
+--   the downloadable report) - it doesn't yet drive any filtering or level-gating logic.
+CREATE TABLE characterClass (
+    characterClassId        INT AUTO_INCREMENT PRIMARY KEY,
+    className                VARCHAR(50) NOT NULL UNIQUE,
+    parentClassId            INT NULL,  -- NULL = base class; set = an Iconic Hero variant of that class
+    characterClassSortOrder  INT NULL,
+    createBy                 VARCHAR(100) NOT NULL,
+    createDate               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updateBy                 VARCHAR(100) NOT NULL,
+    updateDate               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_characterClass_parent FOREIGN KEY (parentClassId) REFERENCES characterClass(characterClassId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

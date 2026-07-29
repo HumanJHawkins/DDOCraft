@@ -65,8 +65,8 @@ let charData = {
     //   Augment config and inherent-effect selections land here in later PHASE 3 steps.
     customItems: {},
 
-    saveFile: {version: 2.1, dirty: false, charName: "", charLevel: 36, positional: [], inherent: [],
-        categoryMode: {}, customItems: {}, collapsed: {item: [], slot: [], color: []}}
+    saveFile: {version: 2.1, dirty: false, charName: "", charLevel: "", className: "", positional: [],
+        inherent: [], categoryMode: {}, customItems: {}, collapsed: {item: [], slot: [], color: []}}
 };
 
 initialize();
@@ -1157,11 +1157,19 @@ function getTimestamp() {
 }
 
 function downloadJSON(content, fileName, contentType) {
+    // Appending to the DOM before clicking, removing right after, and delaying the URL revoke are
+    //   all needed to avoid a real browser quirk where a blob: download can get stuck showing as
+    //   an unfinished .crdownload even though the file was written completely - revoking (or never
+    //   appending) too early can race the browser's own read of the blob.
     let a      = document.createElement("a");
     let file   = new Blob([content], {type: contentType});
-    a.href     = URL.createObjectURL(file);
+    let url    = URL.createObjectURL(file);
+    a.href     = url;
     a.download = fileName;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
 }
 
 // Download-to-read, not download-to-reopen: a compact, human-readable summary of the current

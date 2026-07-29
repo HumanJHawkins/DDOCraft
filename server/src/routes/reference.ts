@@ -24,3 +24,15 @@ referenceRouter.get("/augment-colors", async (_req, res, next) => {
     next(err);
   }
 });
+
+referenceRouter.get("/character-classes", async (_req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT characterClassId, className, parentClassId
+       FROM characterClass ORDER BY characterClassSortOrder, className`
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
