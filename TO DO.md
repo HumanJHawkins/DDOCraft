@@ -4,6 +4,7 @@
 2. Rewrite the client to consume the live API instead of the static `ddocraft.json` export. This also resolves the `WEAPON_CATEGORIES` question (see Known Issues - the real data already confirms the answer, the client just isn't reading it yet) and lets effect descriptions use `effectBonusByLevel` instead of a static description string.
 3. Maybe do: an optional prepopulated dropdown of popular named/custom items, layered on top of manual entry, seeded once real usage data exists to mine (e.g. several independent users entering the same effect set for the same item name).
 4. Better visual treatment for collapsed items (standard chevrons?).
+5. **DB-backed save, phase 2**: wire the client to the new `/api/character-builds` endpoints (see Done.md) instead of local JSON file save/load - JSON export/import stays available as a fallback, not retired. Requires GateIron.com's shared account system (site-wide login via Auth.js, MySQL-backed sessions, Google/GitHub OAuth) to exist first, so `characterBuild.userId` can come from a real authenticated session instead of the current caller-supplied placeholder. That account system is being designed/built as a GateIron.com-level effort, not scoped to this repo.
 
 ## Known Issues
 
