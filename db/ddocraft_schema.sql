@@ -310,3 +310,23 @@ CREATE TABLE characterClass (
 
     CONSTRAINT fk_characterClass_parent FOREIGN KEY (parentClassId) REFERENCES characterClass(characterClassId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------------------------
+-- Views.
+--
+-- Audited every query in server/src/routes/*.ts (2026-07-29) for view candidates. Almost all of
+--   them are single-table selects, sometimes parametrized (WHERE userId = ?, WHERE effectId = ?)
+--   - a view adds no real value over the table itself when there's no join or computed shape to
+--   encapsulate, so those were deliberately left alone. The one clear case was effects.ts's join
+--   of effect to bonusType for display - promoted below.
+--
+-- The one REAL upcoming case is bigger: once the forBarbarian-style per-class rating columns move
+--   into a proper normalized table (see TO DO.md's characterClass/effect-benefit item), a view is
+--   exactly the right tool to reconstruct the flat forBarbarian/forFighter/... shape the client
+--   still expects, so normalizing storage doesn't force a client-side contract change. Not created
+--   yet - there's nothing to select from until that table exists.
+CREATE VIEW vw_effectDetail AS
+    SELECT e.effectId, e.effectName, e.effectKey, e.effectGroup, e.effectDescription,
+           e.minLevelCannith, e.minLevelAugment, e.effectSortOrder, bt.bonusTypeName
+    FROM effect e
+    LEFT JOIN bonusType bt ON bt.bonusTypeId = e.bonusTypeId;

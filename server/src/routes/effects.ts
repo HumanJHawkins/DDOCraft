@@ -6,11 +6,7 @@ export const effectsRouter = Router();
 effectsRouter.get("/", async (_req, res, next) => {
   try {
     const [rows] = await pool.query(
-      `SELECT e.effectId, e.effectName, e.effectKey, e.effectGroup, e.effectDescription,
-              e.minLevelCannith, e.minLevelAugment, bt.bonusTypeName
-       FROM effect e
-       LEFT JOIN bonusType bt ON bt.bonusTypeId = e.bonusTypeId
-       ORDER BY e.effectSortOrder, e.effectName`
+      "SELECT * FROM vw_effectDetail ORDER BY effectSortOrder, effectName"
     );
     res.json(rows);
   } catch (err) {
