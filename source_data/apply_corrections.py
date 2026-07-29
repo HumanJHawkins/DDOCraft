@@ -13,12 +13,19 @@ conn = sqlite3.connect(DB_PATH)
 cur = conn.cursor()
 
 # --- Step 2: flag questionable rows (believed not to exist in-game / not as augments) ---
+# The 6 "Insightful Ability" rows were REMOVED from this list 2026-07-28 (Jeff, after noticing
+# Insightful Ability (Constitution)/(Dexterity) missing from Belt's Extra options): three lines of
+# evidence now say they're real, not questionable - (1) the original hand-curated flat file
+# (obsolete/ddocraft_hand-patched-flat-file_last-version-2026-07-27.json) already offered
+# Insightful Ability (Constitution)/(Strength) on Belt, so this isn't data lost in migration;
+# (2) source_data/Effects.csv has a real, populated per-level curve for "Ins. Ability" starting at
+# level 10, same shape as every genuine Insightful effect; (3) Jeff's own recollection. Reversed
+# here rather than just noted, per his direct request. (Insightful Ability (Dexterity) specifically
+# was never linked to Belt in ANY version of the data, old or new - that's not a loss, Belt just
+# never offered it.)
 QUESTIONABLE = [
     "Resist (Light)", "Resist (Negative)", "Resist (Poison)",
     "Insightful Resist (Light)", "Insightful Resist (Negative)", "Insightful Resist (Poison)",
-    "Insightful Ability (Charisma)", "Insightful Ability (Constitution)",
-    "Insightful Ability (Dexterity)", "Insightful Ability (Intelligence)",
-    "Insightful Ability (Strength)", "Insightful Ability (Wisdom)",
 ]
 cur.executemany(
     "UPDATE enchantment SET dataStatus = 'questionable' WHERE enchName = ?",
@@ -29,7 +36,7 @@ print(f"Flagged {cur.rowcount if cur.rowcount != -1 else len(QUESTIONABLE)} rows
 
 cur.execute("SELECT COUNT(*) FROM enchantment WHERE dataStatus = 'questionable'")
 count = cur.fetchone()[0]
-print(f"Verification: {count} rows now flagged 'questionable' (expect 12)")
+print(f"Verification: {count} rows now flagged 'questionable' (expect 6)")
 if count != len(QUESTIONABLE):
     raise SystemExit(f"MISMATCH: expected {len(QUESTIONABLE)}, got {count}")
 
@@ -201,9 +208,12 @@ def new_enchantment_row(enchSortOrder, enchName, enchBonusType, enchEffect, ench
             enchAugmentMinLevel, enchDesc, *[row[w] for w in weight_fields])
 
 new_enchantments = [
-    new_enchantment_row(90000, "Damage Reduction (Adamantine)", "Untyped", "Damage Reduction (Adamantine)",
-        4, 0, "TEMP/TEST DATA - real min level TBD. Damage Reduction 5, bypassed by Adamantine. "
-        "New effect type, not currently offered by Cannith crafting.",
+    new_enchantment_row(90000, "Damage Reduction", "Untyped", "Damage Reduction",
+        4, 0, "TEMP/TEST DATA - real min level TBD. Damage Reduction 5, bypassed by the "
+        "appropriate material. Renamed from 'Damage Reduction (Adamantine)' 2026-07-28 - Adamantine "
+        "is just one delivery mechanism for this effect, not part of the effect's identity (per "
+        "Jeff: 'Adamantine' on armor is best thought of as granting the DR effect - the material "
+        "itself is the middleman, not relevant to what gets selected).",
         {"allEnch": 1, "nonscaling": 1, "forHitPoints": 5}),
     new_enchantment_row(90001, "Superior Nimbleness", "Untyped", "Nimbleness",
         4, 0, "TEMP/TEST DATA - real min level TBD. Superior Nimbleness. "
@@ -285,6 +295,71 @@ orb_red_remaining = cur.fetchone()[0]
 print(f"Orb Red augment-slot rows removed (expect 0 remaining): {orb_red_remaining}")
 if orb_red_remaining != 0:
     raise SystemExit(f"MISMATCH: expected 0 Orb/Red augment rows remaining, got {orb_red_remaining}")
+
+# --- Step 8: True Sight supersedes Blindness Immunity (Jeff, 2026-07-28) - True Sight grants
+# Blindness Immunity as a bonus, so selecting True Sight should also mark Blindness Immunity as
+# already covered, without blocking Blindness Immunity from being freely selected on its own.
+# This is the same enchSupercededBy mechanism already used for Chaos/Evil/Good/Law Aligned ->
+# Aligned - NOT the same thing as effectEquivalencyGroup/true equivalence (a truly equivalent
+# effect, e.g. a "Magma Damage" that's mechanically identical to standard Fire Damage at the same
+# level, would just be selected AS "Fire Damage" - no second record at all. Supersedes is for two
+# genuinely distinct effects where having the better one means you also have the lesser one.)
+cur.execute("UPDATE enchantment SET enchSupercededBy = 'True Sight' WHERE enchName = 'Blindness Immunity'")
+cur.execute("SELECT enchSupercededBy FROM enchantment WHERE enchName = 'Blindness Immunity'")
+result = cur.fetchone()
+if result != ('True Sight',):
+    raise SystemExit(f"MISMATCH: expected Blindness Immunity.enchSupercededBy = 'True Sight', got {result}")
+print("Blindness Immunity now superseded by True Sight")
+
+# --- Step 9: add weapon material-bypass effects Jeff identified as missing (2026-07-28). Adamantine
+# (Weapon)/Byeshk/Cold Iron/Silver already exist as real Red-augment options; Flametouched Iron and
+# Crystal are the same family (specific material, bypassed by matching that material) and get the
+# same Red-augment binding. Transmuting is different - it bypasses ANY/ALL DR (material, alignment,
+# everything), matching how the universal "Aligned" effect (vs. the four specific alignments) is
+# Cannith-only (Suffix on weapon categories), not augment-obtainable - Transmuting gets the same
+# treatment; it's the material-bypass analog of "Aligned". Min levels are placeholder/TBD, same
+# caveat as the other TEMP/TEST DATA rows above - real values not yet confirmed.
+new_materials = [
+    ("Flametouched Iron", "Untyped", "Bypass Flametouched Iron", "Damage (Bypass Defense)", 1, 4,
+        "TEMP/TEST DATA - real min level TBD. Material flag to Bypass Flametouched Iron",
+        {"allEnch": 1, "nonscaling": 1, "forMeleeDmg": 1, "forRangedDmg": 1}),
+    ("Crystal", "Untyped", "Bypass Crystal", "Damage (Bypass Defense)", 1, 20,
+        "TEMP/TEST DATA - real min level TBD. Material flag to Bypass Crystal",
+        {"allEnch": 1, "nonscaling": 1, "forMeleeDmg": 1, "forRangedDmg": 1}),
+    ("Transmuting", "Untyped", "Bypass All DR", "Damage (Bypass Defense)", 1, 100,
+        "TEMP/TEST DATA - real min level TBD. Untyped flag to bypass any/all damage reduction - "
+        "material, alignment, or otherwise. Metalline note: acts as one of the specific metal "
+        "types for bypass purposes, NOT as a Crystal-bypass substitute.",
+        {"allEnch": 1, "nonscaling": 1, "forMeleeDmg": 3, "forRangedDmg": 1}),
+]
+next_sort = cur.execute("SELECT MAX(enchSortOrder) FROM enchantment").fetchone()[0] + 1
+for i, (name, bonus_type, effect, group, cannith_min, augment_min, desc, weights) in enumerate(new_materials):
+    row = dict.fromkeys(weight_fields, 0)
+    row.update(weights)
+    cur.execute(
+        "INSERT INTO enchantment (enchSortOrder, enchGroup, enchName, enchBonusType, enchEffect, "
+        "enchCannithMinLevel, enchAugmentMinLevel, enchDesc, " + ",".join(weight_fields) + ") VALUES "
+        "(" + ",".join(["?"] * (8 + len(weight_fields))) + ")",
+        (next_sort + i, group, name, bonus_type, effect, cannith_min, augment_min, desc,
+         *[row[w] for w in weight_fields])
+    )
+
+cur.execute("""
+    INSERT INTO itemOption (itemOptionSortOrder, itemOptionCategory, itemOptionSlot, itemOptionEnchantment, itemOptionItem)
+    VALUES (10000, 'Augment', 'Red', 'Flametouched Iron', NULL),
+           (10000, 'Augment', 'Red', 'Crystal', NULL)
+""")
+cur.execute("""
+    INSERT INTO itemOption (itemOptionSortOrder, itemOptionCategory, itemOptionSlot, itemOptionEnchantment, itemOptionItem)
+    VALUES (7100, 'Melee1', 'Suffix', 'Transmuting', 'Cannith Melee1'),
+           (7100, 'Melee2', 'Suffix', 'Transmuting', 'Cannith Melee2'),
+           (7100, 'Ranged', 'Suffix', 'Transmuting', 'Cannith Ranged')
+""")
+cur.execute("SELECT COUNT(*) FROM enchantment WHERE enchName IN ('Flametouched Iron', 'Crystal', 'Transmuting')")
+new_material_count = cur.fetchone()[0]
+print(f"New weapon materials added: {new_material_count} (expect 3)")
+if new_material_count != 3:
+    raise SystemExit(f"MISMATCH: expected 3 new material enchantment rows, got {new_material_count}")
 
 conn.commit()
 conn.close()

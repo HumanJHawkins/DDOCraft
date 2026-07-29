@@ -231,6 +231,19 @@ img {
     font-size: calc(5px + .75vw);
     margin: .2vw 0;
     padding: .2vw;
+    display: flex;
+    align-items: center;
+}
+
+.customToggle {
+    margin-left: 1vw;
+    padding-left: .3vw;
+    vertical-align: middle;
+}
+
+.addAugmentSelect {
+    margin-left: 1.5vw;
+    vertical-align: middle;
 }
 
 .item {
@@ -267,6 +280,28 @@ img {
 
 .removeAugment:hover {
     color: #fff;
+}
+
+.markDone {
+    cursor: pointer;
+    display: inline-block;
+    padding: .15vw .4vw;
+    margin-left: 1vw;
+    color: #3987e5;
+    font-weight: bold;
+    font-size: calc(4px + .5vw);
+}
+
+.markDone:hover {
+    color: #fff;
+}
+
+.customItemDescription {
+    width: 100%;
+    min-height: 3em;
+    font-family: verdana, sans-serif;
+    font-size: calc(4px + .5vw);
+    box-sizing: border-box;
 }
 
 .overlapWarning {

@@ -226,6 +226,12 @@ function categoryOfCustomItemKey(item) {
 function computeSelectionIndex() {
     let effectTypeCounts    = {};   // enchEffectType -> how many selections share it
     let selectedNamesByItem = {};   // item -> Set(enchName) - for enchSupercededBy wildcard matches
+    let allSelectedNames    = new Set();  // every enchName currently active anywhere, across ALL
+                                     //   items - drives the GLOBAL supersedes check below. A
+                                     //   superseding effect (True Sight) and what it supersedes
+                                     //   (Blindness Immunity) are typically on different items
+                                     //   entirely (e.g. Goggles vs. wherever else Blindness
+                                     //   Immunity shows up), so this can't be item-scoped.
     let activeInherent      = [];   // {category, enchName} for every active INHERENT selection only -
                                      //   augments are a live, changeable choice even on a named item
                                      //   (you still pick what goes in the slot), so they keep the
@@ -239,6 +245,7 @@ function computeSelectionIndex() {
         effectTypeCounts[ench.enchEffectType] = (effectTypeCounts[ench.enchEffectType] || 0) + 1;
         if (!(item in selectedNamesByItem)) { selectedNamesByItem[item] = new Set(); }
         selectedNamesByItem[item].add(enchName);
+        allSelectedNames.add(enchName);
     }
 
     for (let item of Object.keys(charData.selections.positional)) {
@@ -263,6 +270,21 @@ function computeSelectionIndex() {
         }
     }
 
+    // Global supersedes overlap: selecting only the superior effect (True Sight) marks the lesser
+    //   one it supersedes (Blindness Immunity) as already-covered/"handled" wherever it appears -
+    //   see the isHandled checks below - but that alone isn't a real conflict, so neither gets rose.
+    //   Selecting only the lesser effect leaves the superior one completely normal - nothing here
+    //   marks IT as handled, since the relationship only runs one direction. Only when BOTH are
+    //   independently selected is it a genuine redundancy, worth flagging on both.
+    let supersedeDuplicate = new Set();
+    for (let name of allSelectedNames) {
+        let ench = charData.enchantments[name];
+        if (ench && ench.enchSupercededBy && allSelectedNames.has(ench.enchSupercededBy)) {
+            supersedeDuplicate.add(name);
+            supersedeDuplicate.add(ench.enchSupercededBy);
+        }
+    }
+
     // An item's inherent effects are treated as fixed once picked - they never get the individual
     //   rose "duplicate" treatment (see getInherentButton()). Instead, the category as a whole gets
     //   one text warning if ANY of its inherent selections overlap with anything - a second pass,
@@ -270,12 +292,13 @@ function computeSelectionIndex() {
     let customCategoryOverlap = {};
     for (let entry of activeInherent) {
         let ench = charData.enchantments[entry.enchName];
-        if (ench && (effectTypeCounts[ench.enchEffectType] || 0) > 1) {
+        if (ench && ((effectTypeCounts[ench.enchEffectType] || 0) > 1 || supersedeDuplicate.has(entry.enchName))) {
             customCategoryOverlap[entry.category] = true;
         }
     }
 
     return {effectTypeCounts: effectTypeCounts, selectedNamesByItem: selectedNamesByItem,
+        allSelectedNames: allSelectedNames, supersedeDuplicate: supersedeDuplicate,
         customCategoryOverlap: customCategoryOverlap};
 }
 
@@ -357,14 +380,9 @@ function renderEnchantmentOptions() {
 
 function getCategoryModeToggleHtml(category) {
     let checked = charData.categoryMode[category] === "custom" ? " checked" : "";
-    let html = "<label class='customToggle' onclick='event.stopPropagation()'>" +
+    return "<label class='customToggle' onclick='event.stopPropagation()'>" +
         "<input type='checkbox' onclick='event.stopPropagation()' onchange=\"handleCategoryModeToggle(this,'" +
-        escJs(category) + "')\"" + checked + " /> Named or Custom Item</label>";
-
-    if (charData.categoryMode[category] === "custom") {
-        html += getAddAugmentControlHtml(category);
-    }
-    return html;
+        escJs(category) + "')\"" + checked + " /> Named/Custom</label>";
 }
 
 function getAddAugmentControlHtml(category) {
@@ -424,11 +442,18 @@ function realColorsForSlot(slotColor) {
 }
 
 function renderCustomItemBody(category, idx) {
-    let custom = charData.customItems[category] || {name: "", augments: [], nextAugmentId: 1};
+    let custom = charData.customItems[category] || {name: "", augments: [], nextAugmentId: 1, done: false, description: ""};
     let item   = customItemKey(category);
+
+    if (custom.done) {
+        return renderCustomItemSummary(category, custom, item);
+    }
+
     let html   = "<tr><td class='slot'>Name</td><td class='options'>" +
         "<input type='text' class='customItemName' value=\"" + escHtml(custom.name) +
-        "\" placeholder='e.g. Tourney Armor' onchange=\"handleCustomItemName(this,'" + escJs(category) + "')\" />" +
+        "\" onchange=\"handleCustomItemName(this,'" + escJs(category) + "')\" />" +
+        getAddAugmentControlHtml(category) +
+        " " + getMarkDoneControlHtml(category) +
         "</td></tr>";
 
     custom.augments.forEach(function (aug, position) {
@@ -448,9 +473,17 @@ function renderCustomItemBody(category, idx) {
         } else {
             for (let c = 0; c < realColors.length; c++) {
                 let realColor = realColors[c];
+                let colorKey  = slotKey + "|" + realColor;
+
                 if (realColors.length > 1) {
                     if (c > 0) { html += "<br />"; }
-                    html += "<div class='color'>&nbsp;" + escHtml(realColor) + ":</div>&nbsp;";
+                    if (charData.collapsed.color.has(colorKey)) {
+                        html += "<div class='color collapsed' onclick=\"toggleCollapsed('color','" +
+                            escJs(colorKey) + "')\">&nbsp;" + escHtml(realColor) + "&nbsp;</div>&nbsp;";
+                        continue;
+                    }
+                    html += "<div class='color' onclick=\"toggleCollapsed('color','" + escJs(colorKey) +
+                        "')\">&nbsp;" + escHtml(realColor) + ":</div>&nbsp;";
                 }
                 html += "<div class='ench'> ";
                 for (let enchName of (charData.augmentOptionsByColor[realColor] || [])) {
@@ -464,8 +497,63 @@ function renderCustomItemBody(category, idx) {
     });
 
     html += renderInherentPicker(category, idx);
+    html += renderCustomItemDescription(category, custom);
 
     return html;
+}
+
+function renderCustomItemSummary(category, custom, item) {
+    // Read-only recap once an item is marked done - drops every unselected augment slot and the
+    //   full inherent-effects picker, showing only what was actually chosen.
+    let html = "<tr><td class='slot'>Name</td><td class='options'>" +
+        "<strong>" + escHtml(custom.name || "(unnamed)") + "</strong> " +
+        getMarkDoneControlHtml(category) +
+        "</td></tr>";
+
+    custom.augments.forEach(function (aug, position) {
+        let occupant = getOccupant(item, "Augment#" + aug.id);
+        if (!occupant) { return; }
+        let displayLabel = "Augment " + (position + 1) + " (" + aug.color + ")";
+        html += "<tr><td class='slot'>" + escHtml(displayLabel) + "</td><td class='options'>" +
+            escHtml(occupant.enchName) + "</td></tr>";
+    });
+
+    let selectedInherent = Array.from(((charData.selections.inherent[category] || {})[item]) || []);
+    if (selectedInherent.length > 0) {
+        html += "<tr><td class='slot'>Inherent Effects</td><td class='options'>" +
+            selectedInherent.map(escHtml).join(", ") + "</td></tr>";
+    }
+
+    if (custom.description) {
+        html += "<tr><td class='slot'>Description</td><td class='options'>" + escHtml(custom.description) + "</td></tr>";
+    }
+
+    return html;
+}
+
+function getMarkDoneControlHtml(category) {
+    let custom = charData.customItems[category];
+    let isDone = !!(custom && custom.done);
+    return "<span class='markDone' onclick=\"handleToggleCustomItemDone('" + escJs(category) +
+        "')\">" + (isDone ? "Unmark Done" : "Mark Done") + "</span>";
+}
+
+function handleToggleCustomItemDone(category) {
+    let custom = charData.customItems[category];
+    if (!custom) { return; }
+    custom.done = !custom.done;
+    renderEnchantmentOptions();
+    renderResult();
+}
+
+function renderCustomItemDescription(category, custom) {
+    return "<tr><td class='slot'>Description</td><td class='options'>" +
+        "<textarea class='customItemDescription' onchange=\"handleCustomItemDescription(this,'" +
+        escJs(category) + "')\">" + escHtml(custom.description || "") + "</textarea></td></tr>";
+}
+
+function handleCustomItemDescription(textarea, category) {
+    charData.customItems[category].description = textarea.value;
 }
 
 function renderInherentPicker(category, idx) {
@@ -501,7 +589,7 @@ function getInherentButton(category, item, enchName, idx) {
     let effectCount = idx.effectTypeCounts[ench.enchEffectType] || 0;
     let isHandled   = !isSelected && (
         effectCount > 0 ||
-        (idx.selectedNamesByItem[item] && idx.selectedNamesByItem[item].has(ench.enchSupercededBy))
+        idx.allSelectedNames.has(ench.enchSupercededBy)
     );
 
     let enchValue = getEnchFilterValue(enchName);
@@ -547,7 +635,7 @@ function handleCategoryModeToggle(checkbox, category) {
     //   custom mode picks up right where it was. No confirm needed here, because nothing is lost.
     charData.categoryMode[category] = checkbox.checked ? "custom" : "cannith";
     if (checkbox.checked && !charData.customItems[category]) {
-        charData.customItems[category] = {name: "", augments: [], nextAugmentId: 1};
+        charData.customItems[category] = {name: "", augments: [], nextAugmentId: 1, done: false, description: ""};
     }
 
     renderEnchantmentOptions();
@@ -598,10 +686,10 @@ function getButton(item, slot, color, enchName, idx) {
     let isSelectedHere = !!occupant && occupant.enchName === enchName && occupant.color === color;
     let isBlocked      = !!occupant && !isSelectedHere;
     let effectCount    = idx.effectTypeCounts[ench.enchEffectType] || 0;
-    let isDuplicate    = isSelectedHere && effectCount > 1;
+    let isDuplicate    = isSelectedHere && (effectCount > 1 || idx.supersedeDuplicate.has(enchName));
     let isHandled      = !isSelectedHere && !isBlocked && (
         effectCount > 0 ||
-        (idx.selectedNamesByItem[item] && idx.selectedNamesByItem[item].has(ench.enchSupercededBy))
+        idx.allSelectedNames.has(ench.enchSupercededBy)
     );
 
     let onclick = "enchClick('" + escJs(item) + "','" + escJs(slot) + "','" + escJs(color) + "','" + escJs(enchName) + "')";
@@ -721,6 +809,14 @@ function enchClick(item, slot, color, enchName, render = true) {
     }
 }
 
+function displayItemName(item) {
+    let category = categoryOfCustomItemKey(item);
+    if (!category) { return item; }
+    let custom = charData.customItems[category];
+    let name   = (custom && custom.name) ? custom.name : "Unnamed";
+    return name + " (" + category + ")";
+}
+
 function renderResult() {
     // Set background of rows to alternate at item level, not row level
     //  (group item enchants together).
@@ -733,7 +829,7 @@ function renderResult() {
             let isAugment = slot.substring(0, 3) === "Aug";
             let augColor = isAugment && occupant.color ? occupant.color.substring(0, 1) + "-" : "";
 
-            charData.reportOut += "<tr><td>" + escHtml(item) + "</td><td>";
+            charData.reportOut += "<tr><td>" + escHtml(displayItemName(item)) + "</td><td>";
             charData.reportOut += escHtml(slot) + "</td><td>";
             charData.reportOut += escHtml(augColor + occupant.enchName) + "</td></tr>";
         }
@@ -742,7 +838,7 @@ function renderResult() {
     for (let category of Object.keys(charData.selections.inherent)) {
         for (let item of Object.keys(charData.selections.inherent[category])) {
             for (let enchName of charData.selections.inherent[category][item]) {
-                charData.reportOut += "<tr><td>" + escHtml(item) + "</td><td>";
+                charData.reportOut += "<tr><td>" + escHtml(displayItemName(item)) + "</td><td>";
                 charData.reportOut += "Inherent</td><td>";
                 charData.reportOut += escHtml(enchName) + "</td></tr>";
             }
@@ -919,7 +1015,9 @@ function handleLoad(incomingFile) {
         charData.customItems[category] = {
             name: saved.name || "",
             augments: (saved.augments || []).map(function (a) { return {id: a.id, color: a.color}; }),
-            nextAugmentId: saved.nextAugmentId || 1
+            nextAugmentId: saved.nextAugmentId || 1,
+            done: saved.done || false,
+            description: saved.description || ""
         };
     }
 
