@@ -1283,7 +1283,7 @@ function handleSaveToServer() {
         body: JSON.stringify(payload)
     })
         .then(function (r) { return rejectIfNotOk(r); })
-        .then(function (data) { alert("Saved to server as build #" + data.characterBuildId + "."); })
+        .then(function (data) { alert("Saved to server. Build id: " + data.characterBuildId); })
         .catch(function (err) { alert("Save to server failed: " + err.message); });
 }
 
@@ -1310,13 +1310,16 @@ function handleLoadFromServer() {
             let choice = prompt("Pick a build to load (enter a number):\n" + lines.join("\n"));
             let index  = Number(choice) - 1;
             if (!(index >= 0 && index < list.length)) { return; }
-            loadCharacterBuildFromServer(list[index].characterBuildId, userId);
+            loadCharacterBuildFromServer(list[index].characterBuildId);
         })
         .catch(function (err) { alert("Load from server failed: " + err.message); });
 }
 
-function loadCharacterBuildFromServer(characterBuildId, userId) {
-    fetch(CHARACTER_BUILD_API_BASE + "/" + characterBuildId + "?userId=" + userId)
+// No userId needed here - characterBuildId is a random, unguessable GUID, and knowing it is
+//   itself sufficient to open the build (same mechanism whether it's your own or a link someone
+//   shared with you - see server/src/routes/characterBuilds.ts).
+function loadCharacterBuildFromServer(characterBuildId) {
+    fetch(CHARACTER_BUILD_API_BASE + "/" + characterBuildId)
         .then(function (r) { return rejectIfNotOk(r); })
         .then(function (build) {
             handleLoad(build.buildData);

@@ -18,3 +18,9 @@
 - `effectBonusByLevel` has no die-type column. Five effects (Bashing, all 24 Bane creature types, all 16 Damage(X) elemental/alignment types via both delivery types, Shield Spikes, Vampirism) are dice-based — the stored bonus is the die *count* only (die size: d6 for all of them except Bane which is d10, and Vampirism which is d2). Matters if the bonus value ever needs to drive real damage math instead of just display/comparison.
 - Fear Immunity's `minLevelAugment` is 100 (the "not augmentable" sentinel used on ~181 rows), but the recovered comparison chart shows it augment-available at level 8 — same as its sibling Blindness Immunity, which is correctly set. Looks like a gap in the original recovered data; not corrected yet.
 - The dev VM (`codehawkins`, Ubuntu 18.04) has a glibc too old for any current Node.js LTS — even the last Node 18.x build requires a newer glibc than it has. Running Node 16 there instead, which is already past its own end-of-life. Fine for dev/QA; don't let it become the assumed production runtime without a real decision.
+
+## Maybe
+
+*(explicitly deferred - no commitment to build, just not forgotten)*
+
+- Shared multi-party editing (two people collaboratively viewing/editing the *same* character build in real time) — deferred 2026-07-29. The "Open a build from someone else's share link" design (see Done.md once built) is single-owner: opening a shared build forks it into a new, independent build owned by the opener, never a live-shared/co-edited row. Real multi-party editing is a materially bigger feature (concurrency, conflict resolution, presence) and has no design yet.

@@ -239,25 +239,44 @@ CREATE TABLE cannithCategoryOption (
 --   gets real accounts (Auth.js), and userId starts coming from an authenticated session instead -
 --   no schema change needed here, since the column was already shaped to hold a real user.id.
 --
+--   characterBuildId is an app-generated random UUID (v4), NOT an auto-increment integer - it
+--   doubles as the "open a build" URL identifier, and a random 122-bit value is what makes that
+--   URL safe to hand to someone else: knowing one build's id only opens that one build, it can't
+--   be used to enumerate or guess at anyone else's. A sequential integer here would have made
+--   every saved build trivially guessable from any other.
+--
 --   buildData is the app's full existing save-file payload (positional/inherent selections,
---   categoryMode, customItems, collapsed state, enchFilter) stored as one opaque JSON blob rather
---   than normalized into rows - the server never needs to understand its internal shape, only
---   store and return it, so client-side save-format changes never require a server-side migration.
+--   categoryMode, customItems, collapsed state) stored as one opaque JSON blob rather than
+--   normalized into rows - the server never needs to understand its internal shape, only store and
+--   return it, so client-side save-format changes never require a server-side migration. (The
+--   recommendation/filter checkboxes are UI-only state that was never part of this payload to
+--   begin with - see ddocraft.js's charData.enchFilter vs charData.saveFile.)
 --   charName/charLevel/description are pulled out as their own real columns specifically so a
 --   future "your saved builds" list view can query/sort/display them without deserializing every
 --   row's JSON.
+--
+--   buildChecksum is a SHA-256 hash over a canonicalized subset of the build - what the build
+--   actually IS, independent of who owns it, what it's called, or when it was saved: charLevel
+--   plus every item/category field (selections, categoryMode, custom item names/descriptions/
+--   augments). Deliberately excluded: characterBuildId/userId/charName/description/appVersion/
+--   dates (ownership and history, not the build itself) and collapsed state (UI presentation, not
+--   the build). Lets two saves be recognized as "the same build" regardless of who made them or
+--   what they called it - e.g. surfacing builds independently arrived at by multiple users as a
+--   popularity signal (see TO DO.md), or warning on a redundant re-save.
 CREATE TABLE characterBuild (
-    characterBuildId INT AUTO_INCREMENT PRIMARY KEY,
+    characterBuildId CHAR(36)         NOT NULL PRIMARY KEY,  -- app-generated UUID v4, see note above
     userId            INT              NOT NULL,  -- see note above: app-enforced, not a real FK
     charName          VARCHAR(100)     NOT NULL,
     charLevel         TINYINT UNSIGNED NOT NULL,
     description       TEXT             NULL,
     appVersion        VARCHAR(20)      NOT NULL,
     buildData         JSON             NOT NULL,
+    buildChecksum     CHAR(64)         NOT NULL,  -- SHA-256 hex digest, see note above
     createBy          VARCHAR(100)     NOT NULL,
     createDate        DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updateBy          VARCHAR(100)     NOT NULL,
     updateDate        DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
-    INDEX idx_characterBuild_userId (userId)
+    INDEX idx_characterBuild_userId (userId),
+    INDEX idx_characterBuild_checksum (buildChecksum)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID, createHash } from "crypto";
 import { pool } from "../db";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 
@@ -11,9 +12,71 @@ export const characterBuildsRouter = Router();
 //   place to read userId from.
 const SERVICE_IDENTITY = "ddocraft_api";
 
+const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidGuid(value: unknown): value is string {
+  return typeof value === "string" && GUID_PATTERN.test(value);
+}
+
 function parseUserId(value: unknown): number | null {
   const userId = Number(value);
   return Number.isInteger(userId) && userId > 0 ? userId : null;
+}
+
+// Canonicalizes and hashes the parts of a build that make it what it mechanically IS - not who
+//   owns it, what it's named, or when it was saved (see db/ddocraft_schema.sql's characterBuild
+//   comment for the full reasoning). Two saves with an identical set of choices hash identically
+//   regardless of what order those choices were made in, or what the build happens to be called.
+function computeBuildChecksum(charLevel: number, buildData: Record<string, any>): string {
+  const positional = Array.isArray(buildData.positional) ? buildData.positional : [];
+  const inherent = Array.isArray(buildData.inherent) ? buildData.inherent : [];
+  const categoryMode = (buildData.categoryMode ?? {}) as Record<string, string>;
+  const customItems = (buildData.customItems ?? {}) as Record<string, any>;
+
+  const canonicalPositional = positional
+    .map((p: any) => ({ item: p.item, slot: p.slot, color: p.color, enchName: p.enchName }))
+    .sort((a: any, b: any) =>
+      (a.item + "|" + a.slot + "|" + a.color + "|" + a.enchName)
+        .localeCompare(b.item + "|" + b.slot + "|" + b.color + "|" + b.enchName)
+    );
+
+  const canonicalInherent = inherent
+    .map((i: any) => ({ category: i.category, item: i.item, enchName: i.enchName }))
+    .sort((a: any, b: any) =>
+      (a.category + "|" + a.item + "|" + a.enchName).localeCompare(b.category + "|" + b.item + "|" + b.enchName)
+    );
+
+  // Only "custom" is meaningful - an unset/"cannith" entry is the implicit default, and whether
+  //   it happens to be explicitly recorded as "cannith" or simply absent is just toggle history,
+  //   not a real difference in the build.
+  const canonicalCustomCategories = Object.keys(categoryMode)
+    .filter((category) => categoryMode[category] === "custom")
+    .sort();
+
+  const canonicalCustomItems = Object.keys(customItems)
+    .sort()
+    .map((category) => {
+      const item = customItems[category] ?? {};
+      const augments = Array.isArray(item.augments) ? item.augments : [];
+      return {
+        category,
+        name: item.name ?? "",
+        description: item.description ?? "",
+        // augment "id" is an arbitrary add-order counter, not meaningful to the build - only the
+        //   resulting set of slot colors is.
+        augmentColors: augments.map((a: any) => a.color).sort()
+      };
+    });
+
+  const canonical = {
+    charLevel,
+    positional: canonicalPositional,
+    inherent: canonicalInherent,
+    customCategories: canonicalCustomCategories,
+    customItems: canonicalCustomItems
+  };
+
+  return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
 }
 
 characterBuildsRouter.post("/", async (req, res, next) => {
@@ -41,27 +104,31 @@ characterBuildsRouter.post("/", async (req, res, next) => {
     return;
   }
 
+  const characterBuildId = randomUUID();
+  const buildChecksum = computeBuildChecksum(charLevel, buildData);
+
   try {
-    const [result] = await pool.query<ResultSetHeader>(
+    await pool.query<ResultSetHeader>(
       `INSERT INTO characterBuild
-         (userId, charName, charLevel, description, appVersion, buildData, createBy, updateBy)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [userId, charName, charLevel, description ?? null, appVersion, JSON.stringify(buildData),
-        SERVICE_IDENTITY, SERVICE_IDENTITY]
+         (characterBuildId, userId, charName, charLevel, description, appVersion, buildData,
+          buildChecksum, createBy, updateBy)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [characterBuildId, userId, charName, charLevel, description ?? null, appVersion,
+        JSON.stringify(buildData), buildChecksum, SERVICE_IDENTITY, SERVICE_IDENTITY]
     );
-    res.status(201).json({ characterBuildId: result.insertId });
+    res.status(201).json({ characterBuildId, buildChecksum });
   } catch (err) {
     next(err);
   }
 });
 
 characterBuildsRouter.put("/:id", async (req, res, next) => {
-  const characterBuildId = Number(req.params.id);
+  const characterBuildId = req.params.id;
   const userId = parseUserId(req.body?.userId);
   const { charName, charLevel, description, appVersion, buildData } = req.body ?? {};
 
-  if (!Number.isInteger(characterBuildId)) {
-    res.status(400).json({ error: "characterBuildId must be an integer" });
+  if (!isValidGuid(characterBuildId)) {
+    res.status(400).json({ error: "characterBuildId must be a valid GUID" });
     return;
   }
   if (userId === null) {
@@ -85,19 +152,22 @@ characterBuildsRouter.put("/:id", async (req, res, next) => {
     return;
   }
 
+  const buildChecksum = computeBuildChecksum(charLevel, buildData);
+
   try {
     const [result] = await pool.query<ResultSetHeader>(
       `UPDATE characterBuild
-       SET charName = ?, charLevel = ?, description = ?, appVersion = ?, buildData = ?, updateBy = ?
+       SET charName = ?, charLevel = ?, description = ?, appVersion = ?, buildData = ?,
+           buildChecksum = ?, updateBy = ?
        WHERE characterBuildId = ? AND userId = ?`,
       [charName, charLevel, description ?? null, appVersion, JSON.stringify(buildData),
-        SERVICE_IDENTITY, characterBuildId, userId]
+        buildChecksum, SERVICE_IDENTITY, characterBuildId, userId]
     );
     if (result.affectedRows === 0) {
       res.status(404).json({ error: "not found" });
       return;
     }
-    res.json({ characterBuildId });
+    res.json({ characterBuildId, buildChecksum });
   } catch (err) {
     next(err);
   }
@@ -122,24 +192,23 @@ characterBuildsRouter.get("/", async (req, res, next) => {
   }
 });
 
+// No userId check here, deliberately: characterBuildId is a random, unguessable GUID - knowing it
+//   is what grants read access (the same way a Google Docs "anyone with the link" URL works), so
+//   this is the one route both a build's own owner AND anyone they've shared the id with can use.
 characterBuildsRouter.get("/:id", async (req, res, next) => {
-  const characterBuildId = Number(req.params.id);
-  const userId = parseUserId(req.query.userId);
+  const characterBuildId = req.params.id;
 
-  if (!Number.isInteger(characterBuildId)) {
-    res.status(400).json({ error: "characterBuildId must be an integer" });
-    return;
-  }
-  if (userId === null) {
-    res.status(400).json({ error: "userId query parameter must be a positive integer" });
+  if (!isValidGuid(characterBuildId)) {
+    res.status(400).json({ error: "characterBuildId must be a valid GUID" });
     return;
   }
 
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT characterBuildId, charName, charLevel, description, appVersion, buildData, updateDate
-       FROM characterBuild WHERE characterBuildId = ? AND userId = ?`,
-      [characterBuildId, userId]
+      `SELECT characterBuildId, charName, charLevel, description, appVersion, buildData,
+              buildChecksum, updateDate
+       FROM characterBuild WHERE characterBuildId = ?`,
+      [characterBuildId]
     );
     if (rows.length === 0) {
       res.status(404).json({ error: "not found" });
@@ -152,11 +221,11 @@ characterBuildsRouter.get("/:id", async (req, res, next) => {
 });
 
 characterBuildsRouter.delete("/:id", async (req, res, next) => {
-  const characterBuildId = Number(req.params.id);
+  const characterBuildId = req.params.id;
   const userId = parseUserId(req.body?.userId ?? req.query.userId);
 
-  if (!Number.isInteger(characterBuildId)) {
-    res.status(400).json({ error: "characterBuildId must be an integer" });
+  if (!isValidGuid(characterBuildId)) {
+    res.status(400).json({ error: "characterBuildId must be a valid GUID" });
     return;
   }
   if (userId === null) {
