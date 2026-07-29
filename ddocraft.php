@@ -75,6 +75,10 @@ updateCounter();
         <label for="characterLevel">Character Level:</label>
         <input type="number" id="characterLevel" name="characterLevel" onchange="handleCharLevelChange()"
                min="1" max="36" placeholder="1-36" class="charLevelInput" required />
+        <label for="characterClass">Class:</label>
+        <select id="characterClass" onchange="handleClassChange()">
+            <option value="">(none)</option>
+        </select>
     </div>
     <div id="highlightHeader" class="itemheader collapsed" onclick="toggleHighlightSection()">&#9655; Highlight</div>
     <div id="highlightSection" class="highlightSection" style="display:none;">

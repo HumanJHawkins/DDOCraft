@@ -73,6 +73,7 @@ initialize();
 
 function initialize() {
     loadEnchantmentOptions();
+    loadCharacterClasses();
     initCategoryChoice();
     initFilter();
     dialogHelp             = document.getElementById('help');
@@ -105,6 +106,31 @@ function loadEnchantmentOptions() {
     // TO DO: Consider convert to asynchronous? Is there something we can do while it loads?
     itemOptionsRequest.open("GET", "ddocraft.json", false);
     itemOptionsRequest.send();
+}
+
+// Cosmetic/informational only for now (see db/ddocraft_schema.sql's characterClass comment) - a
+//   simple reference-data load, same synchronous pattern as the catalog above, so the dropdown is
+//   already populated by the time the first render happens. Tolerates the API being unreachable:
+//   the dropdown just stays empty rather than breaking the rest of the page.
+function loadCharacterClasses() {
+    let request                = new XMLHttpRequest();
+    request.onreadystatechange = function () {
+        if (this.readyState === 4 && this.status === 200) {
+            populateCharacterClassSelect(JSON.parse(this.responseText));
+        }
+    };
+    request.open("GET", "/api/character-classes", false);
+    request.send();
+}
+
+function populateCharacterClassSelect(classes) {
+    let select = document.getElementById("characterClass");
+    for (let characterClass of classes) {
+        let option       = document.createElement("option");
+        option.value     = characterClass.characterClassId;
+        option.textContent = characterClass.className;
+        select.appendChild(option);
+    }
 }
 
 function buildCatalog(flatRows) {
@@ -1093,6 +1119,26 @@ function handleRename(fixBoth = false) {
     }
 }
 
+function handleClassChange() {
+    let select = document.getElementById("characterClass");
+    charData.saveFile.className = select.options[select.selectedIndex].text;
+    if (!select.value) { charData.saveFile.className = ""; }
+}
+
+// Matches by name, not id - a loaded build's className is stored as plain text (see buildData's
+//   shape), not the DB's characterClassId, so it round-trips correctly even if ids were ever
+//   renumbered. Falls back to "(none)" if the name isn't found among the loaded options.
+function setCharacterClassSelectByName(className) {
+    let select = document.getElementById("characterClass");
+    for (let option of select.options) {
+        if (option.text === className) {
+            select.value = option.value;
+            return;
+        }
+    }
+    select.value = "";
+}
+
 function handleSave() {
     handleRename(true);
     updateSave();
@@ -1277,6 +1323,8 @@ function handleLoad(incomingFile) {
     handleRename(true);
     document.getElementById("characterLevel").value = incomingFile.charLevel;
     charData.saveFile.charLevel                     = incomingFile.charLevel;
+    charData.saveFile.className                     = incomingFile.className || "";
+    setCharacterClassSelectByName(charData.saveFile.className);
 
     // Custom item config restored BEFORE its selections below - a "custom:Category" positional/
     //   inherent entry only renders anywhere if categoryMode/customItems already put that category
