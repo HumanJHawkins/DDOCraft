@@ -534,7 +534,11 @@ function renderCustomItemBody(category, idx, pruneMode) {
 function renderCustomAugmentSlotRow(category, item, aug, position, pruneModeInherited, idx) {
     let slot              = "Augment#" + aug.id;  // stable key - "Aug" prefix reuses getButton's
                                                    //   existing augment-vs-cannith min-level check.
-    let displayLabel      = "Augment " + (position + 1) + " (" + aug.color + ")";
+    let displayLabel      = "Augment " + (position + 1);  // matches Cannith's plain "Augment 1"/"Augment 2"
+                                                            //   label - the color already shows via the
+                                                            //   color sub-header in column 2, so repeating
+                                                            //   it here was redundant and made collapsed
+                                                            //   rows taller than they needed to be.
     let slotKey           = item + "|" + slot;
     let realColors        = realColorsForSlot(aug.color);
     let directlyCollapsed = charData.collapsed.slot.has(slotKey);
