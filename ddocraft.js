@@ -8,7 +8,12 @@ let buttonAbout;
 let buttonCloseAbout;
 let dialogOpenBuild;
 
-let highlightSectionCollapsed = true;
+// Manual preference for the Character Info section - forced to false (edit mode) regardless
+//   whenever there's no valid level yet, since there's nothing worth presenting (see
+//   updateCharacterInfoDisplay()). Defaults to false so entering a valid level doesn't
+//   immediately snap the form shut mid-edit - collapsing to the presentation title is an
+//   explicit click.
+let characterInfoCollapsed = false;
 
 let extraSlotMinLevel = 10;
 
@@ -557,6 +562,7 @@ function renderEnchantmentOptions() {
 
     document.getElementById("enchantmentOptions").innerHTML = html;
     updateSaveDownloadEnabled();
+    updateCharacterInfoDisplay();
 }
 
 function updateSaveDownloadEnabled() {
@@ -1333,6 +1339,10 @@ function getLevelFromOldFilename(fileName){
 
 
 function handleLoad(incomingFile) {
+    // Opening a finished build is a different moment than actively building one - show it off
+    //   as a title immediately rather than landing back in edit mode.
+    characterInfoCollapsed = true;
+
     // Need to start with a clean slate to avoid merging loaded data with whatever is on screen.
     charData.selections.positional = {};
     charData.selections.inherent   = {};
@@ -1537,11 +1547,29 @@ function loadCharacterBuildFromUrl() {
 }
 
 
-function toggleHighlightSection() {
-    highlightSectionCollapsed = !highlightSectionCollapsed;
-    document.getElementById("highlightSection").style.display = highlightSectionCollapsed ? "none" : "block";
-    document.getElementById("highlightHeader").innerHTML = (highlightSectionCollapsed ? "&#9655;" : "&#9661;") + " Highlight";
-    document.getElementById("highlightHeader").classList.toggle("collapsed", highlightSectionCollapsed);
+// One toggle for the whole Character Info section now, not a separate one for Highlight -
+//   collapsed shows a title-like "presentation" line (only once there's a valid level to show;
+//   otherwise it's forced open, same reasoning as the options UI being forced collapsed below),
+//   expanded shows the editable fields and the highlight checkboxes together.
+function toggleCharacterInfoSection() {
+    characterInfoCollapsed = !characterInfoCollapsed;
+    updateCharacterInfoDisplay();
+}
+
+function getCharacterTitleText() {
+    let charName  = charData.saveFile.charName || "Unnamed";
+    let charLevel = charData.saveFile.charLevel;
+    let className = charData.saveFile.className;
+    return charName + ", Level " + charLevel + (className ? " " + className : "");
+}
+
+function updateCharacterInfoDisplay() {
+    let showPresentation = characterInfoCollapsed && hasValidCharLevel();
+    document.getElementById("characterInfoPresentation").style.display = showPresentation ? "flex" : "none";
+    document.getElementById("characterInfoEdit").style.display         = showPresentation ? "none" : "block";
+    if (showPresentation) {
+        document.getElementById("characterInfoTitle").textContent = getCharacterTitleText();
+    }
 }
 
 function showHelp() {

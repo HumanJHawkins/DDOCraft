@@ -226,25 +226,94 @@ img {
 }
 
 .characterInfo {
-    margin: .2vw 0;
-    padding: .3vw .5vw;
-    background-color: #1a1a19;
+    margin: .3vw 0 .8vw 0;
+    padding: .3vw .8vw;
+    background-color: #1c160e;
+    border: 1px solid #6b5636;
+    border-radius: 4px;
 }
 
-.characterInfoRow {
+.characterInfoPresentation {
     display: flex;
-    align-items: center;
-    flex-wrap: wrap;
+    align-items: baseline;
     gap: .6vw;
-    padding: .3vw 0;
+    padding: .4vw .2vw;
+    cursor: pointer;
+}
+
+.characterInfoPresentation:hover {
+    background-color: #241c11;
+}
+
+.characterInfoTriangle {
+    color: #a8862d;
+    font-size: calc(6px + .75vw);
+}
+
+.characterInfoTitle {
+    font-family: Georgia, "Palatino Linotype", "Book Antiqua", serif;
+    font-size: calc(9px + 1.4vw);
+    letter-spacing: .02em;
+    color: #e8d9b0;
+}
+
+.characterInfoHeader {
+    cursor: pointer;
+    font-family: Georgia, "Palatino Linotype", "Book Antiqua", serif;
+    color: #c9a961;
+    font-size: calc(5px + .8vw);
+    letter-spacing: .04em;
+    padding: .2vw 0 .5vw 0;
+}
+
+.characterInfoHeader:hover {
+    color: #e8d9b0;
+}
+
+.characterInfoFields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.2vw;
+    padding-bottom: .5vw;
+}
+
+.characterInfoField {
+    display: flex;
+    flex-direction: column;
+    gap: .15vw;
+}
+
+.characterInfoField label {
+    font-family: Georgia, "Palatino Linotype", "Book Antiqua", serif;
+    font-size: calc(4px + .5vw);
+    color: #a8862d;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.characterInfoField input,
+.characterInfoField select {
+    background-color: #0d0d0d;
+    color: #e8d9b0;
+    border: 1px solid #6b5636;
+    border-radius: 2px;
+    padding: .25vw .4vw;
+    font-family: verdana, sans-serif;
+    font-size: calc(4px + .6vw);
 }
 
 .charLevelInput {
     width: 4em;
 }
 
-.highlightSection {
-    padding: .3vw .5vw;
+.characterInfoHighlightLabel {
+    font-family: Georgia, "Palatino Linotype", "Book Antiqua", serif;
+    color: #c9a961;
+    font-size: calc(4px + .65vw);
+    letter-spacing: .04em;
+    margin: .2vw 0 .1vw 0;
+    border-top: 1px solid #3a2f1c;
+    padding-top: .4vw;
 }
 
 
