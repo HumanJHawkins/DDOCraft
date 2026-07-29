@@ -307,10 +307,12 @@ function computeSelectionIndex() {
 // Collapse no longer just hides a whole subtree - it PRUNES it, everywhere, the same way: only
 //   selected options survive; everything unselected disappears. The exact node the user directly
 //   collapsed always keeps its own header/label visible (as a button to re-expand), even if
-//   there's nothing selected inside it at all - otherwise there'd be no way back in. A deeper
-//   node that merely INHERITS pruning from a collapsed ancestor (rather than being the thing
-//   directly clicked) disappears completely if it has nothing selected - no header, nothing -
-//   since it's not the re-expand target itself.
+//   there's nothing selected inside it at all - otherwise there'd be no way back in. SLOTS (Cannith
+//   or custom, plus Inherent Effects) stay visible too when empty and merely inheriting prune from
+//   a collapsed ancestor - showing "Available" in place of the option list - since a slot fully
+//   disappearing risks hiding something still worth filling in. COLORS go further and vanish
+//   completely when empty-and-inherited (not the direct collapse target), since they're a denser,
+//   lower-level grouping within an already-visible slot, not something you'd lose track of.
 //
 // pruneMode threads down through every render call below: it starts false, becomes true the
 //   moment any ancestor (or the node itself) is directly collapsed, and once true stays true for
@@ -394,9 +396,10 @@ function renderSlotRow(item, slot, colorMap, pruneModeInherited, idx) {
     let hasSelection      = slotHasSelection(item, slot);
 
     if (pruneMode && !hasSelection) {
-        if (!directlyCollapsed) { return ""; }  // inherited prune, nothing selected - vanish entirely
+        // Slots stay visible even when empty and only cascade-pruned (not directly collapsed) -
+        //   an empty slot fully disappearing risks hiding something still worth filling in.
         return "<tr class='collapsed'><td class='slot' onclick=\"toggleCollapsed('slot','" +
-            escJs(slotKey) + "')\">" + escHtml(slot) + "</td><td>&nbsp;</td></tr>";
+            escJs(slotKey) + "')\">" + escHtml(slot) + "</td><td class='options'>Available</td></tr>";
     }
 
     let trClass = directlyCollapsed ? " class='collapsed'" : "";
@@ -551,8 +554,9 @@ function renderCustomAugmentSlotRow(category, item, aug, position, pruneModeInhe
         escHtml(displayLabel) + "</span> " + removeControl;
 
     if (pruneMode && !hasSelection) {
-        if (!directlyCollapsed) { return ""; }  // inherited prune, nothing selected - vanish entirely
-        return "<tr class='collapsed'><td class='slot'>" + labelHtml + "</td><td>&nbsp;</td></tr>";
+        // Slots stay visible even when empty and only cascade-pruned (not directly collapsed) -
+        //   an empty slot fully disappearing risks hiding something still worth filling in.
+        return "<tr class='collapsed'><td class='slot'>" + labelHtml + "</td><td class='options'>Available</td></tr>";
     }
 
     let trClass = directlyCollapsed ? " class='collapsed'" : "";
@@ -626,9 +630,10 @@ function renderInherentPicker(category, idx, pruneModeInherited) {
     let hasSelection      = inherentHasSelection(category, item);
 
     if (pruneMode && !hasSelection) {
-        if (!directlyCollapsed) { return ""; }  // inherited prune, nothing selected - vanish entirely
+        // Stays visible even when empty and only cascade-pruned (not directly collapsed) - an
+        //   empty slot fully disappearing risks hiding something still worth filling in.
         return "<tr class='collapsed'><td class='slot' onclick=\"toggleCollapsed('slot','" +
-            escJs(slotKey) + "')\">Inherent Effects</td><td>&nbsp;</td></tr>";
+            escJs(slotKey) + "')\">Inherent Effects</td><td class='options'>Available</td></tr>";
     }
 
     let trClass = directlyCollapsed ? " class='collapsed'" : "";
