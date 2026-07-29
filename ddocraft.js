@@ -857,7 +857,7 @@ function getInherentButton(category, item, enchName, idx) {
         enchValue = 1;
     } else if (isHandled) {
         btn = "<button class='handled' title=\"" + title + "\" ";
-    } else if (enchValue > 1) {
+    } else if (enchValue >= 1) {
         btn = "<button style='background-color: " + getHighlight(enchValue) + "; color: black;' title=\"" + title + "\" ";
     } else {
         btn = "<button title=\"" + title + "\" ";
@@ -965,7 +965,9 @@ function getButton(item, slot, color, enchName, idx) {
         // Discouraged, not disabled: only one effect may occupy this item+slot at a time, but
         //   clicking a different one here swaps it in rather than being blocked (see enchClick()).
         btn = "<button class='blocked' title=\"" + title + "\" ";
-    } else if (enchValue > 1) {
+    } else if (enchValue >= 1) {
+        // Every visible, unselected/unhandled/unblocked button gets a tint now, even at the floor
+        //   (enchValue 1) - no more jump between "not specially colored at all" and "highlighted".
         btn = "<button style='background-color: " + getHighlight(enchValue) + "; color: black;' title=\"" + title + "\" ";
     } else {
         btn = "<button title=\"" + title + "\" ";
@@ -993,18 +995,21 @@ function escJs(s) {
 }
 
 function getHighlight(num) {
-    // Recommendation-strength tint: interpolates from a muted blue (#3987e5) to a
-    // bright blue (#cde2fb) as more active filters match this effect, relative to
-    // max range of 32. Black text (set by the caller) stays legible across the
-    // whole span - both endpoints clear 4.5:1.
+    // Recommendation-strength tint: a light, faintly blue-tinted background at the low end (an
+    //   effect that barely matches, num near 1) diverging to a darker, more saturated blue as more
+    //   checked filters match, up toward maxVal. The dark end reuses the exact blue (#3987e5) that
+    //   used to sit at the LOW end of the old light-to-brighter-blue scale - already proven to read
+    //   fine with black text, so no new "how dark is too dark" guess is needed. Black text (set by
+    //   the caller) holds up across the whole range now, unlike a dark-to-light scale, which would
+    //   need to switch text color partway through.
     let maxVal = 32;
-    let base   = [57, 135, 229];
-    let peak   = [205, 226, 251];
+    let light  = [232, 236, 245];
+    let dark   = [57, 135, 229];
 
-    let t = Math.min(num / maxVal, 1);
-    let r = Math.round(base[0] + (peak[0] - base[0]) * t);
-    let g = Math.round(base[1] + (peak[1] - base[1]) * t);
-    let b = Math.round(base[2] + (peak[2] - base[2]) * t);
+    let t = Math.min(Math.max((num - 1) / (maxVal - 1), 0), 1);
+    let r = Math.round(light[0] + (dark[0] - light[0]) * t);
+    let g = Math.round(light[1] + (dark[1] - light[1]) * t);
+    let b = Math.round(light[2] + (dark[2] - light[2]) * t);
     return rgb(r, g, b);
 }
 
