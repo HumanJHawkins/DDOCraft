@@ -6,6 +6,11 @@
 
 /* Dimensions consolidate as: top right bottom left. */
 body {
+    color-scheme: dark;  /* tells the browser to render native widgets (number-input spinner
+                            arrows, checkboxes, scrollbars) in dark-appropriate colors - without
+                            this the level input's spinner arrows render in their default light
+                            gray, nearly invisible against this page and easy to mistake for a
+                            plain text box */
     text-align: left;
     font-family: verdana, sans-serif;
     font-size: calc(4px + .5vw); /* Results in .5vw with minimum of 4px */
@@ -296,6 +301,8 @@ img {
 
 .characterInfoField input,
 .characterInfoField select {
+    margin: 0;  /* overrides the global "select { margin: 1vw auto auto auto; }" rule, which was
+                   pushing the Class dropdown down out of line with the Name/Level inputs */
     background-color: #0d0d0d;
     color: #e8d9b0;
     border: 1px solid #6b5636;
