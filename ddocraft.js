@@ -1,8 +1,5 @@
 // Planned work, known issues, and change history now live in TO DO.md and Done.md.
 
-let dialogPreferences;
-let buttonPreferences;
-let buttonClosePreferences;
 let dialogHelp;
 let buttonHelp;
 let buttonCloseHelp;
@@ -10,6 +7,8 @@ let dialogAbout;
 let buttonAbout;
 let buttonCloseAbout;
 let dialogOpenBuild;
+
+let highlightSectionCollapsed = true;
 
 let extraSlotMinLevel = 10;
 
@@ -76,9 +75,6 @@ function initialize() {
     loadEnchantmentOptions();
     initCategoryChoice();
     initFilter();
-    dialogPreferences      = document.getElementById('preferences');
-    buttonPreferences      = document.getElementById("btnPreferences");
-    buttonClosePreferences = document.getElementById("btnClosePreferences");
     dialogHelp             = document.getElementById('help');
     buttonHelp             = document.getElementById("btnHelp");
     buttonCloseHelp        = document.getElementById("btnCloseHelp");
@@ -90,7 +86,6 @@ function initialize() {
     renderEnchantmentOptions();
     renderResult();
     handleRename(); // Sets to "Unnamed" if not invalid.
-    showPreferences();
     loadCharacterBuildFromUrl();
 }
 
@@ -486,9 +481,14 @@ function renderEnchantmentOptions() {
     let idx  = computeSelectionIndex();
     let html = "";
 
+    let levelIsSet = hasValidCharLevel();
+
     for (let category of charData.categoryOrder) {
         let mode              = charData.categoryMode[category] || "cannith";
-        let categoryCollapsed = charData.collapsed.item.has(category);
+        // No valid level yet: force every category collapsed, regardless of its own stored flag
+        //   (which is left untouched, so whatever the user had expanded/collapsed comes back once
+        //   a valid level is set again).
+        let categoryCollapsed = !levelIsSet || charData.collapsed.item.has(category);
 
         let item, categoryHasSelection;
         if (mode === "custom") {
@@ -530,6 +530,13 @@ function renderEnchantmentOptions() {
     }
 
     document.getElementById("enchantmentOptions").innerHTML = html;
+    updateSaveDownloadEnabled();
+}
+
+function updateSaveDownloadEnabled() {
+    let enabled = hasValidCharLevel();
+    document.getElementById("iconSave").classList.toggle("disabled", !enabled);
+    document.getElementById("iconDownload").classList.toggle("disabled", !enabled);
 }
 
 function renderSlotRow(category, item, slot, colorMap, idx) {
@@ -1451,8 +1458,11 @@ function loadCharacterBuildFromUrl() {
 }
 
 
-function showPreferences() {
-    dialogPreferences.style.display = 'block';
+function toggleHighlightSection() {
+    highlightSectionCollapsed = !highlightSectionCollapsed;
+    document.getElementById("highlightSection").style.display = highlightSectionCollapsed ? "none" : "block";
+    document.getElementById("highlightHeader").innerHTML = (highlightSectionCollapsed ? "&#9655;" : "&#9661;") + " Highlight";
+    document.getElementById("highlightHeader").classList.toggle("collapsed", highlightSectionCollapsed);
 }
 
 function showHelp() {
@@ -1468,9 +1478,19 @@ function handleFilterCheckbox(checkbox) {
     renderEnchantmentOptions();
 }
 
-function handleFilterLevel() {
-    let previousLevel           = charData.saveFile.charLevel;
-    charData.saveFile.charLevel = document.getElementById("characterLevel").value;
+function hasValidCharLevel() {
+    let level = charData.saveFile.charLevel;
+    return Number.isInteger(level) && level >= 1 && level <= 36;
+}
+
+function handleCharLevelChange() {
+    let previousLevel = charData.saveFile.charLevel;
+    let input         = document.getElementById("characterLevel");
+    let level         = Number(input.value);
+    let isValid       = input.value !== "" && Number.isInteger(level) && level >= 1 && level <= 36;
+
+    charData.saveFile.charLevel = isValid ? level : "";
+    if (!isValid) { input.value = ""; }
 
     let toDeselect = [];
     for (let item of Object.keys(charData.selections.positional)) {
@@ -1498,11 +1518,7 @@ function handleFilterLevel() {
 }
 
 window.onclick = function (event) {
-    // When the user clicks anywhere outside of the dialogPreferences, close it
-    if (event.target === dialogPreferences) {
-        dialogPreferences.style.display = "none";
-    }
-    // Or help window
+    // When the user clicks anywhere outside of the help window, close it
     if (event.target === dialogHelp) {
         dialogHelp.style.display = "none";
     }

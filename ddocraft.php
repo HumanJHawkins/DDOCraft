@@ -67,33 +67,23 @@ updateCounter();
     <script src="ddocraft.js" defer></script>
 </head>
 <body>
-<!-- Modal preferences dialog. Hidden while not in use. -->
-<div id="preferences" class="modal">
-    <div id="divPreferenceDialog" class="modal-content">
-        <div id="btnClosePreferences" class="modalClose" onClick="dialogPreferences.style.display='none'">&times;</div>
-        <h3 class="modalText modalHeading">Settings</h3>
+<!-- Character info / highlight filters. -->
+<div id="characterInfo" class="characterInfo">
+    <div class="characterInfoRow">
+        <label for="characterName">Character Name:</label>
+        <input type="text" id="characterName" onchange="handleRename()" placeholder="Character Name" class="charName">
+        <label for="characterLevel">Character Level:</label>
+        <input type="number" id="characterLevel" name="characterLevel" onchange="handleCharLevelChange()"
+               min="1" max="36" placeholder="1-36" class="charLevelInput" required />
+    </div>
+    <div id="highlightHeader" class="itemheader collapsed" onclick="toggleHighlightSection()">&#9655; Highlight</div>
+    <div id="highlightSection" class="highlightSection" style="display:none;">
         <div class="helpText">
-            <p>Check enchantment groups to show them. Uncheck to hide them. This does not select or deselect
-                enchantments for your build, but it helps with clutter onscreen and highlights enchantments commonly
+            <p>Check enchantment groups to highlight effects that benefit them. This doesn't select or deselect
+                anything in your build - it just helps with clutter and highlights enchantments commonly
                 prioritized for the groups checked.</p>
-            <!--            <p>Name and level are used in the save file name. Level is only partly implemented in the filter, hiding-->
-            <!--                the extra slot and insightful enchantments below level 10. As more data is added related to min levels,-->
-            <!--                this may improve.  </p>-->
         </div>
-        <!--        <p class="indent">-->
-        <div class="helpText">
-            <label for="characterLevel">Character Level:</label>
-            <input type="number" id="characterLevel" name="characterLevel" value="36"
-                   onchange="handleFilterLevel()" min="0" max="50" />&nbsp;&nbsp;&nbsp;<strong>&#8592;</strong>&nbsp;&nbsp;&nbsp;Set this at least!!!
-        </div>
-
-
         <div class="helpText modal-checklist">
-            <!--            <label for='prefsCharName'>Name: </label>-->
-            <!--            <input type="text" id="prefsCharName" placeholder="Character Name" class="charName" />&nbsp;<br />-->
-            <!--            <label for='prefsCharLevel'></label>-->
-            <!--            <input type="number" id="prefsCharLevel" placeholder="20" class="charLevel" min="1" max="30" />&nbsp;&nbsp;<br />-->
-
             <table class="modal-table">
                 <tr>
                     <td><label class='checklabel' for='allEnch'>
@@ -338,11 +328,10 @@ updateCounter();
                                                                                          alt=""
                                                                                          class="iconButtonSpacer"/>
     <img src="image/blank.png" alt="" class="iconButtonSpacer"/>
-    <img src="image/save.svg" alt="Save" onClick="handleSaveToServer()" class="iconButtonImage"/>
+    <img id="iconSave" src="image/save.svg" alt="Save" onClick="handleSaveToServer()" class="iconButtonImage"/>
     <img src="image/open.svg" alt="Open" onClick="handleLoadFromServer()" class="iconButtonImage"/>
-    <img src="image/download.svg" alt="Download" onClick="handleDownloadReport()" class="iconButtonImage"/>
+    <img id="iconDownload" src="image/download.svg" alt="Download" onClick="handleDownloadReport()" class="iconButtonImage"/>
     <img src="image/blank.png" alt="" class="iconButtonSpacer"/>
-    <img src="image/preferences.png" alt="Preferences" onClick="showPreferences()" class="iconButtonImage"/>
     <img src="image/help.png" alt="Help" onClick="showHelp()" class="iconButtonImage"/>
     <img src="image/about.png" alt="About" onClick="showAbout()" class="iconButtonImage"/>
     <!--    <img src="image/blank.png" alt="" class="iconButtonSpacer"/>-->
@@ -352,8 +341,6 @@ updateCounter();
 <div id="enchantmentOptions"></div>
 <div id="result" class="result"></div>
 <div id="loadSave" class="loadSave">
-    <label for='characterName'></label>
-    <input type="text" id="characterName" onchange="handleRename()" placeholder="Character Name" class="charName">&nbsp;
     <button id="save" onclick="handleSave()" class="loadSaveBtn"> Save...</button>
     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
     <button onclick="document.getElementById('loadFile').click()" class="loadSaveBtn"> Open...</button>

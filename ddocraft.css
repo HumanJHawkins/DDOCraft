@@ -188,6 +188,15 @@ input[type='checkbox'] {
     background-color: #fff;
 }
 
+.iconButtonImage.disabled {
+    opacity: .35;
+    pointer-events: none;
+}
+
+.iconButtonImage.disabled:hover {
+    background-color: #ddd;
+}
+
 .iconButtonSpacer {
     width: 1.5vw;
     min-width: 4px;
@@ -216,7 +225,27 @@ img {
     border-top: 1vw solid black;
 }
 
+.characterInfo {
+    margin: .2vw 0;
+    padding: .3vw .5vw;
+    background-color: #1a1a19;
+}
 
+.characterInfoRow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .6vw;
+    padding: .3vw 0;
+}
+
+.charLevelInput {
+    width: 4em;
+}
+
+.highlightSection {
+    padding: .3vw .5vw;
+}
 
 
 
