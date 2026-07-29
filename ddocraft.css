@@ -293,7 +293,7 @@ img {
 
 .characterInfoField label {
     font-family: Georgia, "Palatino Linotype", "Book Antiqua", serif;
-    font-size: calc(4px + .5vw);
+    font-size: calc(5px + .6vw);
     color: #a8862d;
     text-transform: uppercase;
     letter-spacing: .06em;
@@ -307,13 +307,16 @@ img {
     color: #e8d9b0;
     border: 1px solid #6b5636;
     border-radius: 2px;
-    padding: .25vw .4vw;
+    padding: .4vw .6vw;
     font-family: verdana, sans-serif;
-    font-size: calc(4px + .6vw);
+    /* Bigger than the .25vw/calc(4px+.6vw) this started at - a number input's native spin
+       buttons don't scale down with a small font, so at small sizes they end up looking
+       oversized relative to the field; a bigger field brings the proportions back in line. */
+    font-size: calc(7px + 1vw);
 }
 
 .charLevelInput {
-    width: 4em;
+    width: 5em;
 }
 
 .characterInfoHighlightLabel {
@@ -543,12 +546,6 @@ button.handled, button.blocked {
 .loadSaveBtn {
     /*display:block;*/
     width:120px;
-    height:30px;
-}
-
-.charName {
-    /*display:block;*/
-    width:240px;
     height:30px;
 }
 

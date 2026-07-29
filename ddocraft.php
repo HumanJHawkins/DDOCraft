@@ -178,7 +178,7 @@ updateCounter();
         <div class="characterInfoFields">
             <div class="characterInfoField">
                 <label for="characterName">Name</label>
-                <input type="text" id="characterName" onchange="handleRename()" placeholder="Character Name" class="charName">
+                <input type="text" id="characterName" onchange="handleRename()" placeholder="Character Name">
             </div>
             <div class="characterInfoField">
                 <label for="characterLevel">Level</label>
