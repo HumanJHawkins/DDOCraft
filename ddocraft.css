@@ -486,6 +486,30 @@ img {
     background-color: #333333;
 }
 
+.saveNamedItemBtn {
+    display: inline-block;
+    padding: .2vw .8vw;
+    margin-left: .5vw;
+    background-color: #1a1a19;
+    color: #c3c2b7;
+    border: 1px solid #444;
+    font-size: calc(5px + .625vw);
+    cursor: pointer;
+}
+
+.saveNamedItemBtn:hover {
+    background-color: #333333;
+}
+
+.saveNamedItemBtn:disabled {
+    cursor: default;
+    opacity: .7;
+}
+
+.customItemMinLevel {
+    width: 4vw;
+}
+
 .augment {
     font-size: calc(4px + .5vw);
     padding: 0;

@@ -300,6 +300,41 @@ CREATE TABLE characterBuild (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------------------------------------------
+-- namedItem (added 2026-07-30): a per-user library of reusable Named/Custom item definitions -
+--   the "Named Item" system in ddocraft.js was, until now, purely in-memory per build: building
+--   "Tourney Armor" for one character meant retyping every augment by hand again for the next one
+--   that also wanted it. This table lets a user save one under a name and reload it later by
+--   picking that name from a combo box (see ddocraft.js's namedItemName input/datalist), instead
+--   of a dropdown.
+--
+--   Deliberately a snapshot/copy relationship, not a live reference: selecting a name from the
+--   picker copies that row's itemData into the current build's customItems[category] at that
+--   moment, and nothing stays linked afterward. Matches how buildChecksum/History/Rollback already
+--   treat a saved character build as a point-in-time record - editing a library item later must
+--   never silently rewrite builds that already copied from it.
+--
+--   itemName is unique per user (not globally) - Part 3 (not built yet, see TO DO.md) is what
+--   would let a user promote one of their own named items to a shared/global list; until then two
+--   different users can have same-named, differently-built items with no collision.
+--
+--   itemData is the same shape as ddocraft.js's charData.customItems[category] (name/minLevel/
+--   augments/nextAugmentId/description) stored as one opaque JSON blob, same reasoning as
+--   characterBuild.buildData above - the server never needs to understand its internal shape.
+--   userId is app-enforced, not a real FK, same reasoning as characterBuild.userId above.
+CREATE TABLE namedItem (
+    namedItemId   INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    userId        INT                         NOT NULL,  -- see note above: app-enforced, not a real FK
+    itemName      VARCHAR(100)                NOT NULL,
+    itemData      JSON                        NOT NULL,
+    createBy      VARCHAR(100)                NOT NULL,
+    createDate    DATETIME(3)                 NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updateBy      VARCHAR(100)                NOT NULL,
+    updateDate    DATETIME(3)                 NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+
+    UNIQUE KEY uq_namedItem_userId_itemName (userId, itemName)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------------------------
 -- characterClass: DDO's playable classes, self-referencing so an Iconic Hero (a distinct class
 --   variant tied to a specific race/backstory - Bladeforged, Shadar-kai, etc.) can be modeled as
 --   its own row with parentClassId pointing at the base class it's a variant of, rather than a

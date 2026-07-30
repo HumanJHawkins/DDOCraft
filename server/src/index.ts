@@ -4,6 +4,7 @@ import { referenceRouter } from "./routes/reference";
 import { effectsRouter } from "./routes/effects";
 import { characterBuildsRouter } from "./routes/characterBuilds";
 import { catalogRouter } from "./routes/catalog";
+import { namedItemsRouter } from "./routes/namedItems";
 
 const app = express();
 const port = Number(process.env.DDOCRAFT_SERVER_PORT ?? 3001);
@@ -23,6 +24,7 @@ app.use("/api", referenceRouter);
 app.use("/api/effects", effectsRouter);
 app.use("/api/character-builds", characterBuildsRouter);
 app.use("/api/catalog", catalogRouter);
+app.use("/api/named-items", namedItemsRouter);
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
