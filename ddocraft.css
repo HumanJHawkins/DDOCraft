@@ -39,12 +39,13 @@ table {
     margin: .5vw;
     padding: 0;
     width: 100%;
+    background-color: #1c160e;  /* Character Info's brown, matching that section's look */
 }
 
 td {
     text-align: left;
     vertical-align: top;
-    border: 1px solid #2c2c2a;
+    border: 1px solid #a8862d;  /* Character Info's light-orange accent, see above */
     border-collapse: collapse;
     /*width: 1%;*/
     padding: .5vw;
@@ -547,7 +548,7 @@ button.handled, button.blocked {
 .result th, .result td {
     text-align: left;
     vertical-align: top;
-    border: 1px solid black;
+    border: 1px solid #a8862d;
     border-collapse: collapse;
     /*width: 1%;*/
     padding: 0;
@@ -594,7 +595,20 @@ button.handled, button.blocked {
 .openBuildTable th, .openBuildTable td {
     text-align: left;
     padding: .4vw .8vw;
-    border-bottom: 1px solid #444;
+    border-bottom: 1px solid #a8862d;
+}
+
+/* Open Build and History are the only two dialogs given the main page's dark/brown-and-orange
+   look - Help/About keep the original light modal-content (untouched below). Scoped by id rather
+   than changing .modal-content itself, since that class is shared by every dialog. */
+#openBuild .modal-content, #buildHistory .modal-content {
+    background-color: #0d0d0d;
+    color: #f1f1f1;
+}
+
+#openBuild .modalClose:hover, #openBuild .modalClose:focus,
+#buildHistory .modalClose:hover, #buildHistory .modalClose:focus {
+    color: #fff;  /* the shared .modalClose:hover color (#000) would vanish against this background */
 }
 
 .openBuildTable th.sortable {
