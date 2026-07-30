@@ -506,6 +506,15 @@ img {
     opacity: .7;
 }
 
+.customItemMinLevelLabel {
+    margin-left: 1vw;
+    font-family: Georgia, "Palatino Linotype", "Book Antiqua", serif;
+    font-size: calc(5px + .6vw);
+    color: #a8862d;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
 .customItemMinLevel {
     width: 4vw;
 }

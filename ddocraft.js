@@ -773,12 +773,11 @@ function renderCustomItemBody(category, idx) {
     let html   = "<tr><td class='slot'>Name</td><td class='options'>" +
         "<input type='text' class='customItemName' list='namedItemNames' value=\"" + escHtml(custom.name) +
         "\" onchange=\"handleCustomItemName(this,'" + escJs(category) + "')\" />" +
+        renderCustomItemMinLevel(category, custom) +
         " <button type='button' class='saveNamedItemBtn' onclick=\"handleSaveNamedItem(this,'" +
         escJs(category) + "')\">Save Named Item</button>" +
         getAddAugmentControlHtml(category) +
         "</td></tr>";
-
-    html += renderCustomItemMinLevel(category, custom);
 
     custom.augments.forEach(function (aug, position) {
         html += renderCustomAugmentSlotRow(category, item, aug, position, idx);
@@ -790,15 +789,19 @@ function renderCustomItemBody(category, idx) {
     return html;
 }
 
-// Mirrors the real character level field's own validation range - lets a level-decrease later
-//   trigger the same "will remove this" confirmation flow real Cannith enchantments already get
-//   (see handleCharLevelChange()), without needing a min-level field to be filled in at all: blank
-//   means "no known level requirement," not "level 0."
+// Inline label+input, sitting right next to the Name field in the same row (like Character Info's
+//   Name/Level fields sit side by side) rather than its own row - a plain inline label instead of
+//   Character Info's stacked label-above-input treatment, which costs more vertical height than a
+//   per-category row inside a whole table of them can afford. Mirrors the real character level
+//   field's own validation range - lets a level-decrease later trigger the same "will remove this"
+//   confirmation flow real Cannith enchantments already get (see handleCharLevelChange()), without
+//   needing a min-level field to be filled in at all: blank means "no known level requirement," not
+//   "level 0."
 function renderCustomItemMinLevel(category, custom) {
-    return "<tr><td class='slot'>Min Level</td><td class='options'>" +
+    return " <label class='customItemMinLevelLabel'>Min Level</label>" +
         "<input type='number' class='customItemMinLevel' min='1' max='36' value=\"" +
         escHtml(custom.minLevel || "") +
-        "\" onchange=\"handleCustomItemMinLevel(this,'" + escJs(category) + "')\" /></td></tr>";
+        "\" onchange=\"handleCustomItemMinLevel(this,'" + escJs(category) + "')\" />";
 }
 
 function renderCustomAugmentSlotRow(category, item, aug, position, idx) {
