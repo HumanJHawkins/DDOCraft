@@ -270,6 +270,15 @@ CREATE TABLE cannithCategoryOption (
 --   existing build (same owner + name, different content) doesn't literally overwrite the old row
 --   yet - it soft-deletes it and inserts a new one, so the old version is still recoverable/
 --   auditable rather than gone outright. List and single-build GET both filter deletedDate IS NULL.
+--
+--   createDate/updateDate are DATETIME(3) here (millisecond precision), not this schema's usual
+--   plain DATETIME (added 2026-07-30) - History/Open sort by updateDate DESC to find the most
+--   recent version, and a soft-delete/rollback/overwrite can genuinely land in the same request or
+--   the next one within the same wall-clock second. Whole-second precision let two rows tie, and a
+--   tie doesn't sort in any particular order, occasionally putting a soft-deleted row ahead of the
+--   version that superseded it. Also: soft-delete and rollback deliberately do NOT bump updateDate
+--   (see server/src/routes/characterBuilds.ts) - they're status changes, not content changes - so
+--   sub-second precision is what actually closes the gap, not overwriting that decision.
 CREATE TABLE characterBuild (
     characterBuildId CHAR(36)         NOT NULL PRIMARY KEY,  -- app-generated UUID v4, see note above
     userId            INT              NOT NULL,  -- see note above: app-enforced, not a real FK
@@ -282,9 +291,9 @@ CREATE TABLE characterBuild (
     effectCount       INT UNSIGNED     NOT NULL DEFAULT 0,
     deletedDate       DATETIME         NULL,  -- NULL = active; soft-delete marker, see note above
     createBy          VARCHAR(100)     NOT NULL,
-    createDate        DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    createDate        DATETIME(3)      NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updateBy          VARCHAR(100)     NOT NULL,
-    updateDate        DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    updateDate        DATETIME(3)      NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
 
     INDEX idx_characterBuild_userId (userId),
     INDEX idx_characterBuild_checksum (buildChecksum)
