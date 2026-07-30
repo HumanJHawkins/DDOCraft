@@ -18,6 +18,13 @@ let characterInfoCollapsed = false;
 
 let extraSlotMinLevel = 10;
 
+// Unsaved-changes baseline (see isDirty()/markSaved() below) - declared up here, not next to
+//   those functions, because initialize() sets a baseline via markSaved() as part of its own
+//   synchronous run. A `let` declared further down wouldn't be initialized yet at that point (still
+//   in its temporal dead zone) and would throw - which would also abort the rest of the script's
+//   top-level execution, permanently breaking every `let` declared after it in the file.
+let lastSavedSnapshot = null;
+
 let charData = {
     // enchantments[enchName] = { enchName, enchEffectType, enchDesc, enchSupercededBy,
     //   enchCannithMinLevel, enchAugmentMinLevel, allEnch, basic, nonscaling, for<Role>... }
@@ -557,13 +564,12 @@ function updateSaveDownloadEnabled() {
 
 // ---- Unsaved-changes tracking ----
 //
-// lastSavedSnapshot always holds a real baseline - initialize() sets one for a blank page before
-//   any user interaction is possible, and every save/load moves it - so dirty always means "really
-//   differs from the last known-saved-or-loaded state," never "nothing to compare against yet."
-//   That matters beyond the Save button: confirmDiscardUnsavedChanges() below also relies on
-//   isDirty(), and a false positive there would nag on every single Open click on a fresh page.
-
-let lastSavedSnapshot = null;
+// lastSavedSnapshot (declared near the top of the file - see the comment there) always holds a
+//   real baseline - initialize() sets one for a blank page before any user interaction is
+//   possible, and every save/load moves it - so dirty always means "really differs from the last
+//   known-saved-or-loaded state," never "nothing to compare against yet." That matters beyond the
+//   Save button: confirmDiscardUnsavedChanges() below also relies on isDirty(), and a false
+//   positive there would nag on every single Open click on a fresh page.
 
 function computeContentSnapshot() {
     updateSave();
