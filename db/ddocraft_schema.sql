@@ -259,6 +259,17 @@ CREATE TABLE cannithCategoryOption (
 --   the build). Lets two saves be recognized as "the same build" regardless of who made them or
 --   what they called it - e.g. surfacing builds independently arrived at by multiple users as a
 --   popularity signal (see TO DO.md), or warning on a redundant re-save.
+--
+--   effectCount (added 2026-07-31) is `buildData.positional.length + buildData.inherent.length` -
+--   a plain count of selected options/effects, computed and stored server-side at save time so the
+--   list endpoint can show/sort it without deserializing every row's JSON. Also drives the
+--   overwrite-confirmation check in POST /: saving different content under a name that already has
+--   an active build compares this against the existing row's effectCount before proceeding.
+--
+--   deletedDate (added 2026-07-31) is a soft-delete marker, NULL for an active row. Overwriting an
+--   existing build (same owner + name, different content) doesn't literally overwrite the old row
+--   yet - it soft-deletes it and inserts a new one, so the old version is still recoverable/
+--   auditable rather than gone outright. List and single-build GET both filter deletedDate IS NULL.
 CREATE TABLE characterBuild (
     characterBuildId CHAR(36)         NOT NULL PRIMARY KEY,  -- app-generated UUID v4, see note above
     userId            INT              NOT NULL,  -- see note above: app-enforced, not a real FK
@@ -268,6 +279,8 @@ CREATE TABLE characterBuild (
     appVersion        VARCHAR(20)      NOT NULL,
     buildData         JSON             NOT NULL,
     buildChecksum     CHAR(64)         NOT NULL,  -- SHA-256 hex digest, see note above
+    effectCount       INT UNSIGNED     NOT NULL DEFAULT 0,
+    deletedDate       DATETIME         NULL,  -- NULL = active; soft-delete marker, see note above
     createBy          VARCHAR(100)     NOT NULL,
     createDate        DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updateBy          VARCHAR(100)     NOT NULL,

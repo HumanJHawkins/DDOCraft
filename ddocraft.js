@@ -1397,19 +1397,41 @@ function handleSaveToServer() {
         buildData: charData.saveFile
     };
 
+    submitCharacterBuildSave(payload);
+}
+
+function submitCharacterBuildSave(payload) {
     fetch(CHARACTER_BUILD_API_BASE, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(payload)
     })
-        .then(function (r) { return rejectIfNotOk(r); })
-        .then(function (data) {
-            let message = data.created
-                ? "Saved to server as a new build."
-                : "No changes since your last save under this name - updated the timestamp instead of creating a duplicate.";
-            alert(message + " Build id: " + data.characterBuildId);
+        .then(function (r) {
+            if (r.status === 409) {
+                return r.json().then(function (body) { return handleSaveOverwriteConfirmation(payload, body); });
+            }
+            return rejectIfNotOk(r).then(function (data) {
+                let message = data.created
+                    ? "Saved to server as a new build."
+                    : "No changes since your last save under this name - updated the timestamp instead of creating a duplicate.";
+                alert(message + " Build id: " + data.characterBuildId);
+            });
         })
         .catch(function (err) { alert("Save to server failed: " + err.message); });
+}
+
+// The server declines to overwrite an existing build with one that has 5+ fewer selections
+//   without an explicit confirm - re-submits the same payload with confirmOverwrite:true on yes,
+//   does nothing further on cancel (the existing build is untouched either way).
+function handleSaveOverwriteConfirmation(payload, body) {
+    if (!body.needsConfirmation) { throw new Error(body.error || "status 409"); }
+
+    let message = "Save over the existing \"" + body.existingCharName + "\", Level " +
+        body.existingCharLevel + " that has " + body.existingEffectCount +
+        " selections made, with this version that has " + body.newEffectCount + "?";
+    if (confirm(message)) {
+        submitCharacterBuildSave(Object.assign({}, payload, {confirmOverwrite: true}));
+    }
 }
 
 function rejectIfNotOk(response) {
@@ -1472,7 +1494,7 @@ function renderOpenBuildTableBody() {
         html += "<tr><td class='openBuildColOpen'><a class='openBuildOpenLink' href=\"" + escHtml(url) +
             "\" onclick=\"return handleOpenBuildLinkClick(event,'" + escJs(build.characterBuildId) +
             "')\">Open</a></td><td>" + escHtml(build.charName) + "</td><td>" + build.charLevel +
-            "</td><td>" + escHtml(formatBuildDate(build.updateDate)) + "</td></tr>";
+            "</td><td>" + build.effectCount + "</td><td>" + escHtml(formatBuildDate(build.updateDate)) + "</td></tr>";
     }
     document.getElementById("openBuildTableBody").innerHTML = html;
 }

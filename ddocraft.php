@@ -139,6 +139,7 @@ updateCounter();
                         <th class="openBuildColOpen"></th>
                         <th class="sortable" onclick="handleSortOpenBuildList('charName')">Name</th>
                         <th class="sortable" onclick="handleSortOpenBuildList('charLevel')">Level</th>
+                        <th class="sortable" onclick="handleSortOpenBuildList('effectCount')">Effects</th>
                         <th class="sortable" onclick="handleSortOpenBuildList('updateDate')">Updated</th>
                     </tr>
                 </thead>

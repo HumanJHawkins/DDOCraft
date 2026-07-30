@@ -79,9 +79,21 @@ function computeBuildChecksum(charLevel: number, buildData: Record<string, any>)
   return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
 }
 
+// Plain count of selected options/effects - one per occupied slot plus one per selected inherent
+//   effect. Both are already flat arrays in buildData (see ddocraft.js's updateSave()), so this is
+//   just their combined length - no need to walk the canonicalization above for a simple count.
+function countEffects(buildData: Record<string, any>): number {
+  const positional = Array.isArray(buildData.positional) ? buildData.positional : [];
+  const inherent = Array.isArray(buildData.inherent) ? buildData.inherent : [];
+  return positional.length + inherent.length;
+}
+
+// How many fewer selections trigger an overwrite confirmation instead of proceeding silently.
+const OVERWRITE_CONFIRMATION_DROP_THRESHOLD = 5;
+
 characterBuildsRouter.post("/", async (req, res, next) => {
   const userId = parseUserId(req.body?.userId);
-  const { charName, charLevel, description, appVersion, buildData } = req.body ?? {};
+  const { charName, charLevel, description, appVersion, buildData, confirmOverwrite } = req.body ?? {};
 
   if (userId === null) {
     res.status(400).json({ error: "userId must be a positive integer" });
@@ -105,6 +117,7 @@ characterBuildsRouter.post("/", async (req, res, next) => {
   }
 
   const buildChecksum = computeBuildChecksum(charLevel, buildData);
+  const effectCount = countEffects(buildData);
 
   try {
     // buildChecksum alone deliberately ignores charName (see its schema comment - it's meant to
@@ -113,36 +126,66 @@ characterBuildsRouter.post("/", async (req, res, next) => {
     //   charName has to count too - a mechanically-identical build saved under a different name is
     //   a deliberate second save (e.g. "Backup" vs "PvP Loadout"), not a duplicate re-save of the
     //   same one. So this match composes both: same owner, same name, same build content.
-    const [existing] = await pool.query<RowDataPacket[]>(
+    const [exactMatch] = await pool.query<RowDataPacket[]>(
       `SELECT characterBuildId FROM characterBuild
-       WHERE userId = ? AND charName = ? AND buildChecksum = ?
+       WHERE userId = ? AND charName = ? AND buildChecksum = ? AND deletedDate IS NULL
        ORDER BY updateDate DESC LIMIT 1`,
       [userId, charName, buildChecksum]
     );
 
-    if (existing.length > 0) {
+    if (exactMatch.length > 0) {
       // Not a bare timestamp touch - description/appVersion can differ even when the build itself
       //   (and its name) didn't, and those still need to be persisted rather than silently dropped.
-      const characterBuildId = existing[0].characterBuildId;
+      const characterBuildId = exactMatch[0].characterBuildId;
       await pool.query<ResultSetHeader>(
         `UPDATE characterBuild
-         SET description = ?, appVersion = ?, buildData = ?, buildChecksum = ?, updateBy = ?
+         SET description = ?, appVersion = ?, buildData = ?, buildChecksum = ?, effectCount = ?, updateBy = ?
          WHERE characterBuildId = ?`,
-        [description ?? null, appVersion, JSON.stringify(buildData), buildChecksum,
+        [description ?? null, appVersion, JSON.stringify(buildData), buildChecksum, effectCount,
           SERVICE_IDENTITY, characterBuildId]
       );
       res.status(200).json({ characterBuildId, buildChecksum, created: false });
       return;
     }
 
+    // Different content saved under a name that already has an active build - this is an
+    //   overwrite, not a fresh save. Doesn't literally overwrite: the old row is soft-deleted (see
+    //   its schema comment) and a new row is inserted, so the prior version stays recoverable.
+    const [nameMatch] = await pool.query<RowDataPacket[]>(
+      `SELECT characterBuildId, charLevel, effectCount FROM characterBuild
+       WHERE userId = ? AND charName = ? AND deletedDate IS NULL
+       ORDER BY updateDate DESC LIMIT 1`,
+      [userId, charName]
+    );
+
+    if (nameMatch.length > 0) {
+      const existing = nameMatch[0];
+      const drop = existing.effectCount - effectCount;
+      if (!confirmOverwrite && drop >= OVERWRITE_CONFIRMATION_DROP_THRESHOLD) {
+        res.status(409).json({
+          needsConfirmation: true,
+          existingCharName: charName,
+          existingCharLevel: existing.charLevel,
+          existingEffectCount: existing.effectCount,
+          newEffectCount: effectCount
+        });
+        return;
+      }
+
+      await pool.query<ResultSetHeader>(
+        "UPDATE characterBuild SET deletedDate = NOW(), updateBy = ? WHERE characterBuildId = ?",
+        [SERVICE_IDENTITY, existing.characterBuildId]
+      );
+    }
+
     const characterBuildId = randomUUID();
     await pool.query<ResultSetHeader>(
       `INSERT INTO characterBuild
          (characterBuildId, userId, charName, charLevel, description, appVersion, buildData,
-          buildChecksum, createBy, updateBy)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          buildChecksum, effectCount, createBy, updateBy)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [characterBuildId, userId, charName, charLevel, description ?? null, appVersion,
-        JSON.stringify(buildData), buildChecksum, SERVICE_IDENTITY, SERVICE_IDENTITY]
+        JSON.stringify(buildData), buildChecksum, effectCount, SERVICE_IDENTITY, SERVICE_IDENTITY]
     );
     res.status(201).json({ characterBuildId, buildChecksum, created: true });
   } catch (err) {
@@ -181,15 +224,16 @@ characterBuildsRouter.put("/:id", async (req, res, next) => {
   }
 
   const buildChecksum = computeBuildChecksum(charLevel, buildData);
+  const effectCount = countEffects(buildData);
 
   try {
     const [result] = await pool.query<ResultSetHeader>(
       `UPDATE characterBuild
        SET charName = ?, charLevel = ?, description = ?, appVersion = ?, buildData = ?,
-           buildChecksum = ?, updateBy = ?
-       WHERE characterBuildId = ? AND userId = ?`,
+           buildChecksum = ?, effectCount = ?, updateBy = ?
+       WHERE characterBuildId = ? AND userId = ? AND deletedDate IS NULL`,
       [charName, charLevel, description ?? null, appVersion, JSON.stringify(buildData),
-        buildChecksum, SERVICE_IDENTITY, characterBuildId, userId]
+        buildChecksum, effectCount, SERVICE_IDENTITY, characterBuildId, userId]
     );
     if (result.affectedRows === 0) {
       res.status(404).json({ error: "not found" });
@@ -210,8 +254,8 @@ characterBuildsRouter.get("/", async (req, res, next) => {
 
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT characterBuildId, charName, charLevel, description, updateDate
-       FROM characterBuild WHERE userId = ? ORDER BY updateDate DESC`,
+      `SELECT characterBuildId, charName, charLevel, description, effectCount, updateDate
+       FROM characterBuild WHERE userId = ? AND deletedDate IS NULL ORDER BY updateDate DESC`,
       [userId]
     );
     res.json(rows);
@@ -223,6 +267,8 @@ characterBuildsRouter.get("/", async (req, res, next) => {
 // No userId check here, deliberately: characterBuildId is a random, unguessable GUID - knowing it
 //   is what grants read access (the same way a Google Docs "anyone with the link" URL works), so
 //   this is the one route both a build's own owner AND anyone they've shared the id with can use.
+// Still filters out soft-deleted rows - a superseded build shouldn't be reachable via a stale link
+//   either.
 characterBuildsRouter.get("/:id", async (req, res, next) => {
   const characterBuildId = req.params.id;
 
@@ -234,8 +280,8 @@ characterBuildsRouter.get("/:id", async (req, res, next) => {
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT characterBuildId, charName, charLevel, description, appVersion, buildData,
-              buildChecksum, updateDate
-       FROM characterBuild WHERE characterBuildId = ?`,
+              buildChecksum, effectCount, updateDate
+       FROM characterBuild WHERE characterBuildId = ? AND deletedDate IS NULL`,
       [characterBuildId]
     );
     if (rows.length === 0) {
