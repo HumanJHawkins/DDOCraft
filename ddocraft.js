@@ -135,11 +135,13 @@ function initialize() {
 }
 
 function loadEnchantmentOptions() {
-    // WARNING: Requires JSON file ordered by category then item then slot then color.
-    // This is the one function that knows about the flat/duplicated ddocraft.json shape - the
-    //   rest of the app only ever sees charData.enchantments / charData.catalog. Swapping this
-    //   for a live API later (normalized export or MariaDB-backed) means rewriting this function
-    //   only, as long as it still produces the same two structures.
+    // WARNING: Requires the response ordered by category then item then slot then color (the
+    //   server-side view this hits is ORDER BY'd to match - see db/create_catalog_views.sql).
+    // This is the one function that knows about the flat/duplicated catalog row shape - the rest
+    //   of the app only ever sees charData.enchantments/charData.catalog. Was ddocraft.json (a
+    //   static export) until 2026-07-30, now /api/catalog (live from MariaDB) - buildCatalog()
+    //   itself needed zero changes, since the endpoint was built to match the exact row shape the
+    //   static export already produced.
     let itemOptionsRequest                = new XMLHttpRequest();
     itemOptionsRequest.onreadystatechange = function () {
         if (this.readyState === 4 && this.status === 200) {
@@ -148,7 +150,7 @@ function loadEnchantmentOptions() {
     };
 
     // TO DO: Consider convert to asynchronous? Is there something we can do while it loads?
-    itemOptionsRequest.open("GET", "ddocraft.json", false);
+    itemOptionsRequest.open("GET", "/api/catalog", false);
     itemOptionsRequest.send();
 }
 
