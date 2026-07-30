@@ -2,9 +2,8 @@
 
 1. Extend the API (`server/`) with endpoints for `itemCategory`, `augmentOption`, `cannithCategoryOption`.
 2. Rewrite the client to consume the live API instead of the static `ddocraft.json` export. This also resolves the `WEAPON_CATEGORIES` question (see Known Issues - the real data already confirms the answer, the client just isn't reading it yet) and lets effect descriptions use `effectBonusByLevel` instead of a static description string.
-3. Maybe do: an optional prepopulated dropdown of popular named/custom items, layered on top of manual entry, seeded once real usage data exists to mine (e.g. several independent users entering the same effect set for the same item name).
-4. Better visual treatment for collapsed items (standard chevrons?).
-5. **DB-backed save, phase 2**: wire the client to the new `/api/character-builds` endpoints (see Done.md) instead of local JSON file save/load - JSON export/import stays available as a fallback, not retired. Requires GateIron.com's shared account system (site-wide login via Auth.js, MySQL-backed sessions, Google/GitHub OAuth) to exist first, so `characterBuild.userId` can come from a real authenticated session instead of the current caller-supplied placeholder. That account system is being designed/built as a GateIron.com-level effort, not scoped to this repo.
+3. Better visual treatment for collapsed items (standard chevrons?).
+4. **Real accounts for `characterBuild.userId`**: the DB-backed save/open/history/rollback/delete mechanism itself is built and working (see Done.md) - what's left is swapping the manual "Test User ID" field for a real authenticated session's userId. Requires GateIron.com's shared account system (site-wide login via Auth.js, MySQL-backed sessions, Google/GitHub OAuth) to exist first - that's being designed/built as a GateIron.com-level effort, not scoped to this repo.
 
 ## Known Issues
 
@@ -26,3 +25,5 @@
 
 - Shared multi-party editing (two people collaboratively viewing/editing the *same* character build in real time) — deferred 2026-07-29. The "Open a build from someone else's share link" design (see Done.md once built) is single-owner: opening a shared build forks it into a new, independent build owned by the opener, never a live-shared/co-edited row. Real multi-party editing is a materially bigger feature (concurrency, conflict resolution, presence) and has no design yet.
 - Undo for deleting a build's last active version — deferred 2026-07-29. Delete (Open Build dialog) is a soft delete, so the row survives in the DB, but there's currently no UI path back to it: History is only reachable from an active row under that name, and deleting the last one removes that path entirely. A real fix means a general "browse fully-deleted/orphaned builds" recovery screen - close to the broader "Recover Deleted" design considered and set aside in favor of the simpler per-build Rollback/History feature (see Done.md). Not building now; the Delete confirmation is honest about there being no undo today.
+- An optional prepopulated dropdown of popular named/custom items, layered on top of manual entry, seeded once real usage data exists to mine (e.g. several independent users entering the same effect set for the same item name).
+- The Character Info section's brown/light-orange styling, tried document-wide on every table's background/borders 2026-07-30 as a look-and-feel preview (see Done.md) — not committed to. If kept, the individual controls (buttons, inputs) would need matching treatment next; currently only backgrounds and borders were touched.
