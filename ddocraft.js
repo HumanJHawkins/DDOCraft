@@ -1169,12 +1169,17 @@ function handleRename(fixBoth = false) {
         }
 
     }
+    updateSaveDownloadEnabled();  // charName is part of isDirty()'s snapshot but nothing else
+                                   //   re-checks it - unlike level/selections, this field's own
+                                   //   onchange never otherwise triggers a render.
 }
 
 function handleClassChange() {
     let select = document.getElementById("characterClass");
     charData.saveFile.className = select.options[select.selectedIndex].text;
     if (!select.value) { charData.saveFile.className = ""; }
+    updateSaveDownloadEnabled();  // className is part of isDirty()'s snapshot but nothing else
+                                   //   re-checks it - same gap as handleRename() above.
 }
 
 // Matches by name, not id - a loaded build's className is stored as plain text (see buildData's
