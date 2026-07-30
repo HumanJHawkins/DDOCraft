@@ -1276,7 +1276,9 @@ function isNamedItemDirty(category) {
 //   see db/ddocraft_schema.sql's namedItem comment for why that's intentional, not a bug. A blank
 //   name can't be saved (nothing to key the upsert on). Confirms before actually overwriting an
 //   existing entry - unlike a fresh save under a brand new name, that's a real "lose data" moment if
-//   what's currently entered has fewer augments/effects than what's already saved there.
+//   what's currently entered has fewer augment slots/inherent effects than what's already saved
+//   there. Wording deliberately says "augment slots," not "augments" - augment SELECTIONS (which
+//   enchantment fills each slot) are never part of what's saved at all, see buildNamedItemPayload().
 //
 // button is null when called programmatically (see handleCategoryModeToggle's Save choice) rather
 //   than from a real click - onDone, if given, runs only after the save actually completes.
@@ -1286,7 +1288,7 @@ function handleSaveNamedItem(button, category, onDone) {
 
     let existing = allNamedItems.find(function (n) { return n.category === category && n.itemName === custom.name; });
     if (existing && !confirm("Overwrite the previously saved Named Item \"" + custom.name +
-            "\"? This replaces its saved augments, effects, and description.")) {
+            "\"? This replaces its saved augment slots, inherent effects, and description.")) {
         return;
     }
 
