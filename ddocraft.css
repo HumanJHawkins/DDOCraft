@@ -377,6 +377,25 @@ img {
     width: 7vw;
 }
 
+.inherentDoneWrap {
+    text-align: center;
+    margin-top: 1vw;
+}
+
+.inherentDoneBtn {
+    display: inline-block;
+    padding: .2vw .8vw;
+    background-color: #1a1a19;
+    color: #c3c2b7;
+    border: 1px solid #444;
+    font-size: calc(5px + .625vw);
+    cursor: pointer;
+}
+
+.inherentDoneBtn:hover {
+    background-color: #333333;
+}
+
 .augment {
     font-size: calc(4px + .5vw);
     padding: 0;

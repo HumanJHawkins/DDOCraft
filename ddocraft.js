@@ -547,9 +547,36 @@ function renderEnchantmentOptions() {
 }
 
 function updateSaveDownloadEnabled() {
-    let enabled = hasValidCharLevel();
-    document.getElementById("iconSave").classList.toggle("disabled", !enabled);
-    document.getElementById("iconDownload").classList.toggle("disabled", !enabled);
+    let levelValid = hasValidCharLevel();
+    document.getElementById("iconSave").classList.toggle("disabled", !levelValid || !isDirty());
+    document.getElementById("iconDownload").classList.toggle("disabled", !levelValid);
+}
+
+// ---- Unsaved-changes tracking ----
+//
+// null means "no baseline yet" (never saved or loaded this session) - always dirty in that state,
+//   so a brand-new build's Save button is enabled as soon as it has a valid level, same as before
+//   this tracking existed. Once a save or load establishes a baseline, dirty means "differs from
+//   that baseline" until the next save or load moves it.
+
+let lastSavedSnapshot = null;
+
+function computeContentSnapshot() {
+    updateSave();
+    let sf = charData.saveFile;
+    return JSON.stringify({
+        charName: sf.charName, charLevel: sf.charLevel, className: sf.className,
+        positional: sf.positional, inherent: sf.inherent,
+        categoryMode: sf.categoryMode, customItems: sf.customItems
+    });
+}
+
+function isDirty() {
+    return lastSavedSnapshot === null || computeContentSnapshot() !== lastSavedSnapshot;
+}
+
+function markSaved() {
+    lastSavedSnapshot = computeContentSnapshot();
 }
 
 function renderSlotRow(category, item, slot, colorMap, idx) {
@@ -791,17 +818,23 @@ function renderInherentPicker(category, idx) {
     let collapsed    = charData.collapsed.slot.has(slotKey);
     let hasSelection = inherentHasSelection(category, item);
     let onclickAttr  = "onclick=\"toggleSlot('" + escJs(category) + "','" + escJs(item) + "','InherentEffects')\"";
+    // No onclick of its own - it sits inside the already-clickable slot cell above, so a click
+    //   bubbles up to the same toggleSlot() the label itself uses. Label text alone doesn't read as
+    //   clickable once a long picker list is open below it, so this gives that same action a
+    //   visible, mode-appropriate affordance.
+    let toggleBtn    = "<div class='inherentDoneWrap'><button type='button' class='inherentDoneBtn'>" +
+        (collapsed ? "Edit" : "Done") + "</button></div>";
 
     if (collapsed && !hasSelection) {
         // Stays visible even when empty - inherent effects aren't options to pick so much as
         //   properties to identify, hence no count here (contrast with a real slot's "N available").
         return "<tr class='collapsed'><td class='slot' " + onclickAttr +
-            ">Inherent Effects</td><td class='options'>No effects identified.</td></tr>";
+            ">Inherent Effects" + toggleBtn + "</td><td class='options'>No effects identified.</td></tr>";
     }
 
     let trClass = collapsed ? " class='collapsed'" : "";
     let html = "<tr" + trClass + "><td class='slot' " + onclickAttr +
-        ">Inherent Effects</td><td class='options'><div class='ench'> ";
+        ">Inherent Effects" + toggleBtn + "</td><td class='options'><div class='ench'> ";
     let selectedSet = (charData.selections.inherent[category] || {})[item];
     for (let enchName of Object.keys(charData.enchantments).sort()) {
         let isSelected = !!selectedSet && selectedSet.has(enchName);
@@ -1270,10 +1303,32 @@ function handleDownloadReport() {
     downloadJSON(buildMarkdownReport(), charName + "_build.md", "text/markdown");
 }
 
+// Guards any action that's about to replace the whole in-memory build (opening a different saved
+//   build, rolling back, loading a file from disk) with a chance to save first - two plain
+//   confirm()s stand in for a three-way Save/Discard/Cancel choice, consistent with every other
+//   dialog in this app being a native confirm() rather than a custom modal.
+// Returns true if the caller should proceed now (nothing unsaved, or the user chose to discard).
+// Returns false if the caller should stop - either a save was kicked off (the user can retry the
+//   action once it finishes) or they cancelled outright.
+function confirmDiscardUnsavedChanges(actionLabel) {
+    if (!isDirty()) { return true; }
+
+    let name = charData.saveFile.charName || "this build";
+    if (confirm("You have unsaved changes to \"" + name + "\". Save before " + actionLabel + "?")) {
+        handleSaveToServer();
+        return false;
+    }
+    return confirm("Discard the unsaved changes to \"" + name + "\" and " + actionLabel + " anyway?");
+}
+
 // File Loading
 document.getElementById('loadFile').onchange = function () {
     let files = document.getElementById('loadFile').files;
     if (files.length <= 0) { return false; }
+    if (!confirmDiscardUnsavedChanges("loading a file")) {
+        document.getElementById('loadFile').value = "";
+        return false;
+    }
 
     let fr    = new FileReader();
     fr.onload = function (e) {
@@ -1289,6 +1344,7 @@ document.getElementById('loadFile').onchange = function () {
         }
 
         handleLoad(incomingFile);
+        markSaved();
         renderEnchantmentOptions();
         renderResult();
     }
@@ -1391,9 +1447,7 @@ function handleSaveToServer() {
     let payload = {
         userId: getTestUserId(),
         charName: charData.saveFile.charName,
-        charLevel: Number(charData.saveFile.charLevel),  // saveFile.charLevel is a string (straight
-                                                           //   from the <input>'s .value) - the API
-                                                           //   requires a real integer.
+        charLevel: charData.saveFile.charLevel,
         description: null,  // no character-level description field in the client yet (planned, not built)
         appVersion: String(charData.saveFile.version),
         buildData: charData.saveFile
@@ -1412,11 +1466,9 @@ function submitCharacterBuildSave(payload) {
             if (r.status === 409) {
                 return r.json().then(function (body) { return handleSaveOverwriteConfirmation(payload, body); });
             }
-            return rejectIfNotOk(r).then(function (data) {
-                let message = data.created
-                    ? "Saved to server as a new build."
-                    : "No changes since your last save under this name - updated the timestamp instead of creating a duplicate.";
-                alert(message + " Build id: " + data.characterBuildId);
+            return rejectIfNotOk(r).then(function () {
+                markSaved();
+                updateSaveDownloadEnabled();
             });
         })
         .catch(function (err) { alert("Save to server failed: " + err.message); });
@@ -1582,6 +1634,7 @@ function handleRollback(characterBuildId, dateText, effectCount) {
     let message = "Are you sure you want to roll back to the version from " + dateText +
         " with " + effectCount + " effect selections?";
     if (!confirm(message)) { return; }
+    if (!confirmDiscardUnsavedChanges("rolling back")) { return; }
 
     fetch(CHARACTER_BUILD_API_BASE + "/" + characterBuildId + "/rollback", {
         method: "POST",
@@ -1604,6 +1657,7 @@ function handleOpenBuildLinkClick(event, characterBuildId) {
     //   navigation too; only a plain click gets the fast in-page path.
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.button !== 0) { return true; }
     event.preventDefault();
+    if (!confirmDiscardUnsavedChanges("opening a different build")) { return false; }
     loadCharacterBuildFromServer(characterBuildId);
     dialogOpenBuild.style.display = 'none';
     return false;
@@ -1617,6 +1671,7 @@ function loadCharacterBuildFromServer(characterBuildId) {
         .then(function (r) { return rejectIfNotOk(r); })
         .then(function (build) {
             handleLoad(build.buildData);
+            markSaved();
             renderEnchantmentOptions();
             renderResult();
         })
