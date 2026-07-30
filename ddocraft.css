@@ -39,12 +39,15 @@ table {
     margin: .5vw;
     padding: 0;
     width: 100%;
+    background-color: #1c160e;  /* PREVIEW: Character Info's brown, tried on every table - see
+                                    ddocraft.css's other table/border color overrides below for the
+                                    same preview applied consistently; not a final decision yet. */
 }
 
 td {
     text-align: left;
     vertical-align: top;
-    border: 1px solid #2c2c2a;
+    border: 1px solid #a8862d;  /* PREVIEW: Character Info's light-orange accent, see above */
     border-collapse: collapse;
     /*width: 1%;*/
     padding: .5vw;
@@ -542,7 +545,7 @@ button.handled, button.blocked {
 .result th, .result td {
     text-align: left;
     vertical-align: top;
-    border: 1px solid black;
+    border: 1px solid #a8862d;  /* PREVIEW: see table/td at the top of this file */
     border-collapse: collapse;
     /*width: 1%;*/
     padding: 0;
@@ -589,7 +592,7 @@ button.handled, button.blocked {
 .openBuildTable th, .openBuildTable td {
     text-align: left;
     padding: .4vw .8vw;
-    border-bottom: 1px solid #444;
+    border-bottom: 1px solid #a8862d;  /* PREVIEW: see table/td at the top of this file */
 }
 
 .openBuildTable th.sortable {
@@ -606,6 +609,12 @@ button.handled, button.blocked {
     white-space: nowrap;
 }
 
+.openBuildColDelete {
+    width: 1%;
+    white-space: nowrap;
+    text-align: right;
+}
+
 .openBuildOpenLink {
     display: inline-block;
     padding: .2vw .8vw;
@@ -617,4 +626,11 @@ button.handled, button.blocked {
 
 .openBuildOpenLink:hover {
     background-color: #333333;
+}
+
+.openBuildCurrentLabel {
+    display: inline-block;
+    padding: .2vw .8vw;
+    color: #777;
+    font-style: italic;
 }

@@ -25,6 +25,12 @@ let extraSlotMinLevel = 10;
 //   top-level execution, permanently breaking every `let` declared after it in the file.
 let lastSavedSnapshot = null;
 
+// The server characterBuildId of whatever's currently loaded in the editor, or null if it's never
+//   been saved/loaded from the server this session (a brand-new build, or one loaded from a local
+//   file). Lets the Open/History dialogs recognize "this row is what you already have open" and
+//   adjust their Open link instead of offering a redundant/confusing plain re-open.
+let currentServerBuildId = null;
+
 let charData = {
     // enchantments[enchName] = { enchName, enchEffectType, enchDesc, enchSupercededBy,
     //   enchCannithMinLevel, enchAugmentMinLevel, allEnch, basic, nonscaling, for<Role>... }
@@ -622,7 +628,12 @@ function renderSlotRow(category, item, slot, colorMap, idx) {
 function renderColorGroup(category, item, slot, color, enchNames, isAugment, idx) {
     let slotKey      = item + "|" + slot;
     let colorKey     = slotKey + "|" + color;
-    let collapsed    = isAugment && charData.collapsed.color.has(colorKey);
+    // Not gated on isAugment - a non-augment slot has exactly one virtual color (""), and
+    //   setSlotCollapsed() already keeps it in lockstep with the slot's own flag, same as every
+    //   augment color. Gating this on isAugment used to make that virtual color always read as
+    //   expanded, so a collapsed Prefix/Suffix/Extra slot with something selected in it still
+    //   rendered every option instead of just the selected one.
+    let collapsed    = charData.collapsed.color.has(colorKey);
     let hasSelection = colorHasSelection(item, slot, color);
     let onclickAttr  = "onclick=\"toggleColor('" + escJs(category) + "','" + escJs(item) + "','" +
         escJs(slot) + "','" + escJs(color) + "')\"";
@@ -1354,6 +1365,7 @@ document.getElementById('loadFile').onchange = function () {
         }
 
         handleLoad(incomingFile);
+        currentServerBuildId = null;  // a local file has no known server id to match against
         markSaved();
         renderEnchantmentOptions();
         renderResult();
@@ -1476,7 +1488,8 @@ function submitCharacterBuildSave(payload) {
             if (r.status === 409) {
                 return r.json().then(function (body) { return handleSaveOverwriteConfirmation(payload, body); });
             }
-            return rejectIfNotOk(r).then(function () {
+            return rejectIfNotOk(r).then(function (data) {
+                currentServerBuildId = data.characterBuildId;
                 markSaved();
                 updateSaveDownloadEnabled();
             });
@@ -1569,20 +1582,36 @@ function sortOpenBuildList() {
     });
 }
 
+// Shared by the Open Build and History dialogs - both need to recognize "this row is what's
+//   already loaded in the editor" the same way: no Open control at all if it's the current build
+//   and nothing's changed since (there's nothing to open), relabeled to Revert if it's the current
+//   build but has since been edited (loading it again really does discard those edits), otherwise
+//   a plain Open.
+function renderOpenLinkCell(characterBuildId) {
+    let isCurrent = characterBuildId === currentServerBuildId;
+    if (isCurrent && !isDirty()) { return "<span class='openBuildCurrentLabel'>(current)</span>"; }
+
+    let label       = isCurrent ? "Revert" : "Open";
+    let actionLabel = isCurrent ? "reverting to the last saved version" : "opening a different build";
+    let url         = "ddocraft.php?openBuild=" + encodeURIComponent(characterBuildId);
+    return "<a class='openBuildOpenLink' href=\"" + escHtml(url) +
+        "\" onclick=\"return handleOpenBuildLinkClick(event,'" + escJs(characterBuildId) + "','" +
+        escJs(actionLabel) + "')\">" + label + "</a>";
+}
+
 function renderOpenBuildTableBody() {
     document.getElementById("openBuildEmpty").style.display = openBuildList.length === 0 ? "block" : "none";
 
     let html = "";
     for (let build of openBuildList) {
-        let url = "ddocraft.php?openBuild=" + encodeURIComponent(build.characterBuildId);
-        html += "<tr><td class='openBuildColOpen'><a class='openBuildOpenLink' href=\"" + escHtml(url) +
-            "\" onclick=\"return handleOpenBuildLinkClick(event,'" + escJs(build.characterBuildId) +
-            "')\">Open</a> <button class='openBuildOpenLink' onclick=\"handleShowBuildHistory('" +
-            escJs(build.charName) + "')\">History</button> <button class='openBuildOpenLink' onclick=\"handleDeleteBuild('" +
-            escJs(build.characterBuildId) + "','" + escJs(build.charName) + "'," + build.charLevel +
-            ")\">Delete</button></td><td>" + escHtml(build.charName) +
+        html += "<tr><td class='openBuildColOpen'>" + renderOpenLinkCell(build.characterBuildId) +
+            " <button class='openBuildOpenLink' onclick=\"handleShowBuildHistory('" +
+            escJs(build.charName) + "')\">History</button></td><td>" + escHtml(build.charName) +
             "</td><td>" + build.charLevel + "</td><td>" + build.effectCount + "</td><td>" +
-            escHtml(formatBuildDate(build.updateDate)) + "</td></tr>";
+            escHtml(formatBuildDate(build.updateDate)) + "</td><td class='openBuildColDelete'>" +
+            "<button class='openBuildOpenLink' onclick=\"handleDeleteBuild('" +
+            escJs(build.characterBuildId) + "','" + escJs(build.charName) + "'," + build.charLevel +
+            ")\">Delete</button></td></tr>";
     }
     document.getElementById("openBuildTableBody").innerHTML = html;
 }
@@ -1626,9 +1655,7 @@ function renderBuildHistoryTableBody() {
     for (let build of buildHistoryList) {
         let actionCell;
         if (build.deletedDate === null) {
-            let url = "ddocraft.php?openBuild=" + encodeURIComponent(build.characterBuildId);
-            actionCell = "<a class='openBuildOpenLink' href=\"" + escHtml(url) +
-                "\" onclick=\"return handleOpenBuildLinkClick(event,'" + escJs(build.characterBuildId) + "')\">Open</a>";
+            actionCell = renderOpenLinkCell(build.characterBuildId);
         } else {
             actionCell = "<button class='openBuildOpenLink' onclick=\"handleRollback('" +
                 escJs(build.characterBuildId) + "','" + escJs(formatBuildDate(build.updateDate)) + "'," +
@@ -1660,14 +1687,14 @@ function handleRollback(characterBuildId, dateText, effectCount) {
         .catch(function (err) { alert("Roll back failed: " + err.message); });
 }
 
-function handleOpenBuildLinkClick(event, characterBuildId) {
+function handleOpenBuildLinkClick(event, characterBuildId, actionLabel) {
     // Right-click and middle-click never reach this handler at all (the browser handles those
     //   itself, straight off the real href) - only a plain or modified left-click does. A modified
     //   click (ctrl/cmd/shift, opening a new tab/window) should fall through to that same native
     //   navigation too; only a plain click gets the fast in-page path.
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.button !== 0) { return true; }
     event.preventDefault();
-    if (!confirmDiscardUnsavedChanges("opening a different build")) { return false; }
+    if (!confirmDiscardUnsavedChanges(actionLabel || "opening a different build")) { return false; }
     loadCharacterBuildFromServer(characterBuildId);
     dialogOpenBuild.style.display = 'none';
     return false;
@@ -1681,6 +1708,7 @@ function loadCharacterBuildFromServer(characterBuildId) {
         .then(function (r) { return rejectIfNotOk(r); })
         .then(function (build) {
             handleLoad(build.buildData);
+            currentServerBuildId = build.characterBuildId;
             markSaved();
             renderEnchantmentOptions();
             renderResult();

@@ -172,8 +172,12 @@ characterBuildsRouter.post("/", async (req, res, next) => {
         return;
       }
 
+      // updateDate = updateDate suppresses the column's own ON UPDATE CURRENT_TIMESTAMP - a soft
+      //   delete is a status change, not a content change, and letting it bump updateDate anyway
+      //   used to tie (or beat) the new row's own timestamp, since DATETIME here has only
+      //   whole-second precision and the insert below follows within the same request.
       await pool.query<ResultSetHeader>(
-        "UPDATE characterBuild SET deletedDate = NOW(), updateBy = ? WHERE characterBuildId = ?",
+        "UPDATE characterBuild SET deletedDate = NOW(), updateBy = ?, updateDate = updateDate WHERE characterBuildId = ?",
         [SERVICE_IDENTITY, existing.characterBuildId]
       );
     }
@@ -267,8 +271,10 @@ characterBuildsRouter.get("/", async (req, res, next) => {
 // Registered before GET /:id on purpose - Express matches routes in order, and /:id would
 //   otherwise swallow "history" as if it were an id.
 //
-// Every version (active and soft-deleted) of one specific build, newest first - the active row
-//   always sorts first, since a rollback or overwrite always touches updateDate. No userId-vs-
+// Every version (active and soft-deleted) of one specific build, newest by updateDate - which is
+//   really "newest by last real content change," since soft-delete/rollback deliberately don't
+//   touch updateDate (see the overwrite/rollback comments above). The active row isn't guaranteed
+//   to sort first here; deletedDate IS NULL is what actually marks it, not position. No userId-vs-
 //   ownership ambiguity here despite returning deleted rows too: this is scoped to userId, unlike
 //   the unguessable-GUID single-GET below.
 characterBuildsRouter.get("/history", async (req, res, next) => {
@@ -324,12 +330,15 @@ characterBuildsRouter.post("/:id/rollback", async (req, res, next) => {
     }
     const charName = target[0].charName;
 
+    // Both sides of the swap are pure status changes (see the overwrite comment above for why
+    //   updateDate is deliberately left alone) - a rolled-back-to version keeps showing when its
+    //   content actually last changed, not when someone happened to roll back to it.
     await pool.query<ResultSetHeader>(
-      "UPDATE characterBuild SET deletedDate = NOW(), updateBy = ? WHERE userId = ? AND charName = ? AND deletedDate IS NULL",
+      "UPDATE characterBuild SET deletedDate = NOW(), updateBy = ?, updateDate = updateDate WHERE userId = ? AND charName = ? AND deletedDate IS NULL",
       [SERVICE_IDENTITY, userId, charName]
     );
     await pool.query<ResultSetHeader>(
-      "UPDATE characterBuild SET deletedDate = NULL, updateBy = ? WHERE characterBuildId = ?",
+      "UPDATE characterBuild SET deletedDate = NULL, updateBy = ?, updateDate = updateDate WHERE characterBuildId = ?",
       [SERVICE_IDENTITY, characterBuildId]
     );
 
@@ -387,7 +396,7 @@ characterBuildsRouter.delete("/:id", async (req, res, next) => {
 
   try {
     const [result] = await pool.query<ResultSetHeader>(
-      "UPDATE characterBuild SET deletedDate = NOW() WHERE characterBuildId = ? AND userId = ? AND deletedDate IS NULL",
+      "UPDATE characterBuild SET deletedDate = NOW(), updateDate = updateDate WHERE characterBuildId = ? AND userId = ? AND deletedDate IS NULL",
       [characterBuildId, userId]
     );
     if (result.affectedRows === 0) {

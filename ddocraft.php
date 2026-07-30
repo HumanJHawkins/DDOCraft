@@ -62,7 +62,7 @@ updateCounter();
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>DDOCraft: Cannith Crafting Planner b0.8</title>
+    <title>DDOCraft: Cannith Crafting Planner</title>
     <link rel="stylesheet" href="ddocraft.css">
     <script src="ddocraft.js" defer></script>
 </head>
@@ -141,6 +141,7 @@ updateCounter();
                         <th class="sortable" onclick="handleSortOpenBuildList('charLevel')">Level</th>
                         <th class="sortable" onclick="handleSortOpenBuildList('effectCount')">Effects</th>
                         <th class="sortable" onclick="handleSortOpenBuildList('updateDate')">Updated</th>
+                        <th class="openBuildColDelete"></th>
                     </tr>
                 </thead>
                 <tbody id="openBuildTableBody"></tbody>
@@ -172,7 +173,7 @@ updateCounter();
 
 <!--<h3>ISSUE: Prior save files may lose their Character Level setting. Please reset that and re-save.<br /> </h3>-->
 <!--<h3><br /></h3>-->
-<h1 style="float:left">DDO Cannith Crafting Planner b0.98</h1>
+<h1 style="float:left">DDO Cannith Crafting Planner</h1>
 <h1 style="float:right"><img src="image/blank.png" alt="" class="iconButtonSpacer"/><img src="image/blank.png"
                                                                                          alt=""
                                                                                          class="iconButtonSpacer"/>
