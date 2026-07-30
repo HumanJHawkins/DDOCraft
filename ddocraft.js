@@ -1320,21 +1320,31 @@ function handleDownloadReport() {
 }
 
 // Guards any action that's about to replace the whole in-memory build (opening a different saved
-//   build, rolling back, loading a file from disk) with a chance to save first - two plain
-//   confirm()s stand in for a three-way Save/Discard/Cancel choice, consistent with every other
-//   dialog in this app being a native confirm() rather than a custom modal.
-// Returns true if the caller should proceed now (nothing unsaved, or the user chose to discard).
-// Returns false if the caller should stop - either a save was kicked off (the user can retry the
-//   action once it finishes) or they cancelled outright.
-function confirmDiscardUnsavedChanges(actionLabel) {
-    if (!isDirty()) { return true; }
+//   build, rolling back) - calls proceedFn() once it's actually safe to do so: immediately if
+//   nothing's unsaved, after a successful save if the user chooses to save first (chained through
+//   handleSaveToServer()'s onSaved callback, so the action really does happen once the save
+//   finishes rather than needing a second click), or immediately - discarding - if they choose not
+//   to save. Does nothing at all, leaving proceedFn() uncalled, if they cancel outright. Two plain
+//   confirm()s stand in for the three-way Save/Don't Save/Cancel choice, consistent with every
+//   other dialog in this app being a native confirm() rather than a custom modal.
+function confirmDiscardUnsavedChanges(proceedFn) {
+    if (!isDirty()) { proceedFn(); return; }
 
     let name = charData.saveFile.charName || "this build";
-    if (confirm("You have unsaved changes to \"" + name + "\". Save before " + actionLabel + "?")) {
-        handleSaveToServer();
-        return false;
+    if (confirm("Save changes before leaving \"" + name + "\"?")) {
+        handleSaveToServer(proceedFn);
+        return;
     }
-    return confirm("Discard the unsaved changes to \"" + name + "\" and " + actionLabel + " anyway?");
+    if (confirm("Discard changes to \"" + name + "\" and leave without saving?")) {
+        proceedFn();
+    }
+}
+
+// Revert's only purpose is to intentionally throw away unsaved changes - offering to save first
+//   would contradict the point of clicking it, so this is a plain two-way confirm, not the
+//   three-way guard above.
+function confirmRevert() {
+    return !isDirty() || confirm("Discard changes and revert to last saved copy?");
 }
 
 function handleLoad(incomingFile) {
@@ -1397,29 +1407,27 @@ function handleLoad(incomingFile) {
     charData.collapsed.color = new Set(incomingCollapsed.color || []);
 }
 
-// ---- Server save/open (temporary test harness) ----
+// ---- Server save/open ----
 //
-// Phase 1 has no real accounts - there's no session to identify who's saving, so a plain "Test
-//   User ID" field stands in for it, letting anyone testing this pick any integer and see that
-//   builds really are scoped per-id (a different id sees a different, empty list). This whole
-//   section gets replaced once GateIron.com's real accounts exist and userId comes from an
-//   authenticated session instead of a text box - not extended, just swapped out.
+// Phase 1 has no real accounts - there's no session to identify who's saving, so getUserId() is a
+//   hardcoded placeholder. Swapped out (not extended) once GateIron.com's real accounts exist and
+//   userId comes from an authenticated session instead - see TO DO.md.
 
 const CHARACTER_BUILD_API_BASE = "/api/character-builds";
 
-// Hardcoded until GateIron.com's real accounts exist and this can come from an authenticated
-//   session instead (see TO DO.md) - the visible "Test User ID" field this used to read is gone,
-//   there being no real multi-user concept to test yet.
-function getTestUserId() {
+function getUserId() {
     return 1;
 }
 
-function handleSaveToServer() {
+// onSaved, if given, is called once the save actually completes - lets a caller chain into
+//   whatever the save was blocking (see confirmDiscardUnsavedChanges()) instead of the user
+//   needing to retry their original action once the save finishes on its own.
+function handleSaveToServer(onSaved) {
     handleRename(true);
     updateSave();
 
     let payload = {
-        userId: getTestUserId(),
+        userId: getUserId(),
         charName: charData.saveFile.charName,
         charLevel: charData.saveFile.charLevel,
         description: null,  // no character-level description field in the client yet (planned, not built)
@@ -1427,10 +1435,10 @@ function handleSaveToServer() {
         buildData: charData.saveFile
     };
 
-    submitCharacterBuildSave(payload);
+    submitCharacterBuildSave(payload, onSaved);
 }
 
-function submitCharacterBuildSave(payload) {
+function submitCharacterBuildSave(payload, onSaved) {
     fetch(CHARACTER_BUILD_API_BASE, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
@@ -1438,12 +1446,13 @@ function submitCharacterBuildSave(payload) {
     })
         .then(function (r) {
             if (r.status === 409) {
-                return r.json().then(function (body) { return handleSaveOverwriteConfirmation(payload, body); });
+                return r.json().then(function (body) { return handleSaveOverwriteConfirmation(payload, body, onSaved); });
             }
             return rejectIfNotOk(r).then(function (data) {
                 currentServerBuildId = data.characterBuildId;
                 markSaved();
                 updateSaveDownloadEnabled();
+                if (onSaved) { onSaved(); }
             });
         })
         .catch(function (err) { alert("Save to server failed: " + err.message); });
@@ -1451,8 +1460,9 @@ function submitCharacterBuildSave(payload) {
 
 // The server declines to overwrite an existing build with one that has 5+ fewer selections
 //   without an explicit confirm - re-submits the same payload with confirmOverwrite:true on yes,
-//   does nothing further on cancel (the existing build is untouched either way).
-function handleSaveOverwriteConfirmation(payload, body) {
+//   does nothing further on cancel (the existing build is untouched either way, and onSaved never
+//   fires - the save didn't actually happen).
+function handleSaveOverwriteConfirmation(payload, body, onSaved) {
     if (!body.needsConfirmation) { throw new Error(body.error || "status 409"); }
 
     let message = "Save over the existing \"" + body.existingCharName + "\", Level " +
@@ -1484,7 +1494,7 @@ let openBuildSortColumn = "updateDate";
 let openBuildSortAsc    = false;
 
 function handleLoadFromServer() {
-    let userId = getTestUserId();
+    let userId = getUserId();
 
     fetch(CHARACTER_BUILD_API_BASE + "?userId=" + userId)
         .then(function (r) { return rejectIfNotOk(r); })
@@ -1506,7 +1516,7 @@ function handleDeleteBuild(characterBuildId, charName, charLevel) {
         "undo this or recover it once its last active version is gone.";
     if (!confirm(message)) { return; }
 
-    fetch(CHARACTER_BUILD_API_BASE + "/" + characterBuildId + "?userId=" + getTestUserId(), {method: "DELETE"})
+    fetch(CHARACTER_BUILD_API_BASE + "/" + characterBuildId + "?userId=" + getUserId(), {method: "DELETE"})
         .then(function (r) {
             if (r.ok) { return; }
             return r.json().catch(function () { return {}; }).then(function (body) {
@@ -1543,12 +1553,11 @@ function renderOpenLinkCell(characterBuildId) {
     let isCurrent = characterBuildId === currentServerBuildId;
     if (isCurrent && !isDirty()) { return "<span class='openBuildCurrentLabel'>(current)</span>"; }
 
-    let label       = isCurrent ? "Revert" : "Open";
-    let actionLabel = isCurrent ? "reverting to the last saved version" : "opening a different build";
-    let url         = "ddocraft.html?openBuild=" + encodeURIComponent(characterBuildId);
+    let label = isCurrent ? "Revert" : "Open";
+    let url   = "ddocraft.html?openBuild=" + encodeURIComponent(characterBuildId);
     return "<a class='openBuildOpenLink' href=\"" + escHtml(url) +
-        "\" onclick=\"return handleOpenBuildLinkClick(event,'" + escJs(characterBuildId) + "','" +
-        escJs(actionLabel) + "')\">" + label + "</a>";
+        "\" onclick=\"return handleOpenBuildLinkClick(event,'" + escJs(characterBuildId) + "'," +
+        (isCurrent ? "true" : "false") + ")\">" + label + "</a>";
 }
 
 function renderOpenBuildTableBody() {
@@ -1584,7 +1593,7 @@ function formatBuildDate(isoString) {
 let buildHistoryList = [];
 
 function handleShowBuildHistory(charName) {
-    let userId = getTestUserId();
+    let userId = getUserId();
     fetch(CHARACTER_BUILD_API_BASE + "/history?userId=" + userId + "&charName=" + encodeURIComponent(charName))
         .then(function (r) { return rejectIfNotOk(r); })
         .then(function (list) {
@@ -1623,32 +1632,40 @@ function handleRollback(characterBuildId, dateText, effectCount) {
     let message = "Are you sure you want to roll back to the version from " + dateText +
         " with " + effectCount + " effect selections?";
     if (!confirm(message)) { return; }
-    if (!confirmDiscardUnsavedChanges("rolling back")) { return; }
 
-    fetch(CHARACTER_BUILD_API_BASE + "/" + characterBuildId + "/rollback", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({userId: getTestUserId()})
-    })
-        .then(function (r) { return rejectIfNotOk(r); })
-        .then(function (data) {
-            dialogBuildHistory.style.display = 'none';
-            dialogOpenBuild.style.display = 'none';
-            loadCharacterBuildFromServer(data.characterBuildId);
+    confirmDiscardUnsavedChanges(function () {
+        fetch(CHARACTER_BUILD_API_BASE + "/" + characterBuildId + "/rollback", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({userId: getUserId()})
         })
-        .catch(function (err) { alert("Roll back failed: " + err.message); });
+            .then(function (r) { return rejectIfNotOk(r); })
+            .then(function (data) {
+                dialogBuildHistory.style.display = 'none';
+                dialogOpenBuild.style.display = 'none';
+                loadCharacterBuildFromServer(data.characterBuildId);
+            })
+            .catch(function (err) { alert("Roll back failed: " + err.message); });
+    });
 }
 
-function handleOpenBuildLinkClick(event, characterBuildId, actionLabel) {
+function handleOpenBuildLinkClick(event, characterBuildId, isRevert) {
     // Right-click and middle-click never reach this handler at all (the browser handles those
     //   itself, straight off the real href) - only a plain or modified left-click does. A modified
     //   click (ctrl/cmd/shift, opening a new tab/window) should fall through to that same native
     //   navigation too; only a plain click gets the fast in-page path.
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.button !== 0) { return true; }
     event.preventDefault();
-    if (!confirmDiscardUnsavedChanges(actionLabel || "opening a different build")) { return false; }
-    loadCharacterBuildFromServer(characterBuildId);
-    dialogOpenBuild.style.display = 'none';
+
+    let proceed = function () {
+        loadCharacterBuildFromServer(characterBuildId);
+        dialogOpenBuild.style.display = 'none';
+    };
+    if (isRevert) {
+        if (confirmRevert()) { proceed(); }
+    } else {
+        confirmDiscardUnsavedChanges(proceed);
+    }
     return false;
 }
 
