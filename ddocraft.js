@@ -638,9 +638,11 @@ function renderColorGroup(category, item, slot, color, enchNames, isAugment, idx
     let onclickAttr  = "onclick=\"toggleColor('" + escJs(category) + "','" + escJs(item) + "','" +
         escJs(slot) + "','" + escJs(color) + "')\"";
 
-    if (collapsed && !hasSelection) {
-        return "<div class='color collapsed' " + onclickAttr + ">&nbsp;" + escHtml(color) + "&nbsp;</div>&nbsp;";
-    }
+    // A collapsed color with nothing selected in it disappears entirely, rather than showing a
+    //   collapsed placeholder label - only one color can ever hold a selection in a given slot, so
+    //   a collapsed augment slot showing all 3 color headers regardless was misleading: it implied
+    //   more than one could matter at once.
+    if (collapsed && !hasSelection) { return ""; }
 
     let html = "";
     if (isAugment) {
@@ -755,22 +757,25 @@ function renderCustomAugmentSlotRow(category, item, aug, position, idx) {
     let collapsed    = charData.collapsed.slot.has(slotKey);
     let hasSelection = slotHasSelection(item, slot);
 
-    let removeControl = "<span class='removeAugment' title='Remove this augment slot' onclick=\"handleRemoveCustomAugment('" +
+    // event.stopPropagation() keeps a click on the remove control from also bubbling up into the
+    //   td's own toggleSlot() click below - same pattern already used for the category-mode
+    //   checkbox in getCategoryModeToggleHtml().
+    let removeControl = "<span class='removeAugment' title='Remove this augment slot' onclick=\"event.stopPropagation(); handleRemoveCustomAugment('" +
         escJs(category) + "'," + aug.id + ")\">&#10005;</span>";
-    let labelHtml = "<span onclick=\"toggleSlot('" + escJs(category) + "','" + escJs(item) + "','" +
-        escJs(slot) + "')\">" + escHtml(displayLabel) + "</span> " + removeControl;
+    let onclickAttr = "onclick=\"toggleSlot('" + escJs(category) + "','" + escJs(item) + "','" + escJs(slot) + "')\"";
+    let labelHtml   = escHtml(displayLabel) + " " + removeControl;
 
     if (collapsed && !hasSelection) {
         // Stays visible even when empty - a slot fully disappearing risks hiding something still
         //   worth filling in - showing how many options are still pickable instead of the list.
         let colorMap = {};
         for (let realColor of realColors) { colorMap[realColor] = charData.augmentOptionsByColor[realColor] || []; }
-        return "<tr class='collapsed'><td class='slot'>" + labelHtml + "</td><td class='options'>" +
+        return "<tr class='collapsed'><td class='slot' " + onclickAttr + ">" + labelHtml + "</td><td class='options'>" +
             describeAvailableCount(countAvailableInSlot(slot, colorMap, idx)) + "</td></tr>";
     }
 
     let trClass = collapsed ? " class='collapsed'" : "";
-    let html    = "<tr" + trClass + "><td class='slot'>" + labelHtml + "</td><td class='options'>";
+    let html    = "<tr" + trClass + "><td class='slot' " + onclickAttr + ">" + labelHtml + "</td><td class='options'>";
 
     let firstShown = true;
     for (let realColor of realColors) {
@@ -793,9 +798,9 @@ function renderCustomColorGroup(category, item, slot, realColor, showColorHeader
     let onclickAttr  = "onclick=\"toggleColor('" + escJs(category) + "','" + escJs(item) + "','" +
         escJs(slot) + "','" + escJs(realColor) + "')\"";
 
-    if (collapsed && !hasSelection) {
-        return "<div class='color collapsed' " + onclickAttr + ">&nbsp;" + escHtml(realColor) + "&nbsp;</div>&nbsp;";
-    }
+    // See renderColorGroup()'s matching comment - a collapsed color with nothing selected in it
+    //   disappears entirely rather than showing a misleading placeholder label.
+    if (collapsed && !hasSelection) { return ""; }
 
     let html = "";
     if (showColorHeader) {

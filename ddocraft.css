@@ -39,15 +39,12 @@ table {
     margin: .5vw;
     padding: 0;
     width: 100%;
-    background-color: #1c160e;  /* PREVIEW: Character Info's brown, tried on every table - see
-                                    ddocraft.css's other table/border color overrides below for the
-                                    same preview applied consistently; not a final decision yet. */
 }
 
 td {
     text-align: left;
     vertical-align: top;
-    border: 1px solid #a8862d;  /* PREVIEW: Character Info's light-orange accent, see above */
+    border: 1px solid #2c2c2a;
     border-collapse: collapse;
     /*width: 1%;*/
     padding: .5vw;
@@ -519,6 +516,11 @@ button.handled, button.blocked {
                         recommendation scale's better light/dark contrast made this stand out */
     background-color: #141413;
     font-style: italic;
+    /* No button anywhere sets its own border color otherwise - they all fall back to the
+       browser's default button border, which reads as glaringly bright white/light-grey against
+       this dark a background, especially next to a bright .selected button in the same slot.
+       Half the brightness of the Character Info section's orange accent (#a8862d). */
+    border: 1px solid #544316;
 }
 
 
@@ -545,7 +547,7 @@ button.handled, button.blocked {
 .result th, .result td {
     text-align: left;
     vertical-align: top;
-    border: 1px solid #a8862d;  /* PREVIEW: see table/td at the top of this file */
+    border: 1px solid black;
     border-collapse: collapse;
     /*width: 1%;*/
     padding: 0;
@@ -592,7 +594,7 @@ button.handled, button.blocked {
 .openBuildTable th, .openBuildTable td {
     text-align: left;
     padding: .4vw .8vw;
-    border-bottom: 1px solid #a8862d;  /* PREVIEW: see table/td at the top of this file */
+    border-bottom: 1px solid #444;
 }
 
 .openBuildTable th.sortable {
