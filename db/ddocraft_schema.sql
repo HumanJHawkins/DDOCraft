@@ -313,17 +313,25 @@ CREATE TABLE characterBuild (
 --   treat a saved character build as a point-in-time record - editing a library item later must
 --   never silently rewrite builds that already copied from it.
 --
---   itemName is unique per user (not globally) - Part 3 (not built yet, see TO DO.md) is what
---   would let a user promote one of their own named items to a shared/global list; until then two
---   different users can have same-named, differently-built items with no collision.
+--   itemName is unique per (user, category) - not globally, and not even per-user alone (added
+--   2026-07-30, same day as the table itself: a real DDO named item is built for one specific
+--   equipment category/slot, so "Tourney Armor" in Boots and "Tourney Armor" in Melee1 are two
+--   unrelated items that both happen to share a name, not a collision). Part 3 (not built yet, see
+--   TO DO.md) is what would let a user promote one of their own named items to a shared/global
+--   list; until then two different users can have same-named, differently-built items with no
+--   collision either.
 --
 --   itemData is the same shape as ddocraft.js's charData.customItems[category] (name/minLevel/
---   augments/nextAugmentId/description) stored as one opaque JSON blob, same reasoning as
---   characterBuild.buildData above - the server never needs to understand its internal shape.
+--   augments/nextAugmentId/description/inherentSelections), stored as one opaque JSON blob, same
+--   reasoning as characterBuild.buildData above - the server never needs to understand its internal
+--   shape. Deliberately excludes which specific enchantment fills each augment slot (added
+--   2026-07-30) - augment selections are a per-build choice, not part of what the item itself is, so
+--   loading a Named Item always starts its augment slots empty for the new build to fill in.
 --   userId is app-enforced, not a real FK, same reasoning as characterBuild.userId above.
 CREATE TABLE namedItem (
     namedItemId   INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
     userId        INT                         NOT NULL,  -- see note above: app-enforced, not a real FK
+    category      VARCHAR(100)                NOT NULL,  -- e.g. "Melee1", "Boots" - see note above
     itemName      VARCHAR(100)                NOT NULL,
     itemData      JSON                        NOT NULL,
     createBy      VARCHAR(100)                NOT NULL,
@@ -331,7 +339,7 @@ CREATE TABLE namedItem (
     updateBy      VARCHAR(100)                NOT NULL,
     updateDate    DATETIME(3)                 NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
 
-    UNIQUE KEY uq_namedItem_userId_itemName (userId, itemName)
+    UNIQUE KEY uq_namedItem_userId_category_itemName (userId, category, itemName)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------------------------------------------

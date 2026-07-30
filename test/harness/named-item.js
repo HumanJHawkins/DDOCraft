@@ -23,11 +23,11 @@ const catalogFixture = [{
 
 const namedItemFixture = [{
   namedItemId: 1,
+  category: 'Melee1',
   itemName: 'Tourney Armor',
   itemData: {
     name: 'Tourney Armor', minLevel: 20, augments: [{ id: 1, color: 'Red' }], nextAugmentId: 2,
     description: 'test item',
-    augmentSelections: { 'Augment#1': { enchName: 'Test Enchant', color: 'Red' } },
     inherentSelections: ['Test Enchant']
   }
 }];
@@ -40,16 +40,19 @@ const page = loadPage({
   },
   exposeSrc: 'global.__c = charData;',
 });
+page.global.__c.saveFile.charLevel = 20; // so the level-filtered datalist actually includes it
 
-check('library fetched into allNamedItems datalist',
-  page.document.getElementById('namedItemNames').innerHTML.indexOf('Tourney Armor') > -1, true);
+check('per-category datalist includes the matching library item',
+  page.global.renderNamedItemDatalist('Melee1').indexOf('Tourney Armor') > -1, true);
 
-// --- loadNamedItemInto: full round trip, not just the name ---
+// --- loadNamedItemInto: full round trip, not just the name (augment SLOT, not its selection - see
+//     buildNamedItemPayload()'s comment: augment selections are per-build, never saved to the library) ---
 page.global.loadNamedItemInto('Melee1', namedItemFixture[0].itemData);
 check('name restored', page.global.__c.customItems.Melee1.name, 'Tourney Armor');
 check('minLevel restored', page.global.__c.customItems.Melee1.minLevel, 20);
-check('augment selection restored',
-  page.global.__c.selections.positional['custom:Melee1']['Augment#1'].enchName, 'Test Enchant');
+check('augment slot restored (color, not an enchantment selection)',
+  page.global.__c.customItems.Melee1.augments, [{ id: 1, color: 'Red' }]);
+check('augment slot starts unselected', page.global.__c.selections.positional['custom:Melee1'], undefined);
 check('inherent selection restored',
   page.global.__c.selections.inherent.Melee1['custom:Melee1'].has('Test Enchant'), true);
 

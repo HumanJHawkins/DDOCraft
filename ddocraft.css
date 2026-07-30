@@ -491,23 +491,29 @@ img {
     margin-top: .4vw;
 }
 
-.saveNamedItemBtn {
+.saveNamedItemBtn,
+.deleteNamedItemBtn {
     display: inline-block;
     padding: .2vw .8vw;
     background-color: #1a1a19;
     color: #c3c2b7;
     border: 1px solid #444;
     font-size: calc(5px + .625vw);
-    cursor: pointer;
+    /* No unconditional cursor: pointer here - both buttons toggle `disabled`, and a pointer cursor
+       on a disabled button reads as clickable when it isn't. button:hover:enabled below already
+       supplies cursor: pointer, but only while actually hoverable and enabled. */
 }
 
-.saveNamedItemBtn:hover {
+.saveNamedItemBtn:hover:enabled,
+.deleteNamedItemBtn:hover:enabled {
     background-color: #333333;
 }
 
-.saveNamedItemBtn:disabled {
-    cursor: default;
-    opacity: .7;
+/* No bespoke :disabled rule for either - the global button:disabled/button[disabled] rule already
+   gives every disabled button in the app, including these, the same clearly-inactive look. */
+
+.deleteNamedItemBtn {
+    float: right;
 }
 
 .customItemMinLevelLabel {
@@ -541,6 +547,20 @@ img {
 
 .removeAugment:hover {
     color: #fff;
+}
+
+.namedItemDescriptionWrap {
+    margin-top: .6vw;
+}
+
+.namedItemDescriptionLabel {
+    display: block;
+    font-family: Georgia, "Palatino Linotype", "Book Antiqua", serif;
+    font-size: calc(5px + .6vw);
+    color: #a8862d;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: .15vw;
 }
 
 .customItemDescription {

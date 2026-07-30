@@ -204,7 +204,6 @@ function loadNamedItems() {
     request.onreadystatechange = function () {
         if (this.readyState === 4 && this.status === 200) {
             allNamedItems = JSON.parse(this.responseText);
-            updateNamedItemDatalist();
         }
     };
     request.open("GET", NAMED_ITEM_API_BASE + "?userId=" + getUserId(), false);
@@ -779,8 +778,11 @@ function renderCustomItemBody(category, idx) {
     let needsSetup = namedItemNeedsSetup(category);
 
     let html   = "<tr><td class='slot'>Name</td><td class='options'>" +
-        "<input type='text' class='customItemName' list='namedItemNames' value=\"" + escHtml(custom.name) +
-        "\" onchange=\"handleCustomItemName(this,'" + escJs(category) + "')\" />" +
+        getDeleteNamedItemButtonHtml(category) +
+        "<input type='text' class='customItemName' list='" + namedItemDatalistId(category) + "' value=\"" + escHtml(custom.name) +
+        "\" onfocus=\"handleCustomItemNameFocus(this)\" onblur=\"handleCustomItemNameBlur(this)\"" +
+        " onchange=\"handleCustomItemName(this,'" + escJs(category) + "')\" />" +
+        renderNamedItemDatalist(category) +
         renderCustomItemMinLevel(category, custom) +
         (needsSetup ? " <em class='namedItemSetupHint'>(enter a name and min level to continue)</em>" : getAddAugmentControlHtml(category)) +
         "</td></tr>";
@@ -791,8 +793,7 @@ function renderCustomItemBody(category, idx) {
         html += renderCustomAugmentSlotRow(category, item, aug, position, idx);
     });
 
-    html += renderInherentPicker(category, idx);
-    html += renderCustomItemDescription(category, custom);
+    html += renderInherentPicker(category, idx); // description now lives inside this row too - see its comment
 
     return html;
 }
@@ -816,15 +817,53 @@ function namedItemNeedsSetup(category) {
 // Sits below the Inherent Effects Edit/Done toggle (see renderInherentPicker()) rather than next to
 //   the Name field - there's room there, and both it and Edit/Done disappear together whenever the
 //   whole category collapses to nothing (see renderEnchantmentOptions()'s categoryCollapsed check).
-//   Label shortens to the terser "Save" - matching Edit/Done's own terse style - specifically when
-//   there's something new to push to the library; otherwise it reads as the fuller "Save Named Item"
-//   and stays disabled, since there's nothing to do. event.stopPropagation() for the same reason the
-//   category-mode checkbox needs it: this sits inside the row's own already-clickable slot cell.
+//   Always reads "Save" - only its enabled state changes with the dirty flag - matching how the
+//   main Save icon (see updateSaveDownloadEnabled()) only ever toggles a disabled/enabled look, not
+//   its own label. event.stopPropagation() for the same reason the category-mode checkbox needs it:
+//   this sits inside the row's own already-clickable slot cell.
 function getSaveNamedItemButtonHtml(category) {
     let dirty = isNamedItemDirty(category);
     return "<div class='saveNamedItemWrap'><button type='button' class='saveNamedItemBtn'" +
         (dirty ? "" : " disabled") + " onclick=\"event.stopPropagation(); handleSaveNamedItem(this,'" +
-        escJs(category) + "')\">" + (dirty ? "Save" : "Save Named Item") + "</button></div>";
+        escJs(category) + "')\">Save</button></div>";
+}
+
+// Right-justified in the Name row (float: right - see ddocraft.css) rather than living with Save,
+//   since it acts on the library entry the combo box currently names, not on whatever's been typed/
+//   built in the editor - only enabled when that name is an already-saved item, disabled for a
+//   blank field, an in-progress unsaved name, or a typo that doesn't match anything.
+function getDeleteNamedItemButtonHtml(category) {
+    let custom = charData.customItems[category];
+    let existsInLibrary = !!custom && !!custom.name &&
+        allNamedItems.some(function (n) { return n.category === category && n.itemName === custom.name; });
+    return "<button type='button' class='deleteNamedItemBtn'" + (existsInLibrary ? "" : " disabled") +
+        " onclick=\"handleDeleteNamedItem(this,'" + escJs(category) + "')\">Delete</button>";
+}
+
+function handleDeleteNamedItem(button, category) {
+    let custom = charData.customItems[category];
+    let libraryItem = allNamedItems.find(function (n) { return n.category === category && n.itemName === custom.name; });
+    if (!libraryItem) { return; } // button should be disabled in this case - defensive only
+
+    if (!confirm("Delete saved version of \"" + custom.name + "\"?")) { return; }
+
+    fetch(NAMED_ITEM_API_BASE + "/" + libraryItem.namedItemId + "?userId=" + getUserId(), {method: "DELETE"})
+        .then(function (r) {
+            if (r.ok) { return; }
+            return r.json().catch(function () { return {}; }).then(function (body) {
+                throw new Error(body.error || ("status " + r.status));
+            });
+        })
+        .then(function () {
+            allNamedItems = allNamedItems.filter(function (n) { return n.namedItemId !== libraryItem.namedItemId; });
+            // The library copy is gone, but what's in the editor isn't touched - it just no longer
+            //   matches anything saved, so there's something worth Saving again if the user wants it
+            //   back (see isNamedItemDirty()).
+            delete lastSavedNamedItemSnapshot[category];
+            renderEnchantmentOptions();
+            renderResult();
+        })
+        .catch(function (err) { alert("Delete failed: " + err.message); });
 }
 
 // Inline label+input, sitting right next to the Name field in the same row (like Character Info's
@@ -834,10 +873,11 @@ function getSaveNamedItemButtonHtml(category) {
 //   field's own validation range - lets a level-decrease later trigger the same "will remove this"
 //   confirmation flow real Cannith enchantments already get (see handleCharLevelChange()), without
 //   needing a min-level field to be filled in at all: blank means "no known level requirement," not
-//   "level 0."
+//   "level 0." Capped at the character's own current level, not the usual 1-36 range - doesn't make
+//   sense to declare an item needs a level you haven't reached yet while you're the one building it.
 function renderCustomItemMinLevel(category, custom) {
     return " <label class='customItemMinLevelLabel'>Min Level</label>" +
-        "<input type='number' class='customItemMinLevel' min='1' max='36' value=\"" +
+        "<input type='number' class='customItemMinLevel' min='1' max='" + maxNamedItemMinLevel() + "' value=\"" +
         escHtml(custom.minLevel || "") +
         "\" onchange=\"handleCustomItemMinLevel(this,'" + escJs(category) + "')\" />";
 }
@@ -917,17 +957,6 @@ function renderCustomColorGroup(category, item, slot, realColor, showColorHeader
     return html;
 }
 
-function renderCustomItemDescription(category, custom) {
-    // No collapse toggle of its own - it just follows the category's own flag, same as every other
-    //   part of the category collapses/expands together when toggled at the category level.
-    let collapsed    = charData.collapsed.item.has(category);
-    if (collapsed && !custom.description) { return ""; }  // disappears if empty while collapsed
-    let disabledAttr = collapsed ? " disabled" : "";
-    return "<tr><td class='slot'>Description</td><td class='options'>" +
-        "<textarea class='customItemDescription' onchange=\"handleCustomItemDescription(this,'" +
-        escJs(category) + "')\"" + disabledAttr + ">" + escHtml(custom.description || "") + "</textarea></td></tr>";
-}
-
 function handleCustomItemDescription(textarea, category) {
     charData.customItems[category].description = textarea.value;
 }
@@ -941,6 +970,7 @@ function renderInherentPicker(category, idx) {
     let slotKey      = item + "|InherentEffects";
     let collapsed    = charData.collapsed.slot.has(slotKey);
     let hasSelection = inherentHasSelection(category, item);
+    let custom       = charData.customItems[category] || {description: ""};
     let onclickAttr  = "onclick=\"toggleSlot('" + escJs(category) + "','" + escJs(item) + "','InherentEffects')\"";
     // No onclick of its own - it sits inside the already-clickable slot cell above, so a click
     //   bubbles up to the same toggleSlot() the label itself uses. Label text alone doesn't read as
@@ -949,7 +979,7 @@ function renderInherentPicker(category, idx) {
     let toggleBtn    = "<div class='inherentDoneWrap'><button type='button' class='inherentDoneBtn'>" +
         (collapsed ? "Edit" : "Done") + "</button></div>" + getSaveNamedItemButtonHtml(category);
 
-    if (collapsed && !hasSelection) {
+    if (collapsed && !hasSelection && !custom.description) {
         // Stays visible even when empty - inherent effects aren't options to pick so much as
         //   properties to identify, hence no count here (contrast with a real slot's "N available").
         return "<tr class='collapsed'><td class='slot' " + onclickAttr +
@@ -965,9 +995,24 @@ function renderInherentPicker(category, idx) {
         if (collapsed && !isSelected) { continue; }
         html += getInherentButton(category, item, enchName, idx);
     }
-    html += "</div></td></tr>";
+    html += "</div>";
+    html += renderNamedItemDescription(category, custom, collapsed);
+    html += "</td></tr>";
 
     return html;
+}
+
+// Lives inside the Inherent Effects row (not its own separate row) with its own "Description"
+//   label, distinct from the row's "Inherent Effects" slot label - it's meant to document inherent
+//   effects that defy capture with a single button selection, so conceptually belongs with them.
+//   Follows the same collapsed flag as the rest of the row - no toggle of its own - and disappears
+//   entirely if collapsed with nothing written (same as before the move).
+function renderNamedItemDescription(category, custom, collapsed) {
+    if (collapsed && !custom.description) { return ""; }
+    let disabledAttr = collapsed ? " disabled" : "";
+    return "<div class='namedItemDescriptionWrap'><label class='namedItemDescriptionLabel'>Description</label>" +
+        "<textarea class='customItemDescription' onchange=\"handleCustomItemDescription(this,'" +
+        escJs(category) + "')\"" + disabledAttr + ">" + escHtml(custom.description || "") + "</textarea></div>";
 }
 
 function getInherentButton(category, item, enchName, idx) {
@@ -1054,12 +1099,28 @@ function applyCategoryModeSwitch(category, toCustom) {
     renderResult();
 }
 
-// If the typed/picked name exactly matches something already in the user's Named Item library
-//   (see allNamedItems/loadNamedItems()), offers to load it - augments, their selected
-//   enchantments, inherent effects, description and min level all included, not just the name.
-//   Only asks for confirmation when it would actually discard something (an empty/fresh custom
-//   item loads silently, matching how opening a real named item pick shouldn't feel like a
-//   destructive action).
+// Browsers (Chrome in particular) stop offering datalist suggestions once an <input list> field's
+//   value already exactly matches one of the options - clicking back into an already-loaded Named
+//   Item's name field wouldn't show any alternatives to pick, only the one already there. Standard
+//   workaround: clear the field on focus (so every suggestion shows again), and put back whatever
+//   was there if the user just clicks away without picking or typing anything new - handleblur only
+//   restores an EMPTY value, so it never clobbers a real in-progress edit or a datalist pick.
+function handleCustomItemNameFocus(input) {
+    input.dataset.priorValue = input.value;
+    input.value = "";
+}
+
+function handleCustomItemNameBlur(input) {
+    if (input.value === "" && input.dataset.priorValue) { input.value = input.dataset.priorValue; }
+}
+
+// If the typed/picked name exactly matches something already in the user's Named Item library for
+//   THIS category (see allNamedItems/loadNamedItems() - a named item belongs to one category, see
+//   db/ddocraft_schema.sql's namedItem comment), offers to switch to it. A clean current item
+//   switches immediately, no prompt - there's nothing to lose. A dirty current item gets the same
+//   Save/Discard/Cancel guard as switching a dirty item back to Cannith (see
+//   handleCategoryModeToggle()) - chained confirm()s, not a custom modal, matching this app's
+//   established pattern for a three-way choice.
 //
 // If the typed name does NOT match anything saved, and what's currently entered was itself
 //   untouched since it was last loaded/saved (not dirty) - treat this as "start a new item" and
@@ -1068,16 +1129,29 @@ function applyCategoryModeSwitch(category, toCustom) {
 //   nothing gets cleared, so in-progress work is never silently lost by fixing a typo in the name.
 function handleCustomItemName(input, category) {
     let newName  = input.value;
+    let custom   = charData.customItems[category];
+    let oldName  = custom.name;
     let wasDirty = isNamedItemDirty(category);
-    charData.customItems[category].name = newName;
 
-    let libraryItem = allNamedItems.find(function (n) { return n.itemName === newName; });
-    if (libraryItem) {
-        let custom = charData.customItems[category];
-        let hasExistingData = custom.augments.length > 0 || !!custom.description;
-        if (hasExistingData && !confirm("Load the saved Named Item \"" + newName + "\" here? This will " +
-                "replace the augments, selections, and description currently entered for " + category + ".")) {
-            return;
+    let libraryItem = allNamedItems.find(function (n) { return n.category === category && n.itemName === newName; });
+
+    if (libraryItem && newName !== oldName) {
+        if (wasDirty) {
+            if (confirm("Save changes to \"" + (oldName || "this Named Item") + "\" before switching to \"" +
+                    newName + "\"?")) {
+                handleSaveNamedItem(null, category, function () {
+                    loadNamedItemInto(category, libraryItem.itemData);
+                    renderEnchantmentOptions();
+                    renderResult();
+                });
+                return;
+            }
+            if (!confirm("Discard changes to \"" + (oldName || "this Named Item") + "\" and switch to \"" +
+                    newName + "\" without saving?")) {
+                input.value = oldName; // Cancel - revert the visible field, nothing else changes
+                return;
+            }
+            // Discard: fall through to load
         }
         loadNamedItemInto(category, libraryItem.itemData);
         renderEnchantmentOptions();
@@ -1085,7 +1159,8 @@ function handleCustomItemName(input, category) {
         return;
     }
 
-    if (!wasDirty) {
+    custom.name = newName;
+    if (!libraryItem && !wasDirty) {
         charData.customItems[category] = {name: newName, augments: [], nextAugmentId: 1, description: "", minLevel: ""};
         let item = customItemKey(category);
         delete charData.selections.positional[item];
@@ -1108,11 +1183,11 @@ function loadNamedItemInto(category, data) {
         minLevel: data.minLevel || ""
     };
 
+    // Augment SLOTS (their colors) load from the library, but never which enchantment fills each
+    //   one - see buildNamedItemPayload()'s comment: augment selections are per-build, not part of
+    //   the item's own definition, so a freshly-loaded item's augment slots always start empty,
+    //   ready for whatever this specific build wants to put in them.
     delete charData.selections.positional[item];
-    for (let slot of Object.keys(data.augmentSelections || {})) {
-        let sel = data.augmentSelections[slot];
-        if (sel.enchName in charData.enchantments) { setOccupant(item, slot, sel.enchName, sel.color); }
-    }
 
     if (!(category in charData.selections.inherent)) { charData.selections.inherent[category] = {}; }
     let inherentSet = new Set();
@@ -1124,11 +1199,18 @@ function loadNamedItemInto(category, data) {
     markNamedItemSaved(category); // just loaded - matches the library entry it came from by definition
 }
 
+function maxNamedItemMinLevel() {
+    return charData.saveFile.charLevel && charData.saveFile.charLevel < 36 ? charData.saveFile.charLevel : 36;
+}
+
 function handleCustomItemMinLevel(input, category) {
     let level = Number(input.value);
-    let isValid = input.value !== "" && Number.isInteger(level) && level >= 1 && level <= 36;
+    let maxLevel = maxNamedItemMinLevel();
+    let isValid = input.value !== "" && Number.isInteger(level) && level >= 1 && level <= maxLevel;
     charData.customItems[category].minLevel = isValid ? level : "";
     if (!isValid) { input.value = ""; }
+    renderEnchantmentOptions(); // may just unlocked augments/Inherent Effects/description - see namedItemNeedsSetup()
+    renderResult();
 }
 
 // ---- Named Item library dirty-tracking ----
@@ -1142,13 +1224,15 @@ function handleCustomItemMinLevel(input, category) {
 //   switch confirmation), and saving to the library deliberately does NOT un-dirty the build - the
 //   build itself still needs its own separate Save.
 
+// Deliberately does NOT include which enchantment fills each augment slot - only the slots
+//   themselves (their colors, via custom.augments). Augment slots are a per-BUILD choice ("what am
+//   I socketing into this copy of the item for this character"), not part of what the item itself
+//   IS - a new build using this Named Item should always start with empty augment slots to fill in,
+//   the same as picking a fresh Cannith item does. Inherent effects, by contrast, are a property of
+//   the item itself (can't be changed), so those DO round-trip.
 function buildNamedItemPayload(category) {
     let custom = charData.customItems[category];
     let item   = customItemKey(category);
-    let augmentSelections = {};
-    for (let slot of Object.keys(charData.selections.positional[item] || {})) {
-        augmentSelections[slot] = charData.selections.positional[item][slot];
-    }
     let inherentSet = (charData.selections.inherent[category] || {})[item];
 
     return {
@@ -1157,7 +1241,6 @@ function buildNamedItemPayload(category) {
         augments: custom.augments,
         nextAugmentId: custom.nextAugmentId,
         description: custom.description,
-        augmentSelections: augmentSelections,
         inherentSelections: inherentSet ? Array.from(inherentSet) : []
     };
 }
@@ -1170,7 +1253,6 @@ function canonicalNamedItemSnapshot(data) {
         minLevel: data.minLevel || "",
         augments: (data.augments || []).map(function (a) { return {id: a.id, color: a.color}; }),
         description: data.description || "",
-        augmentSelections: data.augmentSelections || {},
         inherentSelections: (data.inherentSelections || []).slice().sort()
     });
 }
@@ -1201,7 +1283,7 @@ function handleSaveNamedItem(button, category, onDone) {
     let custom = charData.customItems[category];
     if (!custom || !custom.name) { alert("Enter a name before saving a Named Item."); return; }
 
-    let existing = allNamedItems.find(function (n) { return n.itemName === custom.name; });
+    let existing = allNamedItems.find(function (n) { return n.category === category && n.itemName === custom.name; });
     if (existing && !confirm("Overwrite the previously saved Named Item \"" + custom.name +
             "\"? This replaces its saved augments, effects, and description.")) {
         return;
@@ -1213,12 +1295,17 @@ function handleSaveNamedItem(button, category, onDone) {
     fetch(NAMED_ITEM_API_BASE, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({userId: getUserId(), itemName: custom.name, itemData: itemData})
+        body: JSON.stringify({userId: getUserId(), category: category, itemName: custom.name, itemData: itemData})
     })
         .then(function (r) { return rejectIfNotOk(r); })
-        .then(function () {
-            if (existing) { existing.itemData = itemData; } else { allNamedItems.push({itemName: custom.name, itemData: itemData}); }
-            updateNamedItemDatalist();
+        .then(function (data) {
+            if (existing) {
+                existing.itemData = itemData;
+            } else {
+                // data.namedItemId comes back from the POST - needed for handleDeleteNamedItem()'s
+                //   DELETE /api/named-items/:id, not just display.
+                allNamedItems.push({namedItemId: data.namedItemId, category: category, itemName: custom.name, itemData: itemData});
+            }
             markNamedItemSaved(category);
             renderEnchantmentOptions(); // Save button re-renders disabled/relabeled now that it's clean
             renderResult();
@@ -1230,11 +1317,30 @@ function handleSaveNamedItem(button, category, onDone) {
         });
 }
 
-function updateNamedItemDatalist() {
-    let el = document.getElementById("namedItemNames");
-    if (!el) { return; }
-    let names = allNamedItems.map(function (n) { return n.itemName; }).sort();
-    el.innerHTML = names.map(function (n) { return "<option value=\"" + escHtml(n) + "\"></option>"; }).join("");
+// A named item belongs to one specific category (a real DDO item only fits one equipment slot -
+//   see db/ddocraft_schema.sql's namedItem comment) - a separate datalist per category, not one
+//   shared list, so Boots' combo box never offers a Melee1 item and vice versa. Rendered inline as
+//   part of this category's own HTML (not a separately-maintained DOM update) so it's automatically
+//   correct on every render pass - including after the library changes (save/delete) or the
+//   character level changes (min-level filter below), both of which already trigger a full
+//   re-render on their own.
+function namedItemDatalistId(category) {
+    return "namedItemNames-" + category.replace(/[^A-Za-z0-9]/g, "");
+}
+
+// Filtered to items whose minLevel the current character level actually allows (blank minLevel -
+//   no known requirement - always shows).
+function renderNamedItemDatalist(category) {
+    let charLevel = charData.saveFile.charLevel || 0;
+    let names = allNamedItems
+        .filter(function (n) {
+            return n.category === category && (!n.itemData.minLevel || n.itemData.minLevel <= charLevel);
+        })
+        .map(function (n) { return n.itemName; })
+        .sort();
+    return "<datalist id='" + namedItemDatalistId(category) + "'>" +
+        names.map(function (n) { return "<option value=\"" + escHtml(n) + "\"></option>"; }).join("") +
+        "</datalist>";
 }
 
 function handleAddAugmentSelect(select, category) {
@@ -2110,6 +2216,9 @@ function handleCharLevelChange() {
 
     charData.saveFile.charLevel = isValid ? level : "";
     if (!isValid) { input.value = ""; }
+    // Named Item combo box datalists are level-filtered and rendered inline per category on every
+    //   renderEnchantmentOptions() call below (see renderNamedItemDatalist()) - no separate update
+    //   needed here just because the level changed.
 
     let toDeselect = [];
     for (let item of Object.keys(charData.selections.positional)) {

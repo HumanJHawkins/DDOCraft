@@ -28,7 +28,7 @@
 - History dialog has some other screwiness Jeff noticed 2026-07-30, similar in nature to the Open dialog issues fixed that day (see Done.md) - not yet characterized further. Revisit and characterize before fixing.
 - Save's success feedback needs a better answer than "no feedback at all" - removing the old success `alert()` (see Done.md, unsaved-changes tracking) was the right call since it was firing on every click including no-op resaves, but a silent Save button going disabled is easy to miss entirely, especially if something actually goes wrong client-side before the request is even sent (as happened 2026-07-30 - see Done.md, the CHARACTER_BUILD_API_BASE crash). Some lighter-weight confirmation (a toast, a brief inline status) is probably right; not designed yet.
 - Multi-classing (added 2026-07-30, see Done.md) has no combination validation - a user can currently pick any 3 classes regardless of DDO's real restrictions (e.g. Paladin requires Lawful alignment; some classes can't be Lawful at all, making certain combos impossible in-game). Deliberately not enforced yet - Jeff flagged this as a known gap to handle later, not a bug to fix now.
-- The Named Item library (`namedItem` table, added 2026-07-30, see Done.md) has no delete - `GET`/`POST` (upsert) only. An unwanted entry can currently only be overwritten with different data, not removed, and there's no UI for it either way. Same "no undo" caution as build deletion (see the Maybe item below) probably applies once this gets built.
+- Named Item library Delete (added 2026-07-30, see Done.md) is a real hard delete with no undo, same honesty as build deletion (see the Maybe item below) - the confirm text says so, but there's no recovery path if it turns out to be the wrong call.
 
 ## Maybe
 
