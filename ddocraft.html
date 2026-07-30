@@ -1,58 +1,3 @@
-<?php
-session_start();
-
-function logIP()
-{
-    // Adapted from IP logging function by Dave Lauderdale, originally published at: www.digi-dl.com
-    $ipLog = "ddocraft_log.txt";
-    $register_globals = (bool)ini_get('register_gobals');
-    if ($register_globals) $ip = getenv(REMOTE_ADDR);
-    else $ip = $_SERVER['REMOTE_ADDR'];
-
-    $date = date("YmdAhis");
-    $log = fopen("$ipLog", "a+");
-
-    fputs($log, "$date: Visitor #" . getVisitorCount() . " $ip\r\n");
-    fclose($log);
-}
-
-function updateCounter()
-{
-    if (empty($_SESSION['visited'])) {
-        $counterFile = "ddocraft_counter.txt";
-        $file = fopen("$counterFile", "r");
-        $count = fgets($file, 1000);
-        fclose($file);
-
-        $count = abs(intval($count)) + 1;
-
-        $file = fopen($counterFile, 'w');
-        fwrite($file, $count);
-        fclose($file);
-    }
-
-    $_SESSION['visited'] = true;
-}
-
-function getVisitorCount()
-{
-    $counterFile = "ddocraft_counter.txt";
-    $file = fopen($counterFile, 'r');
-    $count = fgets($file, 1000);
-    fclose($file);
-
-    return abs(intval($count));
-}
-
-function displayCounter()
-{
-    echo "<div id='counter'><p> Visitor Count: " . getVisitorCount() . " </p></div>";
-}
-
-logIp();
-updateCounter();
-?>
-
 <!DOCTYPE html>
 <!--Author: J. Hawkins-->
 <!--Copyright 2021. GNU General Public License v3.0-->
@@ -298,9 +243,5 @@ updateCounter();
     <button onclick="handleLoadFromServer()" class="loadSaveBtn"> Open from Server...</button>
 </div>
 
-
-<?php
-displayCounter();
-?>
 </body>
 </html>

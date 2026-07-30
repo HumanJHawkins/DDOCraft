@@ -1593,7 +1593,7 @@ function renderOpenLinkCell(characterBuildId) {
 
     let label       = isCurrent ? "Revert" : "Open";
     let actionLabel = isCurrent ? "reverting to the last saved version" : "opening a different build";
-    let url         = "ddocraft.php?openBuild=" + encodeURIComponent(characterBuildId);
+    let url         = "ddocraft.html?openBuild=" + encodeURIComponent(characterBuildId);
     return "<a class='openBuildOpenLink' href=\"" + escHtml(url) +
         "\" onclick=\"return handleOpenBuildLinkClick(event,'" + escJs(characterBuildId) + "','" +
         escJs(actionLabel) + "')\">" + label + "</a>";
@@ -1716,7 +1716,7 @@ function loadCharacterBuildFromServer(characterBuildId) {
         .catch(function (err) { alert("Load from server failed: " + err.message); });
 }
 
-// Lets a real navigation to ddocraft.php?openBuild=<guid> - a new tab, a bookmark, a pasted link -
+// Lets a real navigation to ddocraft.html?openBuild=<guid> - a new tab, a bookmark, a pasted link -
 //   load that build on its own, without ever having gone through the Open Build dialog.
 function loadCharacterBuildFromUrl() {
     let characterBuildId = new URLSearchParams(window.location.search).get("openBuild");
