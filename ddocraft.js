@@ -31,6 +31,27 @@ let lastSavedSnapshot = null;
 //   adjust their Open link instead of offering a redundant/confusing plain re-open.
 let currentServerBuildId = null;
 
+// Every remaining top-level const/let in the file lives here too, not near the code that actually
+//   uses each one, for the same temporal-dead-zone reason as lastSavedSnapshot above:
+//   loadCharacterBuildFromUrl() (called at the end of initialize(), itself called synchronously
+//   below) reaches CHARACTER_BUILD_API_BASE whenever the page loads with a shared build's
+//   ?openBuild=<guid> in the URL - a real crash this session, not just a theoretical one, and an
+//   uncaught crash here permanently breaks every `let`/`const` declared after it in the file, for
+//   the rest of the page's life. Consolidating everything up here removes the class of bug instead
+//   of patching one variable at a time as each reachable path is discovered.
+let AUGMENT_SLOT_CAP = 7;
+let AUGMENT_COMBO_COLORS = {
+    "Green": ["Blue", "Yellow"],
+    "Orange": ["Red", "Yellow"],
+    "Purple": ["Red", "Blue"]
+};
+let WEAPON_CATEGORIES = ["Melee1", "Melee2", "Ranged"];
+const CHARACTER_BUILD_API_BASE = "/api/character-builds";
+let openBuildList       = [];
+let openBuildSortColumn = "updateDate";
+let openBuildSortAsc    = false;
+let buildHistoryList    = [];
+
 let charData = {
     // enchantments[enchName] = { enchName, enchEffectType, enchDesc, enchSupercededBy,
     //   enchCannithMinLevel, enchAugmentMinLevel, allEnch, basic, nonscaling, for<Role>... }
@@ -701,19 +722,12 @@ function customItemKey(category) {
     return "custom:" + category;
 }
 
-let AUGMENT_SLOT_CAP = 7;
-
-// Combo augment colors - a single slot, single selection, but candidates drawn from more than one
-//   real color pool. Cannith rendering needs none of this: its augment slots are "universal" in
-//   the source data already (every color shown together), this only matters for a custom item's
-//   slot, which is deliberately restricted to what a real named item's slot would actually take.
-let AUGMENT_COMBO_COLORS = {
-    "Green": ["Blue", "Yellow"],
-    "Orange": ["Red", "Yellow"],
-    "Purple": ["Red", "Blue"]
-};
-
-let WEAPON_CATEGORIES = ["Melee1", "Melee2", "Ranged"];
+// AUGMENT_SLOT_CAP, AUGMENT_COMBO_COLORS, WEAPON_CATEGORIES declared near the top of the file now
+//   (see the comment there) - combo augment colors are a single slot/single selection, but
+//   candidates drawn from more than one real color pool. Cannith rendering needs none of this: its
+//   augment slots are "universal" in the source data already (every color shown together), this
+//   only matters for a custom item's slot, which is deliberately restricted to what a real named
+//   item's slot would actually take.
 
 function realColorsForSlot(slotColor) {
     // Colorless is special in both directions: a Colorless slot accepts ONLY colorless augments,
@@ -1412,8 +1426,7 @@ function handleLoad(incomingFile) {
 // Phase 1 has no real accounts - there's no session to identify who's saving, so getUserId() is a
 //   hardcoded placeholder. Swapped out (not extended) once GateIron.com's real accounts exist and
 //   userId comes from an authenticated session instead - see TO DO.md.
-
-const CHARACTER_BUILD_API_BASE = "/api/character-builds";
+// CHARACTER_BUILD_API_BASE declared near the top of the file now (see the comment there).
 
 function getUserId() {
     return 1;
@@ -1488,10 +1501,8 @@ function rejectIfNotOk(response) {
 //   intercepted for a fast in-page load, but nothing about that interception is required for the
 //   link to work; loadCharacterBuildFromUrl() is what makes a real navigation to that URL (in a
 //   new tab, or pasted/bookmarked) load the build on its own.
-
-let openBuildList       = [];
-let openBuildSortColumn = "updateDate";
-let openBuildSortAsc    = false;
+// openBuildList/openBuildSortColumn/openBuildSortAsc declared near the top of the file now (see
+//   the comment there).
 
 function handleLoadFromServer() {
     let userId = getUserId();
@@ -1589,8 +1600,7 @@ function formatBuildDate(isoString) {
 //   (deactivate whatever's active now, reactivate the target) with no naming conflict to resolve
 //   and nothing to rename. Rolling back to what was just deactivated undoes a rollback the same
 //   way, for free - no separate "undo" needed.
-
-let buildHistoryList = [];
+// buildHistoryList declared near the top of the file now (see the comment there).
 
 function handleShowBuildHistory(charName) {
     let userId = getUserId();
