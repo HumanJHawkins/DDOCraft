@@ -105,9 +105,19 @@ let charData = {
     //   Augment config and inherent-effect selections land here in later PHASE 3 steps.
     customItems: {},
 
-    saveFile: {version: 2.1, dirty: false, charName: "", charLevel: "", className: "", positional: [],
-        inherent: [], categoryMode: {}, customItems: {}, collapsed: {item: [], slot: [], color: []}}
+    // classNames replaced the old single className 2026-07-30 - DDO supports up to 3 classes at
+    //   once (multi-classing). description is new the same day, optional, free text.
+    saveFile: {version: 2.1, dirty: false, charName: "", charLevel: "", classNames: [], description: "",
+        positional: [], inherent: [], categoryMode: {}, customItems: {},
+        collapsed: {item: [], slot: [], color: []}}
 };
+
+// All classes fetched from /api/character-classes, once - the picker renders from this rather
+//   than a <select>'s own DOM state, so it can show buttons instead. Loaded synchronously in
+//   initialize() same as before, just stored instead of populating a dropdown.
+let allCharacterClasses = [];
+let classPickerExpanded = false;
+const MAX_CLASSES = 3;  // DDO's own multi-classing cap
 
 initialize();
 
@@ -154,29 +164,18 @@ function loadEnchantmentOptions() {
     itemOptionsRequest.send();
 }
 
-// Cosmetic/informational only for now (see db/ddocraft_schema.sql's characterClass comment) - a
-//   simple reference-data load, same synchronous pattern as the catalog above, so the dropdown is
-//   already populated by the time the first render happens. Tolerates the API being unreachable:
-//   the dropdown just stays empty rather than breaking the rest of the page.
+// Same synchronous-load pattern as the catalog above, so the picker's already populated by the
+//   time the first render happens. Tolerates the API being unreachable: allCharacterClasses just
+//   stays empty rather than breaking the rest of the page.
 function loadCharacterClasses() {
     let request                = new XMLHttpRequest();
     request.onreadystatechange = function () {
         if (this.readyState === 4 && this.status === 200) {
-            populateCharacterClassSelect(JSON.parse(this.responseText));
+            allCharacterClasses = JSON.parse(this.responseText);
         }
     };
     request.open("GET", "/api/character-classes", false);
     request.send();
-}
-
-function populateCharacterClassSelect(classes) {
-    let select = document.getElementById("characterClass");
-    for (let characterClass of classes) {
-        let option       = document.createElement("option");
-        option.value     = characterClass.characterClassId;
-        option.textContent = characterClass.className;
-        select.appendChild(option);
-    }
 }
 
 function buildCatalog(flatRows) {
@@ -604,8 +603,8 @@ function computeContentSnapshot() {
     updateSave();
     let sf = charData.saveFile;
     return JSON.stringify({
-        charName: sf.charName, charLevel: sf.charLevel, className: sf.className,
-        positional: sf.positional, inherent: sf.inherent,
+        charName: sf.charName, charLevel: sf.charLevel, classNames: sf.classNames,
+        description: sf.description, positional: sf.positional, inherent: sf.inherent,
         categoryMode: sf.categoryMode, customItems: sf.customItems
     });
 }
@@ -1174,26 +1173,56 @@ function handleRename(fixBoth = false) {
                                    //   onchange never otherwise triggers a render.
 }
 
-function handleClassChange() {
-    let select = document.getElementById("characterClass");
-    charData.saveFile.className = select.options[select.selectedIndex].text;
-    if (!select.value) { charData.saveFile.className = ""; }
-    updateSaveDownloadEnabled();  // className is part of isDirty()'s snapshot but nothing else
-                                   //   re-checks it - same gap as handleRename() above.
+// Optional, free text - deliberately not part of computeBuildChecksum() (see server/src/routes/
+//   characterBuilds.ts), same as charName/classNames: it describes the character, not the build's
+//   equipment/effect choices, so two builds with identical selections but different descriptions
+//   should still count as the same build for dedup/overwrite purposes.
+function handleDescriptionChange() {
+    charData.saveFile.description = document.getElementById("characterDescription").value;
+    updateSaveDownloadEnabled();
 }
 
-// Matches by name, not id - a loaded build's className is stored as plain text (see buildData's
-//   shape), not the DB's characterClassId, so it round-trips correctly even if ids were ever
-//   renumbered. Falls back to "(none)" if the name isn't found among the loaded options.
-function setCharacterClassSelectByName(className) {
-    let select = document.getElementById("characterClass");
-    for (let option of select.options) {
-        if (option.text === className) {
-            select.value = option.value;
-            return;
-        }
+// ---- Class(es) picker ----
+//
+// Multi-classing: DDO allows up to MAX_CLASSES (3) at once. Same collapsed-summary/Done-Edit
+//   pattern as the Inherent Effects picker (renderInherentPicker()) - a click toggles a class
+//   in/out of charData.saveFile.classNames, stored by name (not characterClassId) for the same
+//   round-trip-robustness reason the old single className was - see Done.md.
+
+function toggleClassPicker() {
+    classPickerExpanded = !classPickerExpanded;
+    updateClassPickerDisplay();
+}
+
+function handleClassButtonClick(className) {
+    let names = charData.saveFile.classNames;
+    let index = names.indexOf(className);
+    if (index > -1) {
+        names.splice(index, 1);
+    } else if (names.length < MAX_CLASSES) {
+        names.push(className);
     }
-    select.value = "";
+    // else: already at the cap and this class isn't selected - no-op, not an error state.
+    updateClassPickerDisplay();
+    updateSaveDownloadEnabled();
+}
+
+function updateClassPickerDisplay() {
+    let names = charData.saveFile.classNames;
+
+    document.getElementById("classPickerSummary").textContent = names.length > 0 ? names.join("/") : "(none)";
+
+    document.getElementById("classPickerExpanded").style.display = classPickerExpanded ? "block" : "none";
+    if (!classPickerExpanded) { return; }
+
+    let atCap = names.length >= MAX_CLASSES;
+    let html  = allCharacterClasses.map(function (c) {
+        let isSelected = names.indexOf(c.className) > -1;
+        let cappedClass = (!isSelected && atCap) ? " handled" : "";
+        return "<button type='button' class='classPickerBtn" + (isSelected ? " selected" : cappedClass) +
+            "' onclick=\"handleClassButtonClick('" + escJs(c.className) + "')\">" + escHtml(c.className) + "</button>";
+    }).join("");
+    document.getElementById("classPickerButtons").innerHTML = html;
 }
 
 function zeroPad(num, digits) {
@@ -1277,11 +1306,13 @@ function downloadJSON(content, fileName, contentType) {
 //   "Color: Effect" comma list - never one bullet per effect. Categories with nothing selected at
 //   all are skipped entirely.
 function buildMarkdownReport() {
-    let charName  = charData.saveFile.charName || "Unnamed";
-    let charLevel = charData.saveFile.charLevel;
-    let className = charData.saveFile.className;
+    let charName   = charData.saveFile.charName || "Unnamed";
+    let charLevel  = charData.saveFile.charLevel;
+    let classNames = charData.saveFile.classNames.join("/");
+    let description = charData.saveFile.description;
 
-    let md         = "# " + charName + ", Level " + charLevel + (className ? " " + className : "") + "\n";
+    let md = "# " + charName + ", Level " + charLevel + (classNames ? " " + classNames : "") + "\n";
+    if (description) { md += "\n" + description + "\n"; }
     let anySection = false;
 
     for (let category of charData.categoryOrder) {
@@ -1396,8 +1427,14 @@ function handleLoad(incomingFile) {
     handleRename(true);
     document.getElementById("characterLevel").value = incomingFile.charLevel;
     charData.saveFile.charLevel                     = Number(incomingFile.charLevel);
-    charData.saveFile.className                     = incomingFile.className || "";
-    setCharacterClassSelectByName(charData.saveFile.className);
+    // classNames replaced the old single className 2026-07-30 - a build saved before that change
+    //   only has className, so fall back to wrapping it as a one-element array.
+    charData.saveFile.classNames = incomingFile.classNames ||
+        (incomingFile.className ? [incomingFile.className] : []);
+    classPickerExpanded = false;
+    updateClassPickerDisplay();
+    charData.saveFile.description = incomingFile.description || "";
+    document.getElementById("characterDescription").value = charData.saveFile.description;
 
     // Custom item config restored BEFORE its selections below - a "custom:Category" positional/
     //   inherent entry only renders anywhere if categoryMode/customItems already put that category
@@ -1460,7 +1497,7 @@ function handleSaveToServer(onSaved) {
         userId: getUserId(),
         charName: charData.saveFile.charName,
         charLevel: charData.saveFile.charLevel,
-        description: null,  // no character-level description field in the client yet (planned, not built)
+        description: charData.saveFile.description || null,
         appVersion: String(charData.saveFile.version),
         buildData: charData.saveFile
     };
@@ -1730,10 +1767,10 @@ function toggleCharacterInfoSection() {
 }
 
 function getCharacterTitleText() {
-    let charName  = charData.saveFile.charName || "Unnamed";
-    let charLevel = charData.saveFile.charLevel;
-    let className = charData.saveFile.className;
-    return charName + ", Level " + charLevel + (className ? " " + className : "");
+    let charName   = charData.saveFile.charName || "Unnamed";
+    let charLevel  = charData.saveFile.charLevel;
+    let classNames = charData.saveFile.classNames.join("/");
+    return charName + ", Level " + charLevel + (classNames ? " " + classNames : "");
 }
 
 function updateCharacterInfoDisplay() {

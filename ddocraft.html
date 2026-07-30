@@ -154,11 +154,20 @@
                        min="1" max="36" placeholder="1-36" class="charLevelInput" required />
             </div>
             <div class="characterInfoField">
-                <label for="characterClass">Class</label>
-                <select id="characterClass" onchange="handleClassChange()">
-                    <option value="">(none)</option>
-                </select>
+                <label>Class(es)</label>
+                <div id="classPickerSummary" class="classPickerSummary" onclick="toggleClassPicker()">(none)</div>
             </div>
+        </div>
+        <!-- Same collapsed-summary/Done pattern as the Inherent Effects picker - see toggleClassPicker()/
+             updateClassPickerDisplay() in ddocraft.js. Full-width, not in .characterInfoFields' flex row,
+             since the button grid needs more room than a narrow field column. -->
+        <div id="classPickerExpanded" class="classPickerExpanded" style="display:none;">
+            <div id="classPickerButtons" class="classPickerButtons"></div>
+            <div class="inherentDoneWrap"><button type="button" class="inherentDoneBtn" onclick="toggleClassPicker()">Done</button></div>
+        </div>
+        <div class="characterInfoField characterInfoDescriptionField">
+            <label for="characterDescription">Description (optional)</label>
+            <textarea id="characterDescription" onchange="handleDescriptionChange()" placeholder="Character description..." class="customItemDescription"></textarea>
         </div>
         <div class="characterInfoHighlightLabel">Highlight</div>
         <div class="helpText">

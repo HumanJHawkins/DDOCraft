@@ -354,6 +354,61 @@ img {
     width: 5em;
 }
 
+.classPickerSummary {
+    cursor: pointer;
+    background-color: #0d0d0d;
+    color: #e8d9b0;
+    border: 1px solid #6b5636;
+    border-radius: 2px;
+    padding: .4vw .6vw;
+    font-family: verdana, sans-serif;
+    font-size: calc(7px + 1vw);
+    min-width: 6em;
+}
+
+.classPickerSummary:hover {
+    background-color: #1c160e;
+}
+
+.classPickerExpanded {
+    margin: .3vw 0 .8vw 0;
+    padding: .5vw;
+    background-color: #0d0d0d;
+    border: 1px solid #6b5636;
+    border-radius: 2px;
+}
+
+.classPickerButtons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4vw;
+}
+
+.classPickerBtn {
+    padding: .3vw .8vw;
+    background-color: #1a1a19;
+    color: #c3c2b7;
+    border: 1px solid #444;
+    font-family: verdana, sans-serif;
+    font-size: calc(6px + .7vw);
+    cursor: pointer;
+}
+
+.classPickerBtn:hover {
+    background-color: #333333;
+}
+
+.characterInfoDescriptionField {
+    margin-bottom: .5vw;
+}
+
+.characterInfoDescriptionField .customItemDescription {
+    background-color: #0d0d0d;
+    color: #e8d9b0;
+    border: 1px solid #6b5636;
+    border-radius: 2px;
+}
+
 .characterInfoHighlightLabel {
     font-family: Georgia, "Palatino Linotype", "Book Antiqua", serif;
     color: #c9a961;
