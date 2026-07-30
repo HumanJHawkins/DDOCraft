@@ -1075,14 +1075,12 @@ function handleCategoryModeToggle(checkbox, category) {
         //   nothing else re-renders to put it back.
         checkbox.checked = true;
         let name = charData.customItems[category].name || "this Named Item";
-        if (confirm("Save changes to \"" + name + "\" before switching " + category + " back to Cannith?")) {
-            handleSaveNamedItem(null, category, function () { applyCategoryModeSwitch(category, false); });
-            return;
-        }
-        if (confirm("Discard changes to \"" + name + "\" and switch " + category +
-                " back to Cannith without saving?")) {
-            applyCategoryModeSwitch(category, false);
-        }
+        confirmSaveDiscardCancel(
+            "\"" + name + "\" has unsaved changes. Save before switching " + category + " back to Cannith?",
+            function () { handleSaveNamedItem(null, category, function () { applyCategoryModeSwitch(category, false); }); },
+            function () { applyCategoryModeSwitch(category, false); },
+            function () { checkbox.checked = true; } // Cancel - already true above, but re-render may have replaced the node
+        );
         return;
     }
     applyCategoryModeSwitch(category, checkbox.checked);
@@ -1137,21 +1135,24 @@ function handleCustomItemName(input, category) {
 
     if (libraryItem && newName !== oldName) {
         if (wasDirty) {
-            if (confirm("Save changes to \"" + (oldName || "this Named Item") + "\" before switching to \"" +
-                    newName + "\"?")) {
-                handleSaveNamedItem(null, category, function () {
+            confirmSaveDiscardCancel(
+                "\"" + (oldName || "this Named Item") + "\" has unsaved changes. Save before switching to \"" +
+                    newName + "\"?",
+                function () { // Save
+                    handleSaveNamedItem(null, category, function () {
+                        loadNamedItemInto(category, libraryItem.itemData);
+                        renderEnchantmentOptions();
+                        renderResult();
+                    });
+                },
+                function () { // Discard
                     loadNamedItemInto(category, libraryItem.itemData);
                     renderEnchantmentOptions();
                     renderResult();
-                });
-                return;
-            }
-            if (!confirm("Discard changes to \"" + (oldName || "this Named Item") + "\" and switch to \"" +
-                    newName + "\" without saving?")) {
-                input.value = oldName; // Cancel - revert the visible field, nothing else changes
-                return;
-            }
-            // Discard: fall through to load
+                },
+                function () { input.value = oldName; } // Cancel - revert the visible field
+            );
+            return;
         }
         loadNamedItemInto(category, libraryItem.itemData);
         renderEnchantmentOptions();
@@ -1786,6 +1787,28 @@ function confirmDiscardUnsavedChanges(proceedFn) {
 //   three-way guard above.
 function confirmRevert() {
     return !isDirty() || confirm("Discard changes and revert to last saved copy?");
+}
+
+// A real three-button modal (see the #saveDiscardCancel markup in ddocraft.html), NOT two chained
+//   confirm()s like confirmDiscardUnsavedChanges() above - added 2026-07-30 after Jeff reported the
+//   chained-confirm() version (used for the Named Item combo box's switch-away guard) as confusing:
+//   Cancel on the first dialog silently opens a SECOND one to reach Discard, which read as a glitchy
+//   double-prompt rather than a real three-way choice. One dialog with three clearly labeled buttons
+//   is unambiguous where that wasn't - worth the one-off custom-modal cost for a choice this easy to
+//   get wrong. Non-blocking (button clicks are async), unlike confirm() - onSave/onDiscard/onCancel
+//   are all optional callbacks, called once the user actually picks one.
+function confirmSaveDiscardCancel(message, onSave, onDiscard, onCancel) {
+    document.getElementById("saveDiscardCancelMessage").textContent = message;
+    let modal = document.getElementById("saveDiscardCancel");
+    modal.style.display = "block";
+
+    function cleanup() { modal.style.display = "none"; }
+
+    // Reassigning .onclick (not addEventListener) each call is deliberate - avoids stacking a new
+    //   duplicate listener, and thus a duplicate callback firing, on every reuse of this one dialog.
+    document.getElementById("saveDiscardCancelSave").onclick = function () { cleanup(); if (onSave) { onSave(); } };
+    document.getElementById("saveDiscardCancelDiscard").onclick = function () { cleanup(); if (onDiscard) { onDiscard(); } };
+    document.getElementById("saveDiscardCancelCancel").onclick = function () { cleanup(); if (onCancel) { onCancel(); } };
 }
 
 // Catches accidental data loss the app's own discard-guards above can't reach - a refresh, closing

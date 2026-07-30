@@ -28,9 +28,16 @@ let deleteCalls = [];
 
 // confirmReturns indexes by page.calls.confirm.length, which accumulates for the whole page's
 // lifetime - truncate it whenever a sub-test wants its own confirmScript to count from 0 again.
+// Still used for the couple of spots that still use a real native confirm() (handleSaveNamedItem's
+// own overwrite check) - the three-way Save/Discard/Cancel guards now use the real modal instead
+// (see clickModal() below), after Jeff reported the old chained-confirm() version as confusing.
 function setConfirmScript(script) {
   confirmScript = script;
   page.calls.confirm.length = 0;
+}
+
+function clickModal(choice) {
+  page.document.getElementById('saveDiscardCancel' + choice).click();
 }
 
 const page = loadPage({
@@ -105,15 +112,19 @@ async function runAsyncChecks() {
   check('rename mid-edit keeps augments (not wiped)', page.global.__c.customItems.Melee1.augments.length, 1);
   check('rename mid-edit keeps description', page.global.__c.customItems.Melee1.description, 'edited after load');
 
-  // --- handleCustomItemName: switching a DIRTY item to another library item - Cancel ---
-  setConfirmScript([false, false]);
+  // --- handleCustomItemName: switching a DIRTY item to another library item - Cancel (via the modal) ---
   page.global.handleCustomItemName({ value: 'Tourney Armor' }, 'Melee1');
+  check('modal actually opened', page.document.getElementById('saveDiscardCancel').style.display, 'block');
+  check('modal message names the item', page.document.getElementById('saveDiscardCancelMessage').textContent
+    .indexOf('Tourney Armor (renamed mid-edit)') > -1, true);
+  clickModal('Cancel');
+  check('modal closed after a choice', page.document.getElementById('saveDiscardCancel').style.display, 'none');
   check('Cancel path: name reverted', page.global.__c.customItems.Melee1.name, 'Tourney Armor (renamed mid-edit)');
   check('Cancel path: still dirty, data untouched', page.global.__c.customItems.Melee1.description, 'edited after load');
 
-  // --- handleCustomItemName: switching a DIRTY item to another library item - Discard ---
-  setConfirmScript([false, true]);
+  // --- handleCustomItemName: switching a DIRTY item to another library item - Discard (via the modal) ---
   page.global.handleCustomItemName({ value: 'Tourney Armor' }, 'Melee1');
+  clickModal('Discard');
   check('Discard path: switched to the library item', page.global.__c.customItems.Melee1.name, 'Tourney Armor');
   check('Discard path: clean after switching (matches library)', page.global.isNamedItemDirty('Melee1'), false);
   check('Discard path: did not POST', savedPayloads.length, 0);
@@ -135,9 +146,9 @@ async function runAsyncChecks() {
   page.global.markNamedItemSaved('Melee1');
   page.global.__c.customItems.Melee1.description = 'dirty before Save-switch';
   check('dirty before Save-switch test', page.global.isNamedItemDirty('Melee1'), true);
-  setConfirmScript([true]); // Save the current one under its own name
   savedPayloads = [];
   page.global.handleCustomItemName({ value: 'Tourney Armor' }, 'Melee1');
+  clickModal('Save'); // Save the current one under its own name (no overwrite-confirm - name is new)
   await new Promise((r) => setTimeout(r, 20));
   check('Save-switch: POSTed under the OLD name first', savedPayloads.length, 1);
   check('Save-switch: POST saved the old name, not the new one', savedPayloads[0].itemName, 'Some Other Name');
@@ -164,15 +175,15 @@ async function runAsyncChecks() {
   page.global.__c.customItems.Melee1.description = 'dirty again for toggle test';
   check('dirty before toggle-away test', page.global.isNamedItemDirty('Melee1'), true);
 
-  // Cancel: decline both confirms - stays in custom mode
-  setConfirmScript([false, false]);
+  // Cancel via the modal - stays in custom mode
   page.global.handleCategoryModeToggle({ checked: false }, 'Melee1');
+  clickModal('Cancel');
   check('Cancel path: categoryMode still custom', page.global.__c.categoryMode.Melee1, 'custom');
 
-  // Discard: decline save, accept discard - switches to cannith, no POST
-  setConfirmScript([false, true]);
+  // Discard via the modal - switches to cannith, no POST
   savedPayloads = [];
   page.global.handleCategoryModeToggle({ checked: false }, 'Melee1');
+  clickModal('Discard');
   check('Discard path: categoryMode reverted to cannith', page.global.__c.categoryMode.Melee1, 'cannith');
   check('Discard path: no POST made', savedPayloads.length, 0);
 
@@ -183,10 +194,11 @@ async function runAsyncChecks() {
   page.global.__c.customItems.Melee1.description = 'dirty once more';
   check('dirty before Save-path toggle test', page.global.isNamedItemDirty('Melee1'), true);
 
-  // Save: accept save (first confirm), then the save's own overwrite-confirm (second confirm)
-  setConfirmScript([true, true]);
+  // Save via the modal, then accept handleSaveNamedItem's own (still native-confirm) overwrite check
+  setConfirmScript([true]);
   savedPayloads = [];
   page.global.handleCategoryModeToggle({ checked: false }, 'Melee1');
+  clickModal('Save');
   await new Promise((r) => setTimeout(r, 20));
   check('Save path: POST made before switching', savedPayloads.length, 1);
   check('Save path: categoryMode reverted to cannith after save', page.global.__c.categoryMode.Melee1, 'cannith');

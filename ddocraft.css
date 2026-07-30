@@ -752,6 +752,28 @@ button.handled, button.blocked {
     background-color: #444;
 }
 
+/* Compact and centered, unlike the wide 80vw default every other modal uses - reads as a real
+   confirmation dialog, not a full panel. Dark chrome to match the main page (see confirmSaveDiscard-
+   Cancel()'s comment in ddocraft.js for why this exists instead of two chained confirm()s). */
+#saveDiscardCancel .modal-content {
+    background-color: #0d0d0d;
+    color: #f1f1f1;
+    width: auto;
+    max-width: 30vw;
+    margin: auto;
+    text-align: center;
+}
+
+#saveDiscardCancelMessage {
+    margin-bottom: 1vw;
+}
+
+.saveDiscardCancelButtons {
+    display: flex;
+    justify-content: center;
+    gap: 1vw;
+}
+
 .openBuildColOpen {
     width: 1%;
     white-space: nowrap;

@@ -116,6 +116,21 @@
     </div>
 </div>
 
+<!-- Generic reusable 3-way Save/Discard/Cancel dialog - see ddocraft.js's confirmSaveDiscardCancel().
+     Replaced two chained native confirm()s (Cancel-then-OK to reach Discard) after Jeff reported it
+     as confusing/glitchy-seeming in real use - a single dialog with three clearly-labeled buttons is
+     unambiguous where that wasn't. -->
+<div id="saveDiscardCancel" class="modal">
+    <div class="modal-content">
+        <p id="saveDiscardCancelMessage" class="modalText"></p>
+        <div class="saveDiscardCancelButtons">
+            <button type="button" id="saveDiscardCancelSave">Save</button>
+            <button type="button" id="saveDiscardCancelDiscard">Discard</button>
+            <button type="button" id="saveDiscardCancelCancel">Cancel</button>
+        </div>
+    </div>
+</div>
+
 <!--<h3>ISSUE: Prior save files may lose their Character Level setting. Please reset that and re-save.<br /> </h3>-->
 <!--<h3><br /></h3>-->
 <h1 style="float:left">DDO Cannith Crafting Planner</h1>

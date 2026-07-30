@@ -71,6 +71,11 @@ function makeFakeElement(id, tag) {
     },
     dispatchEvent(evt) {
       (this._listeners[evt.type] || []).forEach((fn) => fn(evt));
+      // Real DOM elements fire both addEventListener listeners AND an assigned `on<type>` property
+      // (e.g. `el.onclick = fn`) - code under test uses the latter for the Save/Discard/Cancel
+      // modal's buttons, so this stub needs to invoke it too for click()/dispatchEvent() to work.
+      const onHandler = this['on' + evt.type];
+      if (typeof onHandler === 'function') { onHandler(evt); }
       return true;
     },
     appendChild(child) { this.children.push(child); return child; },
