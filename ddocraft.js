@@ -1361,6 +1361,16 @@ function confirmRevert() {
     return !isDirty() || confirm("Discard changes and revert to last saved copy?");
 }
 
+// Catches accidental data loss the app's own discard-guards above can't reach - a refresh, closing
+//   the tab, or navigating away entirely (typing a URL, browser back/forward). Deliberately limited
+//   compared to those guards: modern browsers show their own fixed-text "leave site?" prompt (no
+//   custom message) with only Stay/Leave, no way to hook in "save first" as a third option, since
+//   the page unloads immediately once the user chooses to leave. Still worth it as a safety net for
+//   exactly the case those guards can't cover. No-ops entirely when nothing's unsaved.
+window.addEventListener('beforeunload', function (e) {
+    if (isDirty()) { e.preventDefault(); e.returnValue = ''; }
+});
+
 function handleLoad(incomingFile) {
     // Opening a finished build is a different moment than actively building one - show it off
     //   as a title immediately rather than landing back in edit mode.
