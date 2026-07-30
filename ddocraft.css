@@ -445,7 +445,7 @@ td.options:hover {
 
 
 .selected {
-    background-color: #0ca30c;
+    background-color: #f0a030;
     color: #0b0b0b;
 }
 
@@ -472,7 +472,7 @@ button:hover:enabled {
 }
 
 .selected:hover:enabled {
-    background-color: #2ecc40;
+    background-color: #f7b855;
     color: #0b0b0b;
     text-shadow: -0.04ex 0 currentColor, 0.04ex 0 currentColor;
 }
