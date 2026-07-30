@@ -58,6 +58,13 @@ let buildHistoryList    = [];
 const NAMED_ITEM_API_BASE = "/api/named-items";
 let allNamedItems = [];
 
+// lastSavedNamedItemSnapshot[category] = a canonical snapshot string of that category's Named
+//   Item as of the last time it matched the library (just loaded from it, or just saved to it) -
+//   see markNamedItemSaved()/isNamedItemDirty() below. Same lastSavedSnapshot/isDirty()/markSaved()
+//   pattern the whole build already uses, one level down: "does this category's item differ from
+//   its own library entry" instead of "does the whole build differ from its last save."
+let lastSavedNamedItemSnapshot = {};
+
 let charData = {
     // enchantments[enchName] = { enchName, enchEffectType, enchDesc, enchSupercededBy,
     //   enchCannithMinLevel, enchAugmentMinLevel, allEnch, basic, nonscaling, for<Role>... }
@@ -769,15 +776,16 @@ function renderCustomItemBody(category, idx) {
     let custom = charData.customItems[category] ||
         {name: "", augments: [], nextAugmentId: 1, description: "", minLevel: ""};
     let item   = customItemKey(category);
+    let needsSetup = namedItemNeedsSetup(category);
 
     let html   = "<tr><td class='slot'>Name</td><td class='options'>" +
         "<input type='text' class='customItemName' list='namedItemNames' value=\"" + escHtml(custom.name) +
         "\" onchange=\"handleCustomItemName(this,'" + escJs(category) + "')\" />" +
         renderCustomItemMinLevel(category, custom) +
-        " <button type='button' class='saveNamedItemBtn' onclick=\"handleSaveNamedItem(this,'" +
-        escJs(category) + "')\">Save Named Item</button>" +
-        getAddAugmentControlHtml(category) +
+        (needsSetup ? " <em class='namedItemSetupHint'>(enter a name and min level to continue)</em>" : getAddAugmentControlHtml(category)) +
         "</td></tr>";
+
+    if (needsSetup) { return html; }
 
     custom.augments.forEach(function (aug, position) {
         html += renderCustomAugmentSlotRow(category, item, aug, position, idx);
@@ -787,6 +795,36 @@ function renderCustomItemBody(category, idx) {
     html += renderCustomItemDescription(category, custom);
 
     return html;
+}
+
+// A brand-new, still-empty Named/Custom item starts locked to just Name/Min Level - the rest
+//   (augments, Inherent Effects, description, and the Save button that lives with them - see
+//   renderInherentPicker()) only unlocks once both are filled in, the same "nothing to do until the
+//   basics are set" idea as the whole page forcing every category collapsed until charLevel is
+//   valid (see hasValidCharLevel()). Never re-locks an item that already has real content, even if
+//   minLevel is later cleared - that would look like the app silently hid/lost work.
+function namedItemNeedsSetup(category) {
+    let custom = charData.customItems[category];
+    if (!custom) { return true; }
+    let item = customItemKey(category);
+    let hasContent = custom.augments.length > 0 || !!custom.description ||
+        itemHasAnySelection(item) || inherentHasSelection(category, item);
+    if (hasContent) { return false; }
+    return !custom.name || !custom.minLevel;
+}
+
+// Sits below the Inherent Effects Edit/Done toggle (see renderInherentPicker()) rather than next to
+//   the Name field - there's room there, and both it and Edit/Done disappear together whenever the
+//   whole category collapses to nothing (see renderEnchantmentOptions()'s categoryCollapsed check).
+//   Label shortens to the terser "Save" - matching Edit/Done's own terse style - specifically when
+//   there's something new to push to the library; otherwise it reads as the fuller "Save Named Item"
+//   and stays disabled, since there's nothing to do. event.stopPropagation() for the same reason the
+//   category-mode checkbox needs it: this sits inside the row's own already-clickable slot cell.
+function getSaveNamedItemButtonHtml(category) {
+    let dirty = isNamedItemDirty(category);
+    return "<div class='saveNamedItemWrap'><button type='button' class='saveNamedItemBtn'" +
+        (dirty ? "" : " disabled") + " onclick=\"event.stopPropagation(); handleSaveNamedItem(this,'" +
+        escJs(category) + "')\">" + (dirty ? "Save" : "Save Named Item") + "</button></div>";
 }
 
 // Inline label+input, sitting right next to the Name field in the same row (like Character Info's
@@ -909,7 +947,7 @@ function renderInherentPicker(category, idx) {
     //   clickable once a long picker list is open below it, so this gives that same action a
     //   visible, mode-appropriate affordance.
     let toggleBtn    = "<div class='inherentDoneWrap'><button type='button' class='inherentDoneBtn'>" +
-        (collapsed ? "Edit" : "Done") + "</button></div>";
+        (collapsed ? "Edit" : "Done") + "</button></div>" + getSaveNamedItemButtonHtml(category);
 
     if (collapsed && !hasSelection) {
         // Stays visible even when empty - inherent effects aren't options to pick so much as
@@ -985,10 +1023,31 @@ function handleCategoryModeToggle(checkbox, category) {
     // Non-destructive both ways: the custom item's name/augments/selections are never deleted just
     //   for being switched away from - they're preserved exactly as left, and excluded from
     //   duplicate-warning accounting while hidden (see computeSelectionIndex()). Switching back to
-    //   custom mode picks up right where it was. No confirm needed here, because nothing is lost.
-    charData.categoryMode[category] = checkbox.checked ? "custom" : "cannith";
-    if (checkbox.checked && !charData.customItems[category]) {
+    //   custom mode picks up right where it was.
+    let switchingAwayFromCustom = !checkbox.checked && charData.categoryMode[category] === "custom";
+    if (switchingAwayFromCustom && isNamedItemDirty(category)) {
+        // Holds the checkbox visually checked until the user actually decides - if they Cancel,
+        //   nothing else re-renders to put it back.
+        checkbox.checked = true;
+        let name = charData.customItems[category].name || "this Named Item";
+        if (confirm("Save changes to \"" + name + "\" before switching " + category + " back to Cannith?")) {
+            handleSaveNamedItem(null, category, function () { applyCategoryModeSwitch(category, false); });
+            return;
+        }
+        if (confirm("Discard changes to \"" + name + "\" and switch " + category +
+                " back to Cannith without saving?")) {
+            applyCategoryModeSwitch(category, false);
+        }
+        return;
+    }
+    applyCategoryModeSwitch(category, checkbox.checked);
+}
+
+function applyCategoryModeSwitch(category, toCustom) {
+    charData.categoryMode[category] = toCustom ? "custom" : "cannith";
+    if (toCustom && !charData.customItems[category]) {
         charData.customItems[category] = {name: "", augments: [], nextAugmentId: 1, description: "", minLevel: ""};
+        markNamedItemSaved(category); // blank baseline - nothing to save until something's entered
     }
 
     renderEnchantmentOptions();
@@ -1001,21 +1060,39 @@ function handleCategoryModeToggle(checkbox, category) {
 //   Only asks for confirmation when it would actually discard something (an empty/fresh custom
 //   item loads silently, matching how opening a real named item pick shouldn't feel like a
 //   destructive action).
+//
+// If the typed name does NOT match anything saved, and what's currently entered was itself
+//   untouched since it was last loaded/saved (not dirty) - treat this as "start a new item" and
+//   clear the rest, so a name typed over a just-loaded item doesn't drag that item's augments along
+//   under the new name. If there ARE unsaved edits already, this is just a rename mid-edit instead -
+//   nothing gets cleared, so in-progress work is never silently lost by fixing a typo in the name.
 function handleCustomItemName(input, category) {
-    let newName = input.value;
+    let newName  = input.value;
+    let wasDirty = isNamedItemDirty(category);
     charData.customItems[category].name = newName;
 
     let libraryItem = allNamedItems.find(function (n) { return n.itemName === newName; });
-    if (!libraryItem) { return; }
-
-    let custom = charData.customItems[category];
-    let hasExistingData = custom.augments.length > 0 || !!custom.description;
-    if (hasExistingData && !confirm("Load the saved Named Item \"" + newName + "\" here? This will " +
-            "replace the augments, selections, and description currently entered for " + category + ".")) {
+    if (libraryItem) {
+        let custom = charData.customItems[category];
+        let hasExistingData = custom.augments.length > 0 || !!custom.description;
+        if (hasExistingData && !confirm("Load the saved Named Item \"" + newName + "\" here? This will " +
+                "replace the augments, selections, and description currently entered for " + category + ".")) {
+            return;
+        }
+        loadNamedItemInto(category, libraryItem.itemData);
+        renderEnchantmentOptions();
+        renderResult();
         return;
     }
 
-    loadNamedItemInto(category, libraryItem.itemData);
+    if (!wasDirty) {
+        charData.customItems[category] = {name: newName, augments: [], nextAugmentId: 1, description: "", minLevel: ""};
+        let item = customItemKey(category);
+        delete charData.selections.positional[item];
+        if (charData.selections.inherent[category]) { delete charData.selections.inherent[category][item]; }
+        markNamedItemSaved(category);
+    }
+
     renderEnchantmentOptions();
     renderResult();
 }
@@ -1043,6 +1120,8 @@ function loadNamedItemInto(category, data) {
         if (enchName in charData.enchantments) { inherentSet.add(enchName); }
     }
     charData.selections.inherent[category][item] = inherentSet;
+
+    markNamedItemSaved(category); // just loaded - matches the library entry it came from by definition
 }
 
 function handleCustomItemMinLevel(input, category) {
@@ -1052,22 +1131,27 @@ function handleCustomItemMinLevel(input, category) {
     if (!isValid) { input.value = ""; }
 }
 
-// Pushes the category's current Named/Custom item (definition + its actual augment/inherent
-//   selections) up to the user's library, overwriting any existing entry with the same name -
-//   see db/ddocraft_schema.sql's namedItem comment for why that's intentional, not a bug. A blank
-//   name can't be saved (nothing to key the upsert on).
-function handleSaveNamedItem(button, category) {
-    let custom = charData.customItems[category];
-    if (!custom || !custom.name) { alert("Enter a name before saving a Named Item."); return; }
+// ---- Named Item library dirty-tracking ----
+//
+// Same idea as the whole build's lastSavedSnapshot/isDirty()/markSaved() (see computeContentSnapshot()
+//   below), one level down: does THIS category's Named Item differ from its own library entry, not
+//   from the last-saved build. A category's item being library-dirty does NOT need separate tracking
+//   to also dirty the whole build - customItems is already part of computeContentSnapshot(), so any
+//   edit here already flips isDirty() on its own. This is purely about "is there something new here
+//   worth pushing to the library" (drives the Save button's label/enabled state and the Cannith-
+//   switch confirmation), and saving to the library deliberately does NOT un-dirty the build - the
+//   build itself still needs its own separate Save.
 
-    let item = customItemKey(category);
+function buildNamedItemPayload(category) {
+    let custom = charData.customItems[category];
+    let item   = customItemKey(category);
     let augmentSelections = {};
     for (let slot of Object.keys(charData.selections.positional[item] || {})) {
         augmentSelections[slot] = charData.selections.positional[item][slot];
     }
     let inherentSet = (charData.selections.inherent[category] || {})[item];
 
-    let itemData = {
+    return {
         name: custom.name,
         minLevel: custom.minLevel,
         augments: custom.augments,
@@ -1076,9 +1160,55 @@ function handleSaveNamedItem(button, category) {
         augmentSelections: augmentSelections,
         inherentSelections: inherentSet ? Array.from(inherentSet) : []
     };
+}
 
-    let originalLabel = button.textContent;
-    button.disabled = true;
+// Fixed key order and sorted inherentSelections so two structurally-equal payloads always produce
+//   the same string, regardless of Set iteration order or object property insertion order.
+function canonicalNamedItemSnapshot(data) {
+    return JSON.stringify({
+        name: data.name || "",
+        minLevel: data.minLevel || "",
+        augments: (data.augments || []).map(function (a) { return {id: a.id, color: a.color}; }),
+        description: data.description || "",
+        augmentSelections: data.augmentSelections || {},
+        inherentSelections: (data.inherentSelections || []).slice().sort()
+    });
+}
+
+function computeNamedItemSnapshot(category) {
+    return canonicalNamedItemSnapshot(buildNamedItemPayload(category));
+}
+
+function markNamedItemSaved(category) {
+    lastSavedNamedItemSnapshot[category] = computeNamedItemSnapshot(category);
+}
+
+function isNamedItemDirty(category) {
+    if (!charData.customItems[category]) { return false; }
+    return lastSavedNamedItemSnapshot[category] !== computeNamedItemSnapshot(category);
+}
+
+// Pushes the category's current Named/Custom item (definition + its actual augment/inherent
+//   selections) up to the user's library, overwriting any existing entry with the same name -
+//   see db/ddocraft_schema.sql's namedItem comment for why that's intentional, not a bug. A blank
+//   name can't be saved (nothing to key the upsert on). Confirms before actually overwriting an
+//   existing entry - unlike a fresh save under a brand new name, that's a real "lose data" moment if
+//   what's currently entered has fewer augments/effects than what's already saved there.
+//
+// button is null when called programmatically (see handleCategoryModeToggle's Save choice) rather
+//   than from a real click - onDone, if given, runs only after the save actually completes.
+function handleSaveNamedItem(button, category, onDone) {
+    let custom = charData.customItems[category];
+    if (!custom || !custom.name) { alert("Enter a name before saving a Named Item."); return; }
+
+    let existing = allNamedItems.find(function (n) { return n.itemName === custom.name; });
+    if (existing && !confirm("Overwrite the previously saved Named Item \"" + custom.name +
+            "\"? This replaces its saved augments, effects, and description.")) {
+        return;
+    }
+
+    let itemData = buildNamedItemPayload(category);
+    if (button) { button.disabled = true; }
 
     fetch(NAMED_ITEM_API_BASE, {
         method: "POST",
@@ -1087,16 +1217,16 @@ function handleSaveNamedItem(button, category) {
     })
         .then(function (r) { return rejectIfNotOk(r); })
         .then(function () {
-            let existing = allNamedItems.find(function (n) { return n.itemName === custom.name; });
             if (existing) { existing.itemData = itemData; } else { allNamedItems.push({itemName: custom.name, itemData: itemData}); }
             updateNamedItemDatalist();
-            button.textContent = "Saved!";
-            setTimeout(function () { button.textContent = originalLabel; button.disabled = false; }, 1500);
+            markNamedItemSaved(category);
+            renderEnchantmentOptions(); // Save button re-renders disabled/relabeled now that it's clean
+            renderResult();
+            if (onDone) { onDone(); }
         })
         .catch(function (err) {
             alert("Saving Named Item failed: " + err.message);
-            button.textContent = originalLabel;
-            button.disabled = false;
+            renderEnchantmentOptions();
         });
 }
 
@@ -1568,10 +1698,11 @@ function handleLoad(incomingFile) {
     characterInfoCollapsed = true;
 
     // Need to start with a clean slate to avoid merging loaded data with whatever is on screen.
-    charData.selections.positional = {};
-    charData.selections.inherent   = {};
-    charData.categoryMode          = {};
-    charData.customItems           = {};
+    charData.selections.positional  = {};
+    charData.selections.inherent    = {};
+    charData.categoryMode           = {};
+    charData.customItems            = {};
+    lastSavedNamedItemSnapshot      = {};
     charData.collapsed.item.clear();
     charData.collapsed.slot.clear();
     charData.collapsed.color.clear();
@@ -1628,6 +1759,22 @@ function handleLoad(incomingFile) {
     charData.collapsed.item  = new Set(incomingCollapsed.item || []);
     charData.collapsed.slot  = new Set(incomingCollapsed.slot || []);
     charData.collapsed.color = new Set(incomingCollapsed.color || []);
+
+    // Best-effort re-baseline: a just-opened build's named item wasn't loaded through the combo box
+    //   picker this session, so it defaults to "dirty" (see isNamedItemDirty()) unless it happens to
+    //   match its library entry exactly - in which case there's genuinely nothing new to save.
+    for (let category of Object.keys(charData.customItems)) {
+        syncNamedItemBaselineFromLibrary(category);
+    }
+}
+
+function syncNamedItemBaselineFromLibrary(category) {
+    let custom = charData.customItems[category];
+    if (!custom || !custom.name) { return; }
+    let libraryItem = allNamedItems.find(function (n) { return n.itemName === custom.name; });
+    if (libraryItem && canonicalNamedItemSnapshot(libraryItem.itemData) === computeNamedItemSnapshot(category)) {
+        markNamedItemSaved(category);
+    }
 }
 
 // ---- Server save/open ----

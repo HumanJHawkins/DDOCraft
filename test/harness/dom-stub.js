@@ -157,7 +157,14 @@ function loadPage(opts) {
   global.document = document;
   global.window = fakeWindow;
   global.alert = (msg) => { calls.alert.push(msg); };
-  global.confirm = (msg) => { calls.confirm.push(msg); return opts.confirmReturns !== undefined ? opts.confirmReturns : true; };
+  global.confirm = (msg) => {
+    calls.confirm.push(msg);
+    // confirmReturns can be a plain boolean (every confirm() answers the same way) or a function
+    // (msg, callIndex) => boolean for tests that need a sequence of different answers - e.g.
+    // simulating "Save" (first confirm) then "Discard" (second) in a chained-confirm() 3-way choice.
+    if (typeof opts.confirmReturns === 'function') { return opts.confirmReturns(msg, calls.confirm.length - 1); }
+    return opts.confirmReturns !== undefined ? opts.confirmReturns : true;
+  };
   global.XMLHttpRequest = makeXHR(opts.routes);
   global.fetch = opts.fetch || (() => Promise.reject(new Error('fetch not stubbed in this harness run')));
   global.URL = { createObjectURL: () => 'blob:fake', revokeObjectURL: () => {} };

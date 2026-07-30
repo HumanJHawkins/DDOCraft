@@ -486,10 +486,14 @@ img {
     background-color: #333333;
 }
 
+.saveNamedItemWrap {
+    text-align: center;
+    margin-top: .4vw;
+}
+
 .saveNamedItemBtn {
     display: inline-block;
     padding: .2vw .8vw;
-    margin-left: .5vw;
     background-color: #1a1a19;
     color: #c3c2b7;
     border: 1px solid #444;
