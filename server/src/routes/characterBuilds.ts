@@ -369,6 +369,9 @@ characterBuildsRouter.get("/:id", async (req, res, next) => {
   }
 });
 
+// Soft delete only, matching every other list-facing state change in this file - the row still
+//   exists afterward, but only reachable via /history if some OTHER version of the same charName
+//   is still active. Deleting a build's only version currently leaves it unreachable from the UI.
 characterBuildsRouter.delete("/:id", async (req, res, next) => {
   const characterBuildId = req.params.id;
   const userId = parseUserId(req.body?.userId ?? req.query.userId);
@@ -384,7 +387,7 @@ characterBuildsRouter.delete("/:id", async (req, res, next) => {
 
   try {
     const [result] = await pool.query<ResultSetHeader>(
-      "DELETE FROM characterBuild WHERE characterBuildId = ? AND userId = ?",
+      "UPDATE characterBuild SET deletedDate = NOW() WHERE characterBuildId = ? AND userId = ? AND deletedDate IS NULL",
       [characterBuildId, userId]
     );
     if (result.affectedRows === 0) {

@@ -198,7 +198,7 @@ function initCategoryChoice() {
 }
 
 function initFilter() {
-    charData.saveFile.charLevel             = document.getElementById('characterLevel').value;
+    charData.saveFile.charLevel             = Number(document.getElementById('characterLevel').value);
     charData.enchFilter['allEnch']          = document.getElementById('allEnch').checked;
     charData.enchFilter['basic']            = document.getElementById('basic').checked;
     charData.enchFilter['nonscaling']       = document.getElementById('nonscaling').checked;
@@ -1326,7 +1326,7 @@ function handleLoad(incomingFile) {
     document.getElementById('characterName').value = incomingFile.charName;
     handleRename(true);
     document.getElementById("characterLevel").value = incomingFile.charLevel;
-    charData.saveFile.charLevel                     = incomingFile.charLevel;
+    charData.saveFile.charLevel                     = Number(incomingFile.charLevel);
     charData.saveFile.className                     = incomingFile.className || "";
     setCharacterClassSelectByName(charData.saveFile.className);
 
@@ -1470,6 +1470,26 @@ function handleLoadFromServer() {
         .catch(function (err) { alert("Load from server failed: " + err.message); });
 }
 
+// Soft delete (see server/src/routes/characterBuilds.ts) - the row survives, but there's currently
+//   no UI path back to it once it's the only version under its name: History is only reachable from
+//   an active row, and deleting removes the last one. So from the user's perspective this is a
+//   one-way action today, hence the blunt warning below rather than a softer "are you sure?".
+function handleDeleteBuild(characterBuildId, charName, charLevel) {
+    let message = "Delete " + charName + ", Level " + charLevel + "? There is currently no way to " +
+        "undo this or recover it once its last active version is gone.";
+    if (!confirm(message)) { return; }
+
+    fetch(CHARACTER_BUILD_API_BASE + "/" + characterBuildId + "?userId=" + getTestUserId(), {method: "DELETE"})
+        .then(function (r) {
+            if (r.ok) { return; }
+            return r.json().catch(function () { return {}; }).then(function (body) {
+                throw new Error(body.error || ("status " + r.status));
+            });
+        })
+        .then(function () { handleLoadFromServer(); })
+        .catch(function (err) { alert("Delete failed: " + err.message); });
+}
+
 function handleSortOpenBuildList(column) {
     openBuildSortAsc    = (openBuildSortColumn === column) ? !openBuildSortAsc : true;
     openBuildSortColumn = column;
@@ -1496,7 +1516,9 @@ function renderOpenBuildTableBody() {
         html += "<tr><td class='openBuildColOpen'><a class='openBuildOpenLink' href=\"" + escHtml(url) +
             "\" onclick=\"return handleOpenBuildLinkClick(event,'" + escJs(build.characterBuildId) +
             "')\">Open</a> <button class='openBuildOpenLink' onclick=\"handleShowBuildHistory('" +
-            escJs(build.charName) + "')\">History</button></td><td>" + escHtml(build.charName) +
+            escJs(build.charName) + "')\">History</button> <button class='openBuildOpenLink' onclick=\"handleDeleteBuild('" +
+            escJs(build.characterBuildId) + "','" + escJs(build.charName) + "'," + build.charLevel +
+            ")\">Delete</button></td><td>" + escHtml(build.charName) +
             "</td><td>" + build.charLevel + "</td><td>" + build.effectCount + "</td><td>" +
             escHtml(formatBuildDate(build.updateDate)) + "</td></tr>";
     }
@@ -1526,9 +1548,15 @@ function handleShowBuildHistory(charName) {
             buildHistoryList = list;
             document.getElementById("buildHistoryHeading").textContent = "Build History: " + charName;
             renderBuildHistoryTableBody();
+            dialogOpenBuild.style.display    = 'none';
             dialogBuildHistory.style.display = 'block';
         })
         .catch(function (err) { alert("Load history failed: " + err.message); });
+}
+
+function handleCloseBuildHistory() {
+    dialogBuildHistory.style.display = 'none';
+    dialogOpenBuild.style.display    = 'block';
 }
 
 function renderBuildHistoryTableBody() {

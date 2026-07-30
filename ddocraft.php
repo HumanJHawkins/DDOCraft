@@ -152,7 +152,7 @@ updateCounter();
 <!-- Modal: version history for one build (temporary test harness). Hidden while not in use. -->
 <div id="buildHistory" class="modal">
     <div id="divBuildHistoryDialog" class="modal-content">
-        <div id="btnCloseBuildHistory" class="modalClose" onClick="dialogBuildHistory.style.display='none'">&times;</div>
+        <div id="btnCloseBuildHistory" class="modalClose" onClick="handleCloseBuildHistory()">&times;</div>
         <h3 id="buildHistoryHeading" class="modalText modalHeading">Build History</h3>
         <div class="openBuildListWrap">
             <table class="openBuildTable">

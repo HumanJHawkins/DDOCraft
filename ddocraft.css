@@ -556,6 +556,7 @@ button.handled, button.blocked {
 
 .openBuildListWrap {
     max-height: 50vh;
+    min-height: 12vh;
     overflow-y: auto;
     margin: 1vw 0;
 }
