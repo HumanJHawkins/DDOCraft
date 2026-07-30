@@ -264,6 +264,81 @@ characterBuildsRouter.get("/", async (req, res, next) => {
   }
 });
 
+// Registered before GET /:id on purpose - Express matches routes in order, and /:id would
+//   otherwise swallow "history" as if it were an id.
+//
+// Every version (active and soft-deleted) of one specific build, newest first - the active row
+//   always sorts first, since a rollback or overwrite always touches updateDate. No userId-vs-
+//   ownership ambiguity here despite returning deleted rows too: this is scoped to userId, unlike
+//   the unguessable-GUID single-GET below.
+characterBuildsRouter.get("/history", async (req, res, next) => {
+  const userId = parseUserId(req.query.userId);
+  const charName = req.query.charName;
+
+  if (userId === null) {
+    res.status(400).json({ error: "userId query parameter must be a positive integer" });
+    return;
+  }
+  if (typeof charName !== "string" || !charName) {
+    res.status(400).json({ error: "charName query parameter is required" });
+    return;
+  }
+
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT characterBuildId, charName, charLevel, effectCount, deletedDate, updateDate
+       FROM characterBuild WHERE userId = ? AND charName = ? ORDER BY updateDate DESC`,
+      [userId, charName]
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Deactivates whatever is currently active under this build's name and reactivates this one -
+//   always exactly a two-row swap, never a rename or a conflict to resolve, because there is
+//   always exactly one active row per (userId, charName). Symmetric: rolling back to what was
+//   just deactivated undoes a rollback the same way.
+characterBuildsRouter.post("/:id/rollback", async (req, res, next) => {
+  const characterBuildId = req.params.id;
+  const userId = parseUserId(req.body?.userId);
+
+  if (!isValidGuid(characterBuildId)) {
+    res.status(400).json({ error: "characterBuildId must be a valid GUID" });
+    return;
+  }
+  if (userId === null) {
+    res.status(400).json({ error: "userId must be a positive integer" });
+    return;
+  }
+
+  try {
+    const [target] = await pool.query<RowDataPacket[]>(
+      "SELECT charName FROM characterBuild WHERE characterBuildId = ? AND userId = ? AND deletedDate IS NOT NULL",
+      [characterBuildId, userId]
+    );
+    if (target.length === 0) {
+      res.status(404).json({ error: "not found (or not currently rolled back)" });
+      return;
+    }
+    const charName = target[0].charName;
+
+    await pool.query<ResultSetHeader>(
+      "UPDATE characterBuild SET deletedDate = NOW(), updateBy = ? WHERE userId = ? AND charName = ? AND deletedDate IS NULL",
+      [SERVICE_IDENTITY, userId, charName]
+    );
+    await pool.query<ResultSetHeader>(
+      "UPDATE characterBuild SET deletedDate = NULL, updateBy = ? WHERE characterBuildId = ?",
+      [SERVICE_IDENTITY, characterBuildId]
+    );
+
+    res.json({ characterBuildId });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // No userId check here, deliberately: characterBuildId is a random, unguessable GUID - knowing it
 //   is what grants read access (the same way a Google Docs "anyone with the link" URL works), so
 //   this is the one route both a build's own owner AND anyone they've shared the id with can use.

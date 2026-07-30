@@ -149,6 +149,27 @@ updateCounter();
     </div>
 </div>
 
+<!-- Modal: version history for one build (temporary test harness). Hidden while not in use. -->
+<div id="buildHistory" class="modal">
+    <div id="divBuildHistoryDialog" class="modal-content">
+        <div id="btnCloseBuildHistory" class="modalClose" onClick="dialogBuildHistory.style.display='none'">&times;</div>
+        <h3 id="buildHistoryHeading" class="modalText modalHeading">Build History</h3>
+        <div class="openBuildListWrap">
+            <table class="openBuildTable">
+                <thead>
+                    <tr>
+                        <th class="openBuildColOpen"></th>
+                        <th>Level</th>
+                        <th>Effects</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody id="buildHistoryTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <!--<h3>ISSUE: Prior save files may lose their Character Level setting. Please reset that and re-save.<br /> </h3>-->
 <!--<h3><br /></h3>-->
 <h1 style="float:left">DDO Cannith Crafting Planner b0.98</h1>

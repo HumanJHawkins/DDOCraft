@@ -7,6 +7,7 @@ let dialogAbout;
 let buttonAbout;
 let buttonCloseAbout;
 let dialogOpenBuild;
+let dialogBuildHistory;
 
 // Manual preference for the Character Info section - forced to false (edit mode) regardless
 //   whenever there's no valid level yet, since there's nothing worth presenting (see
@@ -88,6 +89,7 @@ function initialize() {
     buttonAbout            = document.getElementById("btnAbout");
     buttonCloseAbout       = document.getElementById("btnCloseAbout");
     dialogOpenBuild        = document.getElementById('openBuild');
+    dialogBuildHistory     = document.getElementById('buildHistory');
 
     renderEnchantmentOptions();
     renderResult();
@@ -1493,8 +1495,10 @@ function renderOpenBuildTableBody() {
         let url = "ddocraft.php?openBuild=" + encodeURIComponent(build.characterBuildId);
         html += "<tr><td class='openBuildColOpen'><a class='openBuildOpenLink' href=\"" + escHtml(url) +
             "\" onclick=\"return handleOpenBuildLinkClick(event,'" + escJs(build.characterBuildId) +
-            "')\">Open</a></td><td>" + escHtml(build.charName) + "</td><td>" + build.charLevel +
-            "</td><td>" + build.effectCount + "</td><td>" + escHtml(formatBuildDate(build.updateDate)) + "</td></tr>";
+            "')\">Open</a> <button class='openBuildOpenLink' onclick=\"handleShowBuildHistory('" +
+            escJs(build.charName) + "')\">History</button></td><td>" + escHtml(build.charName) +
+            "</td><td>" + build.charLevel + "</td><td>" + build.effectCount + "</td><td>" +
+            escHtml(formatBuildDate(build.updateDate)) + "</td></tr>";
     }
     document.getElementById("openBuildTableBody").innerHTML = html;
 }
@@ -1502,6 +1506,67 @@ function renderOpenBuildTableBody() {
 function formatBuildDate(isoString) {
     let date = new Date(isoString);
     return isNaN(date.getTime()) ? isoString : date.toLocaleString();
+}
+
+// ---- Build History / Rollback ----
+//
+// Scoped to one build's own name, not a general "browse everything deleted" list - there's always
+//   exactly one active row per (userId, charName), so a rollback is always a plain two-row swap
+//   (deactivate whatever's active now, reactivate the target) with no naming conflict to resolve
+//   and nothing to rename. Rolling back to what was just deactivated undoes a rollback the same
+//   way, for free - no separate "undo" needed.
+
+let buildHistoryList = [];
+
+function handleShowBuildHistory(charName) {
+    let userId = getTestUserId();
+    fetch(CHARACTER_BUILD_API_BASE + "/history?userId=" + userId + "&charName=" + encodeURIComponent(charName))
+        .then(function (r) { return rejectIfNotOk(r); })
+        .then(function (list) {
+            buildHistoryList = list;
+            document.getElementById("buildHistoryHeading").textContent = "Build History: " + charName;
+            renderBuildHistoryTableBody();
+            dialogBuildHistory.style.display = 'block';
+        })
+        .catch(function (err) { alert("Load history failed: " + err.message); });
+}
+
+function renderBuildHistoryTableBody() {
+    let html = "";
+    for (let build of buildHistoryList) {
+        let actionCell;
+        if (build.deletedDate === null) {
+            let url = "ddocraft.php?openBuild=" + encodeURIComponent(build.characterBuildId);
+            actionCell = "<a class='openBuildOpenLink' href=\"" + escHtml(url) +
+                "\" onclick=\"return handleOpenBuildLinkClick(event,'" + escJs(build.characterBuildId) + "')\">Open</a>";
+        } else {
+            actionCell = "<button class='openBuildOpenLink' onclick=\"handleRollback('" +
+                escJs(build.characterBuildId) + "','" + escJs(formatBuildDate(build.updateDate)) + "'," +
+                build.effectCount + ")\">Roll Back</button>";
+        }
+        html += "<tr><td class='openBuildColOpen'>" + actionCell + "</td><td>" + build.charLevel +
+            "</td><td>" + build.effectCount + "</td><td>" + escHtml(formatBuildDate(build.updateDate)) + "</td></tr>";
+    }
+    document.getElementById("buildHistoryTableBody").innerHTML = html;
+}
+
+function handleRollback(characterBuildId, dateText, effectCount) {
+    let message = "Are you sure you want to roll back to the version from " + dateText +
+        " with " + effectCount + " effect selections?";
+    if (!confirm(message)) { return; }
+
+    fetch(CHARACTER_BUILD_API_BASE + "/" + characterBuildId + "/rollback", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({userId: getTestUserId()})
+    })
+        .then(function (r) { return rejectIfNotOk(r); })
+        .then(function (data) {
+            dialogBuildHistory.style.display = 'none';
+            dialogOpenBuild.style.display = 'none';
+            loadCharacterBuildFromServer(data.characterBuildId);
+        })
+        .catch(function (err) { alert("Roll back failed: " + err.message); });
 }
 
 function handleOpenBuildLinkClick(event, characterBuildId) {
