@@ -94,6 +94,9 @@ function initialize() {
     renderEnchantmentOptions();
     renderResult();
     handleRename(); // Sets to "Unnamed" if not invalid.
+    markSaved(); // Baseline for isDirty(): a fresh, untouched page is never "unsaved changes" -
+                 //   loadCharacterBuildFromUrl() below overwrites this with its own baseline if a
+                 //   shared link loads something real.
     loadCharacterBuildFromUrl();
 }
 
@@ -554,10 +557,11 @@ function updateSaveDownloadEnabled() {
 
 // ---- Unsaved-changes tracking ----
 //
-// null means "no baseline yet" (never saved or loaded this session) - always dirty in that state,
-//   so a brand-new build's Save button is enabled as soon as it has a valid level, same as before
-//   this tracking existed. Once a save or load establishes a baseline, dirty means "differs from
-//   that baseline" until the next save or load moves it.
+// lastSavedSnapshot always holds a real baseline - initialize() sets one for a blank page before
+//   any user interaction is possible, and every save/load moves it - so dirty always means "really
+//   differs from the last known-saved-or-loaded state," never "nothing to compare against yet."
+//   That matters beyond the Save button: confirmDiscardUnsavedChanges() below also relies on
+//   isDirty(), and a false positive there would nag on every single Open click on a fresh page.
 
 let lastSavedSnapshot = null;
 
@@ -572,7 +576,7 @@ function computeContentSnapshot() {
 }
 
 function isDirty() {
-    return lastSavedSnapshot === null || computeContentSnapshot() !== lastSavedSnapshot;
+    return computeContentSnapshot() !== lastSavedSnapshot;
 }
 
 function markSaved() {
