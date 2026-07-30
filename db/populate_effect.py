@@ -23,7 +23,10 @@ import os
 import sqlite3
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(HERE, "..", "source_data", "equipDDO.sqlite")
+# equipDDO.sqlite moved to obsolete/ 2026-07-30 once MariaDB became the live source of truth (see
+#   TO DO.md/Done.md) - this script is historical record of how `effect` was originally populated,
+#   not something meant to run again, but the path is kept correct in case it ever needs to.
+DB_PATH = os.path.join(HERE, "..", "obsolete", "equipDDO_source-of-truth-until-2026-07-30.sqlite")
 
 # Must match the live bonusType table's bonusTypeId values (db/seed_reference.sql).
 BONUS_TYPE_ID = {
