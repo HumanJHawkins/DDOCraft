@@ -123,12 +123,12 @@
                                                                                          alt=""
                                                                                          class="iconButtonSpacer"/>
     <img src="image/blank.png" alt="" class="iconButtonSpacer"/>
-    <img id="iconSave" src="image/save.svg" alt="Save" onClick="handleSaveToServer()" class="iconButtonImage"/>
-    <img src="image/open.svg" alt="Open" onClick="handleLoadFromServer()" class="iconButtonImage"/>
-    <img id="iconDownload" src="image/download.svg" alt="Download" onClick="handleDownloadReport()" class="iconButtonImage"/>
+    <img id="iconSave" src="image/save.svg" alt="Save" onClick="handleSaveToServer()" class="iconButtonImage" data-tooltip="Save to Server"/>
+    <img src="image/open.svg" alt="Open" onClick="handleLoadFromServer()" class="iconButtonImage" data-tooltip="Open from Server"/>
+    <img id="iconDownload" src="image/download.svg" alt="Download" onClick="handleDownloadReport()" class="iconButtonImage" data-tooltip="Download Report"/>
     <img src="image/blank.png" alt="" class="iconButtonSpacer"/>
-    <img src="image/help.png" alt="Help" onClick="showHelp()" class="iconButtonImage"/>
-    <img src="image/about.png" alt="About" onClick="showAbout()" class="iconButtonImage"/>
+    <img src="image/help.png" alt="Help" onClick="showHelp()" class="iconButtonImage" data-tooltip="Help"/>
+    <img src="image/about.png" alt="About" onClick="showAbout()" class="iconButtonImage" data-tooltip="About"/>
     <!--    <img src="image/blank.png" alt="" class="iconButtonSpacer"/>-->
     <!--    <img src="image/newGame.png" alt="New Game" onClick="resetGame()" class="iconButtonImage"/>-->
 </h1>
@@ -228,20 +228,6 @@
 
 <div id="enchantmentOptions"></div>
 <div id="result" class="result"></div>
-<div id="loadSave" class="loadSave">
-    <button id="save" onclick="handleSave()" class="loadSaveBtn"> Save...</button>
-    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-    <button onclick="document.getElementById('loadFile').click()" class="loadSaveBtn"> Open...</button>
-    <input type='file' id="loadFile" style="display:none">
-</div>
-<div id="loadSaveServer" class="loadSave">
-    <em>Server save/open - temporary test harness, not the real per-user feature yet:</em><br />
-    <label for="testUserId">Test User ID:</label>
-    <input type="number" id="testUserId" value="1" min="1" style="width:4em;">&nbsp;
-    <button onclick="handleSaveToServer()" class="loadSaveBtn"> Save to Server...</button>
-    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-    <button onclick="handleLoadFromServer()" class="loadSaveBtn"> Open from Server...</button>
-</div>
 
 </body>
 </html>

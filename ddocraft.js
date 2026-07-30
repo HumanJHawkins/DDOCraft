@@ -1175,16 +1175,6 @@ function setCharacterClassSelectByName(className) {
     select.value = "";
 }
 
-function handleSave() {
-    handleRename(true);
-    updateSave();
-
-    let fileName = charData.saveFile.charName;
-    fileName += "_L" + zeroPad(charData.saveFile.charLevel, 2);
-    fileName += "_" + getTimestamp();
-    downloadJSON(JSON.stringify(charData.saveFile), fileName + ".json", 'text/plain')
-}
-
 function zeroPad(num, digits) {
     return String(num).padStart(digits, '0');
 }
@@ -1347,51 +1337,6 @@ function confirmDiscardUnsavedChanges(actionLabel) {
     return confirm("Discard the unsaved changes to \"" + name + "\" and " + actionLabel + " anyway?");
 }
 
-// File Loading
-document.getElementById('loadFile').onchange = function () {
-    let files = document.getElementById('loadFile').files;
-    if (files.length <= 0) { return false; }
-    if (!confirmDiscardUnsavedChanges("loading a file")) {
-        document.getElementById('loadFile').value = "";
-        return false;
-    }
-
-    let fr    = new FileReader();
-    fr.onload = function (e) {
-        let incomingFile = JSON.parse(e.target.result);
-
-        let fileName = String(files[0].name);
-        if (!incomingFile.charName) {
-            incomingFile.charName = getNameFromOldFilename(fileName);
-        }
-
-        if (!incomingFile.charLevel) {
-            incomingFile.charLevel = getLevelFromOldFilename(fileName);
-        }
-
-        handleLoad(incomingFile);
-        currentServerBuildId = null;  // a local file has no known server id to match against
-        markSaved();
-        renderEnchantmentOptions();
-        renderResult();
-    }
-    fr.readAsText(files.item(0));
-}
-
-function getNameFromOldFilename(fileName){
-    let likelyName = fileName.slice(0,fileName.indexOf("_L"));
-    if(!likelyName) { likelyName = "Unknown"; }
-    return likelyName;
-}
-
-function getLevelFromOldFilename(fileName){
-    let levelStart = fileName.indexOf("_L") + 2;
-    let likelyLevel = fileName.substring(levelStart, levelStart+2);
-    if(!likelyLevel || likelyLevel < 1 || likelyLevel > 32) { likelyLevel = 32; }
-    return likelyLevel;
-}
-
-
 function handleLoad(incomingFile) {
     // Opening a finished build is a different moment than actively building one - show it off
     //   as a title immediately rather than landing back in edit mode.
@@ -1462,9 +1407,11 @@ function handleLoad(incomingFile) {
 
 const CHARACTER_BUILD_API_BASE = "/api/character-builds";
 
+// Hardcoded until GateIron.com's real accounts exist and this can come from an authenticated
+//   session instead (see TO DO.md) - the visible "Test User ID" field this used to read is gone,
+//   there being no real multi-user concept to test yet.
 function getTestUserId() {
-    let value = Number(document.getElementById("testUserId").value);
-    return Number.isInteger(value) && value > 0 ? value : 1;
+    return 1;
 }
 
 function handleSaveToServer() {
