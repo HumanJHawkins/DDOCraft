@@ -433,7 +433,7 @@ function isOptionGood(slot, enchName, idx) {
     let isAugment = slot.substring(0, 3) === "Aug";
     let minLevel  = isAugment ? ench.enchAugmentMinLevel : ench.enchCannithMinLevel;
     if (charData.saveFile.charLevel < minLevel) { return false; }
-    if (getEnchFilterValue(enchName) < 1) { return false; }
+    if (getFilterValue(enchName) < 1) { return false; }
     let effectCount = idx.effectTypeCounts[ench.enchEffectType] || 0;
     if (effectCount > 0) { return false; }
     if (idx.allSelectedNames.has(ench.enchSupercededBy)) { return false; }
@@ -784,7 +784,7 @@ function renderCustomItemBody(category, idx) {
         " onchange=\"handleCustomItemName(this,'" + escJs(category) + "')\" />" +
         renderNamedItemDatalist(category) +
         renderCustomItemMinLevel(category, custom) +
-        (needsSetup ? " <em class='namedItemSetupHint'>(enter a name and min level to continue)</em>" : getAddAugmentControlHtml(category)) +
+        (needsSetup ? " <span class='setupHint'>&lt;--- Enter the item name and min level to continue.</span>" : getAddAugmentControlHtml(category)) +
         "</td></tr>";
 
     if (needsSetup) { return html; }
@@ -1028,27 +1028,28 @@ function getInherentButton(category, item, enchName, idx) {
         idx.allSelectedNames.has(ench.enchSupercededBy)
     );
 
-    let enchValue = getEnchFilterValue(enchName);
-    let onclick   = "enchClickInherent('" + escJs(category) + "','" + escJs(item) + "','" + escJs(enchName) + "')";
-    let title     = escHtml(ench.enchDesc);
+    let filterValue    = getFilterValue(enchName);
+    let highlightValue = getHighlightValue(enchName);
+    let onclick        = "enchClickInherent('" + escJs(category) + "','" + escJs(item) + "','" + escJs(enchName) + "')";
+    let title           = escHtml(ench.enchDesc);
     let btn;
 
     if (isSelected) {
         // Inherent effects are always a custom item's own - never the individual rose treatment,
         //   same reasoning as getButton(). See computeSelectionIndex()'s customCategoryOverlap.
         btn = "<button class='selected' title=\"" + title + "\" ";
-        enchValue = 1;
+        filterValue = 1;
     } else if (isHandled) {
         btn = "<button class='handled' title=\"" + title + "\" ";
-    } else if (enchValue >= 1) {
-        btn = "<button style='background-color: " + getHighlight(enchValue) + "; color: black;' title=\"" + title + "\" ";
+    } else if (highlightValue >= 1) {
+        btn = "<button style='background-color: " + getHighlight(highlightValue) + "; color: black;' title=\"" + title + "\" ";
     } else {
         btn = "<button title=\"" + title + "\" ";
     }
 
     btn += "onclick=\"" + onclick + "\">" + escHtml(enchName) + "</button> ";
 
-    return enchValue < 1 ? "" : btn;
+    return filterValue < 1 ? "" : btn;
 }
 
 function enchClickInherent(category, item, enchName, render = true) {
@@ -1380,7 +1381,8 @@ function getButton(item, slot, color, enchName, idx) {
     let minLevel  = isAugment ? ench.enchAugmentMinLevel : ench.enchCannithMinLevel;
     if (charData.saveFile.charLevel < minLevel) { return ""; }
 
-    let enchValue = getEnchFilterValue(enchName);
+    let filterValue    = getFilterValue(enchName);
+    let highlightValue = getHighlightValue(enchName);
 
     let occupant      = getOccupant(item, slot);
     let isSelectedHere = !!occupant && occupant.enchName === enchName && occupant.color === color;
@@ -1403,7 +1405,7 @@ function getButton(item, slot, color, enchName, idx) {
         //   changed short of using a different item) get the suppressed/header-warning treatment -
         //   see getInherentButton() and computeSelectionIndex()'s customCategoryOverlap.
         btn = "<button class='" + (isDuplicate ? "duplicate" : "selected") + "' title=\"" + title + "\" ";
-        enchValue = 1;  // Display all selected enchantments regardless of filter.
+        filterValue = 1;  // Display all selected enchantments regardless of filter.
     } else if (isHandled) {
         // Discouraged, not disabled: the same effect is already selected elsewhere, but taking
         //   it here too is allowed (see computeSelectionIndex()).
@@ -1412,17 +1414,15 @@ function getButton(item, slot, color, enchName, idx) {
         // Discouraged, not disabled: only one effect may occupy this item+slot at a time, but
         //   clicking a different one here swaps it in rather than being blocked (see enchClick()).
         btn = "<button class='blocked' title=\"" + title + "\" ";
-    } else if (enchValue >= 1) {
-        // Every visible, unselected/unhandled/unblocked button gets a tint now, even at the floor
-        //   (enchValue 1) - no more jump between "not specially colored at all" and "highlighted".
-        btn = "<button style='background-color: " + getHighlight(enchValue) + "; color: black;' title=\"" + title + "\" ";
+    } else if (highlightValue >= 1) {
+        btn = "<button style='background-color: " + getHighlight(highlightValue) + "; color: black;' title=\"" + title + "\" ";
     } else {
         btn = "<button title=\"" + title + "\" ";
     }
 
     btn += "onclick=\"" + onclick + "\">" + escHtml(enchName) + "</button> ";
 
-    return enchValue < 1 ? "" : btn;
+    return filterValue < 1 ? "" : btn;
 }
 
 function escHtml(s) {
@@ -1466,19 +1466,32 @@ function rgb(r, g, b) {
 }
 
 
-function getEnchFilterValue(enchName) {
-    let ench      = charData.enchantments[enchName];
-    let enchValue = 0;
-    if (charData.enchFilter.allEnch) { enchValue += 1; }
-    if (charData.enchFilter.basic) { enchValue += ench.basic; }
-    if (charData.enchFilter.nonscaling) { enchValue += ench.nonscaling; }
-    if (charData.enchFilter.forMeleeDmg) { enchValue += ench.forMeleeDmg; }
-    if (charData.enchFilter.forRangedDmg) { enchValue += ench.forRangedDmg; }
-    if (charData.enchFilter.forACDefence) { enchValue += ench.forACDefence; }
-    if (charData.enchFilter.forResistDefence) { enchValue += ench.forResistDefence; }
-    if (charData.enchFilter.forHitPoints) { enchValue += ench.forHitPoints; }
+// Filter and Highlight are two independent checkbox groups (see the Character Info section, added
+//   2026-07-30) - they used to be a single combined score that both hid AND brightened buttons
+//   together, which meant unchecking every Highlight box while a Filter box was checked could still
+//   hide things, and checking only a Highlight box (with every Filter box off) worked as an
+//   accidental filter too. Now split cleanly: Filter alone decides visibility (getFilterValue below,
+//   0 = hidden), Highlight alone decides brightness on top of whatever's already visible
+//   (getHighlightValue, 0 = no tint) - see getButton()/getInherentButton() for how they combine.
 
-    return enchValue;
+function getFilterValue(enchName) {
+    let ench  = charData.enchantments[enchName];
+    let value = 0;
+    if (charData.enchFilter.allEnch) { value += 1; }
+    if (charData.enchFilter.basic) { value += ench.basic; }
+    if (charData.enchFilter.nonscaling) { value += ench.nonscaling; }
+    return value;
+}
+
+function getHighlightValue(enchName) {
+    let ench  = charData.enchantments[enchName];
+    let value = 0;
+    if (charData.enchFilter.forMeleeDmg) { value += ench.forMeleeDmg; }
+    if (charData.enchFilter.forRangedDmg) { value += ench.forRangedDmg; }
+    if (charData.enchFilter.forACDefence) { value += ench.forACDefence; }
+    if (charData.enchFilter.forResistDefence) { value += ench.forResistDefence; }
+    if (charData.enchFilter.forHitPoints) { value += ench.forHitPoints; }
+    return value;
 }
 
 
@@ -1563,6 +1576,17 @@ function handleRename(fixBoth = false) {
     updateSaveDownloadEnabled();  // charName is part of isDirty()'s snapshot but nothing else
                                    //   re-checks it - unlike level/selections, this field's own
                                    //   onchange never otherwise triggers a render.
+    updateCharacterInfoSetupHint();
+}
+
+// Checks the raw input field, not charData.saveFile.charName - that auto-defaults to "Unnamed" the
+//   moment handleRename() runs (see above), so it's always truthy and can't tell "nothing typed yet"
+//   from "user typed a name." Shown until both a name and a valid level exist - see hasValidCharLevel().
+function updateCharacterInfoSetupHint() {
+    let hint = document.getElementById("characterInfoSetupHint");
+    if (!hint) { return; }
+    let nameEntered = !!document.getElementById("characterName").value.trim();
+    hint.style.display = (nameEntered && hasValidCharLevel()) ? "none" : "inline";
 }
 
 // Optional, free text - deliberately not part of computeBuildChecksum() (see server/src/routes/
@@ -1842,6 +1866,7 @@ function handleLoad(incomingFile) {
     handleRename(true);
     document.getElementById("characterLevel").value = incomingFile.charLevel;
     charData.saveFile.charLevel                     = Number(incomingFile.charLevel);
+    updateCharacterInfoSetupHint(); // handleRename(true) above already ran before level was restored
     // classNames replaced the old single className 2026-07-30 - a build saved before that change
     //   only has className, so fall back to wrapping it as a one-element array.
     charData.saveFile.classNames = incomingFile.classNames ||
@@ -2241,6 +2266,7 @@ function handleCharLevelChange() {
 
     charData.saveFile.charLevel = isValid ? level : "";
     if (!isValid) { input.value = ""; }
+    updateCharacterInfoSetupHint();
     // Named Item combo box datalists are level-filtered and rendered inline per category on every
     //   renderEnchantmentOptions() call below (see renderNamedItemDatalist()) - no separate update
     //   needed here just because the level changed.

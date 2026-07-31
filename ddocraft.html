@@ -12,61 +12,44 @@
     <script src="ddocraft.js" defer></script>
 </head>
 <body>
-<!-- Modal help dialog. Hidden while not in use. -->
+<!-- Modal help dialog. Hidden while not in use. Rewritten 2026-07-30 - short and scannable, and
+     doesn't re-explain what the on-screen hints already cover (the Character Info "set at least
+     name and level" hint, the Filter/Highlight section headings' own one-line descriptions, and the
+     Named Item "enter a name and min level" hint). -->
 <div id="help" class="modal">
     <div id="divHelpDialog" class="modal-content">
         <div id="btnCloseHelp" class="modalClose" onClick="dialogHelp.style.display='none'">&times;</div>
-        <h3 class="modalText modalHeading">Help! </h3>
-        <p class="indent helpText">
-            Use the filter (under the gear icon) to select some or all of the categories of enchantments you are
-            interested in. Consider and make a decision on the brightest highlights first. These are enchantments
-            most people seem to agree are really useful, and some of them are not available except in a few locations.
-            So it is important to get them if you care before adding other enchantments that might block them from
-            being available.
-        </p>
-        <p class="indent helpText">Be aware that you can click to collapse or expand items, slots or augment colors. If
-            you have an item with a particular color augment slot, you can collapse the other colors to get them out
-            of the way.
-        </p>
-        <p class="indent helpText">Use the save / open buttons at the bottom to preserve your work. This is
-            beta and the file structure may change. For a rock solid backup of your plan, copy the text out of the description.
-            That way you can always reconstruct it.
-        </p>
+        <h3 class="modalText modalHeading">Help</h3>
+        <ul class="helpList">
+            <li class="helpText">Click any item, slot, or augment color to collapse or expand it - tuck away
+                colors you don't have or effects you've already decided on.</li>
+            <li class="helpText"><strong>Save to Cloud</strong> keeps your build online. <strong>Open</strong>
+                loads one you saved before. <strong>Download</strong> makes a shareable report.</li>
+            <li class="helpText"><strong>Named Items</strong> are new and still a work in progress - for now,
+                picking the closest existing match by name is the best this app can do. Use the Description
+                field to jot down what's actually different about your item, so you (or a future you) can
+                sort it out later.</li>
+        </ul>
     </div>
 </div>
 
-<!-- Modal about dialog. Hidden while not in use. -->
+<!-- Modal about dialog. Hidden while not in use. Rewritten 2026-07-30 to drop personal contact info,
+     license text, and the GitHub link, and to brand this as a GateIron, LLC project instead - see
+     Done.md for the reasoning (more changes coming once licensing is settled). -->
 <div id="about" class="modal">
     <div id="divAboutDialog" class="modal-content">
         <div id="btnCloseAbout" class="modalClose" onClick="dialogAbout.style.display='none'">&times;</div>
-        <h3 class="modalText modalHeading">About DDO Cannith Crafting Planner</h3>
+        <h3 class="modalText modalHeading">About</h3>
         <p class="indent helpText">
-            This app (and especially the data behind it) is at a beta level of completion. It's fairly stable, but
-            there will be bugs. Please double-check results in-game before actually using your valuable crafting
-            materials. Your licence to use this software is governed by the
-            <a href="https://www.gnu.org/licenses/gpl-3.0.en.html" target="_blank">GPL 3.0 License</a> and in short, I
-            am not liable for the loss of your ingredients (or any other thing) related to your use of this software.
+            DDOCraft is a <a href="https://gateiron.com" target="_blank">GateIron, LLC</a> project, developed
+            by Jeff Hawkins.
         </p>
         <p class="indent helpText helpEnd">
-            <strong>Interested in making this better?</strong> If you believe something is in error (present when it
-            shouldn't be, or missing when it should be there) please let me know. If you are up for a more extensive
-            task, this could be much improved by adding minimum level data or by writing short names for the
-            enchantments. Please contact me if you would like to participate in this.
+            This app (and especially the data behind it) is at a beta level of completion. It's fairly stable,
+            but there will be bugs - please double-check results in-game before spending your crafting materials.
         </p>
         <p class="indent helpText helpEnd">
-            Send bug reports or suggestions via Github at <a href="https://github.com/HumanJHawkins/DDOCraft/issues"
-                                                             target="_blank">https://github.com/HumanJHawkins/DDOCraft/issues</a>, or PM HumanJHawkins at
-            <a href="https://www.ddo.com/en/forums/forum.php"
-               target="_blank">https://www.ddo.com/en/forums/forum.php</a>.
-            On the off chance you want to buy me a coffee (hey... it happened once!), my Venmo is @humanjhawkins.
-        </p>
-        <p class="indent helpText">
-            Full source code is available at
-            <a href="https://github.com/HumanJHawkins/DDOCraft"
-               target="_blank">https://github.com/HumanJHawkins/DDOCraft</a>
-        </p>
-        <p class="indent helpText helpEnd">
-            &copy; 2021 Jeff Hawkins except as noted in the code. This software is under GPL 3.0 license.
+            &copy; 2026 GateIron, LLC
         </p>
     </div>
 </div>
@@ -138,9 +121,9 @@
                                                                                          alt=""
                                                                                          class="iconButtonSpacer"/>
     <img src="image/blank.png" alt="" class="iconButtonSpacer"/>
-    <span id="iconSave" class="iconButtonWrap" data-tooltip="Save to Server"><img src="image/save.svg" alt="Save" onClick="handleSaveToServer()" class="iconButtonImage"/></span>
-    <span class="iconButtonWrap" data-tooltip="Open from Server"><img src="image/open.svg" alt="Open" onClick="handleLoadFromServer()" class="iconButtonImage"/></span>
-    <span id="iconDownload" class="iconButtonWrap" data-tooltip="Download Report"><img src="image/download.svg" alt="Download" onClick="handleDownloadReport()" class="iconButtonImage"/></span>
+    <span id="iconSave" class="iconButtonWrap" data-tooltip="Save to Cloud"><img src="image/save.svg" alt="Save" onClick="handleSaveToServer()" class="iconButtonImage"/></span>
+    <span class="iconButtonWrap" data-tooltip="Open"><img src="image/open.svg" alt="Open" onClick="handleLoadFromServer()" class="iconButtonImage"/></span>
+    <span id="iconDownload" class="iconButtonWrap" data-tooltip="Download"><img src="image/download.svg" alt="Download" onClick="handleDownloadReport()" class="iconButtonImage"/></span>
     <img src="image/blank.png" alt="" class="iconButtonSpacer"/>
     <span class="iconButtonWrap" data-tooltip="Help"><img src="image/help.png" alt="Help" onClick="showHelp()" class="iconButtonImage"/></span>
     <span class="iconButtonWrap" data-tooltip="About"><img src="image/about.png" alt="About" onClick="showAbout()" class="iconButtonImage"/></span>
@@ -172,6 +155,7 @@
                 <label>Class(es)</label>
                 <div id="classPickerSummary" class="classPickerSummary" onclick="toggleClassPicker()">(none)</div>
             </div>
+            <span id="characterInfoSetupHint" class="setupHint">&lt;--- Set at least name and level to start.</span>
         </div>
         <!-- Same collapsed-summary/Done pattern as the Inherent Effects picker - see toggleClassPicker()/
              updateClassPickerDisplay() in ddocraft.js. Full-width, not in .characterInfoFields' flex row,
@@ -184,66 +168,47 @@
             <label for="characterDescription">Description (optional)</label>
             <textarea id="characterDescription" onchange="handleDescriptionChange()" placeholder="Character description..." class="customItemDescription"></textarea>
         </div>
-        <div class="characterInfoHighlightLabel">Highlight</div>
-        <div class="helpText">
-            <p>Check enchantment groups to highlight effects that benefit them. This doesn't select or deselect
-                anything in your build - it just helps with clutter and highlights enchantments commonly
-                prioritized for the groups checked.</p>
-        </div>
-        <div class="helpText modal-checklist">
-            <table class="modal-table">
-                <tr>
-                    <td><label class='checklabel' for='allEnch'>
-                            <input type='checkbox' id='allEnch' name='allEnch' value='allEnch'
-                                   onchange="handleFilterCheckbox(this)" checked />All</label></td>
-                </tr>
-                <tr>
-                <tr>
-                    <td><label class='checklabel' for='basic'>
-                            <input type='checkbox' id='basic' name='basic' value='basic'
-                                   onchange="handleFilterCheckbox(this)"/>Basics</label>
-                    </td>
-                </tr>
-                <tr>
-                    <td><label class='checklabel' for='nonscaling'>
-                            <input type='checkbox' id='nonscaling' name='nonscaling' value='nonscaling'
-                                   onchange="handleFilterCheckbox(this)"/>Non-scaling</label>
-                    </td>
-                </tr>
-            </table>
-            <table class="modal-table">
-                <tr>
-                    <td><label class='checklabel' for='forMeleeDmg'>
-                            <input type='checkbox' id='forMeleeDmg' name='forMeleeDmg' value='forMeleeDmg'
-                                   onchange="handleFilterCheckbox(this)"/>Melee Damage</label>
-                    </td>
-                </tr>
-                <tr>
-                    <td><label class='checklabel' for='forRangedDmg'>
-                            <input type='checkbox' id='forRangedDmg' name='forRangedDmg' value='forRangedDmg'
-                                   onchange="handleFilterCheckbox(this)"/>Ranged Damage</label>
-                    </td>
-                </tr>
-                <tr>
-                    <td><label class='checklabel' for='forACDefence'>
-                            <input type='checkbox' id='forACDefence' name='forACDefence' value='forACDefence'
-                                   onchange="handleFilterCheckbox(this)"/>AC Build</label>
-                    </td>
-                </tr>
-                <tr>
-                    <td><label class='checklabel' for='forResistDefence'>
-                            <input type='checkbox' id='forResistDefence' name='forResistDefence'
-                                   value='forResistDefence'
-                                   onchange="handleFilterCheckbox(this)"/>Resistance</label>
-                    </td>
-                </tr>
-                <tr>
-                    <td><label class='checklabel' for='forHitPoints'>
-                            <input type='checkbox' id='forHitPoints' name='forHitPoints' value='forHitPoints'
-                                   onchange="handleFilterCheckbox(this)"/>Hit Points</label>
-                    </td>
-                </tr>
-            </table>
+        <!-- Filter and Highlight are two independent checkbox groups (split 2026-07-30 - see
+             getFilterValue()/getHighlightValue() in ddocraft.js) - Filter controls whether an
+             enchantment shows up at all, Highlight only tints ones already showing. They used to be
+             one combined "Highlight" section/score, which was both visually and functionally
+             misleading. -->
+        <div class="filterHighlightSection">
+            <div class="filterGroup">
+                <div class="filterGroupHeading">Filter <span class="filterGroupDesc">(check to show, uncheck to hide)</span></div>
+                <div class="filterGroupOptions">
+                    <label class='checklabel' for='allEnch'>
+                        <input type='checkbox' id='allEnch' name='allEnch' value='allEnch'
+                               onchange="handleFilterCheckbox(this)" checked />All</label>
+                    <label class='checklabel' for='basic'>
+                        <input type='checkbox' id='basic' name='basic' value='basic'
+                               onchange="handleFilterCheckbox(this)"/>Basics</label>
+                    <label class='checklabel' for='nonscaling'>
+                        <input type='checkbox' id='nonscaling' name='nonscaling' value='nonscaling'
+                               onchange="handleFilterCheckbox(this)"/>Non-scaling</label>
+                </div>
+            </div>
+            <div class="filterGroup">
+                <div class="filterGroupHeading">Highlight <span class="filterGroupDesc">(check to highlight effects in these categories)</span></div>
+                <div class="filterGroupOptions">
+                    <label class='checklabel' for='forMeleeDmg'>
+                        <input type='checkbox' id='forMeleeDmg' name='forMeleeDmg' value='forMeleeDmg'
+                               onchange="handleFilterCheckbox(this)"/>Melee Damage</label>
+                    <label class='checklabel' for='forRangedDmg'>
+                        <input type='checkbox' id='forRangedDmg' name='forRangedDmg' value='forRangedDmg'
+                               onchange="handleFilterCheckbox(this)"/>Ranged Damage</label>
+                    <label class='checklabel' for='forACDefence'>
+                        <input type='checkbox' id='forACDefence' name='forACDefence' value='forACDefence'
+                               onchange="handleFilterCheckbox(this)"/>AC Build</label>
+                    <label class='checklabel' for='forResistDefence'>
+                        <input type='checkbox' id='forResistDefence' name='forResistDefence'
+                               value='forResistDefence'
+                               onchange="handleFilterCheckbox(this)"/>Resistance</label>
+                    <label class='checklabel' for='forHitPoints'>
+                        <input type='checkbox' id='forHitPoints' name='forHitPoints' value='forHitPoints'
+                               onchange="handleFilterCheckbox(this)"/>Hit Points</label>
+                </div>
+            </div>
         </div>
 
         <p style="clear: both"></p>

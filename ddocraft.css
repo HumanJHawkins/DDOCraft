@@ -127,14 +127,6 @@ select {
 
 .checklabel {
     white-space: nowrap;
-    overflow: scroll;
-    vertical-align: middle;
-}
-
-.modal-checklist {
-    border: 0;
-    padding: 1vw;
-    /*width: 100%;*/
 }
 
 input[type='checkbox'] {
@@ -144,24 +136,6 @@ input[type='checkbox'] {
     vertical-align: center;
     /*width: calc(10px + 1vw);*/
 }
-
-.modal-table {
-    float: left;
-    table-layout: auto;
-    /*border: 1px solid black;*/
-    padding: 1vw;
-    margin-left: 1vw;
-    margin-right: 1vw;
-    margin-bottom: 1vw;
-    width: auto;
-}
-
-.modal-table td {
-    margin: .25vw;
-    padding: 0.25vw;
-    border: 0;
-}
-
 
 .helpText {
     text-align: left;
@@ -174,6 +148,14 @@ input[type='checkbox'] {
     margin-bottom: 2.5vh;
 }
 
+.helpList {
+    margin: 1vw 0 2vh 0;
+    padding-left: 1.5vw;
+}
+
+.helpList li {
+    margin-bottom: 1vw;
+}
 
 .indent {
     margin-left: 2vw;
@@ -334,6 +316,20 @@ img {
     letter-spacing: .06em;
 }
 
+/* A quiet nudge, not a warning - italic and slightly dimmed rather than the bold uppercase labels
+   around it, so it doesn't compete with them. Shared between the Character Info fields row and the
+   Named Item Name row (see namedItemNeedsSetup() in ddocraft.js) - same situation both places: a
+   couple of required fields need filling in before anything else unlocks. */
+.setupHint {
+    align-self: center;
+    font-family: Georgia, "Palatino Linotype", "Book Antiqua", serif;
+    font-style: italic;
+    font-size: calc(5px + .65vw);
+    color: #a8862d;
+    opacity: .8;
+    white-space: nowrap;
+}
+
 .characterInfoField input,
 .characterInfoField select {
     margin: 0;  /* overrides the global "select { margin: 1vw auto auto auto; }" rule, which was
@@ -409,19 +405,47 @@ img {
     border-radius: 2px;
 }
 
-.characterInfoHighlightLabel {
-    font-family: Georgia, "Palatino Linotype", "Book Antiqua", serif;
-    color: #c9a961;
-    font-size: calc(4px + .65vw);
-    letter-spacing: .04em;
-    margin: .2vw 0 .1vw 0;
+/* Filter and Highlight (split 2026-07-30 - see ddocraft.js's getFilterValue()/getHighlightValue())
+   stack vertically as their own labeled blocks, but each block's own checkboxes run horizontally -
+   replaces the old single "Highlight" section, which stacked every checkbox in two narrow vertical
+   tables, plus a plain white/unstyled explanatory paragraph shared by both groups even though they
+   don't behave the same way. */
+.filterHighlightSection {
+    display: flex;
+    flex-direction: column;
+    gap: .6vw;
+    margin-top: .4vw;
+}
+
+.filterGroup {
     border-top: 1px solid #3a2f1c;
     padding-top: .4vw;
 }
 
+.filterGroupHeading {
+    font-family: Georgia, "Palatino Linotype", "Book Antiqua", serif;
+    color: #c9a961;
+    font-size: calc(4px + .65vw);
+    letter-spacing: .04em;
+}
 
+.filterGroupDesc {
+    font-family: Georgia, "Palatino Linotype", "Book Antiqua", serif;
+    font-style: italic;
+    color: #a8862d;
+    opacity: .8;
+    font-size: calc(4px + .55vw);
+    letter-spacing: normal;
+    text-transform: none;
+}
 
-
+.filterGroupOptions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .3vw 1.4vw;
+    margin-top: .3vw;
+}
 
 
 
@@ -730,16 +754,20 @@ button.handled, button.blocked {
     border-bottom: 1px solid #a8862d;
 }
 
-/* Open Build and History are the only two dialogs given the main page's dark/brown-and-orange
-   look - Help/About keep the original light modal-content (untouched below). Scoped by id rather
-   than changing .modal-content itself, since that class is shared by every dialog. */
-#openBuild .modal-content, #buildHistory .modal-content {
+/* Every dialog now gets the main page's dark/brown-and-orange look - Help/About joined Open Build
+   and History here 2026-07-30 (previously the only two light dialogs left, see TO DO.md's now-
+   resolved Maybe item). Scoped by id rather than changing .modal-content itself, since that class
+   is shared by every dialog (including saveDiscardCancel, styled separately - see its own rule). */
+#openBuild .modal-content, #buildHistory .modal-content,
+#help .modal-content, #about .modal-content {
     background-color: #0d0d0d;
     color: #f1f1f1;
 }
 
 #openBuild .modalClose:hover, #openBuild .modalClose:focus,
-#buildHistory .modalClose:hover, #buildHistory .modalClose:focus {
+#buildHistory .modalClose:hover, #buildHistory .modalClose:focus,
+#help .modalClose:hover, #help .modalClose:focus,
+#about .modalClose:hover, #about .modalClose:focus {
     color: #fff;  /* the shared .modalClose:hover color (#000) would vanish against this background */
 }
 
